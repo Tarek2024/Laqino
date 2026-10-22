@@ -1,0 +1,399 @@
+<!doctype html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>سوق لاقينو</title>
+<link rel="icon" href="data:,">
+<style>
+:root{--bg:#f6f7f9;--card:#fff;--tx:#1b1f24;--mut:#68707a;--ac:#0b7a5c;--bd:#dfe3e8}
+@media(prefers-color-scheme:dark){:root{--bg:#14171a;--card:#1d2226;--tx:#eceff1;--mut:#9aa4ad;--ac:#3fbf9a;--bd:#2e353b}}
+*{box-sizing:border-box}body{margin:0;font-family:system-ui,"Segoe UI",Tahoma,sans-serif;background:var(--bg);color:var(--tx)}
+header{background:var(--card);border-bottom:1px solid var(--bd);padding:10px 12px}
+h1{font-size:18px;margin:0 0 8px}main{max-width:900px;margin:0 auto;padding:12px}
+input,select,button{font:inherit;color:inherit;background:var(--card);border:1px solid var(--bd);border-radius:10px;padding:9px 10px;min-height:42px}
+#q{width:100%}.row{display:flex;flex-wrap:wrap;gap:8px;margin-top:8px}.row>*{flex:1 1 130px}
+button.pri{background:var(--ac);color:#fff;border-color:var(--ac);cursor:pointer}
+.grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(160px,1fr));gap:10px}
+.card{background:var(--card);border:1px solid var(--bd);border-radius:12px;overflow:hidden;cursor:pointer;display:flex;flex-direction:column}
+.card .ph{aspect-ratio:4/3;background:var(--bd);display:flex;align-items:center;justify-content:center;color:var(--mut);font-size:13px}
+.card img{width:100%;height:100%;object-fit:cover;display:block}.card .b{padding:8px 10px}
+.t{font-weight:600;font-size:14px;margin:0 0 4px;overflow:hidden;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical}
+.p{color:var(--ac);font-weight:700}.m{color:var(--mut);font-size:12px}
+.tag{display:inline-block;border:1px solid var(--bd);border-radius:20px;padding:2px 8px;font-size:12px;margin-inline-end:4px;color:var(--mut)}
+#more{display:block;margin:14px auto}.empty{text-align:center;color:var(--mut);padding:40px 0}
+.det{background:var(--card);border:1px solid var(--bd);border-radius:12px;padding:12px}
+.main{width:100%;aspect-ratio:4/3;object-fit:contain;background:var(--bd);border-radius:10px}
+.thumbs{display:flex;gap:6px;overflow-x:auto;margin:8px 0}.thumbs img{width:64px;height:64px;object-fit:cover;border-radius:8px;border:2px solid transparent;cursor:pointer}
+.thumbs img.on{border-color:var(--ac)}table{width:100%;border-collapse:collapse;margin-top:10px}td{padding:7px 4px;border-bottom:1px solid var(--bd);font-size:14px}td:first-child{color:var(--mut);width:40%}
+a.back{color:var(--ac);cursor:pointer;display:inline-block;margin-bottom:8px}.err{color:#c0392b;text-align:center;padding:20px}
+.msg img.ci{display:block;max-width:100%;max-height:240px;border-radius:8px;cursor:pointer;margin-bottom:4px}.msg.ph{font-size:13px;color:var(--mut)}.attach{display:inline-block}.msgs{display:flex;flex-direction:column;gap:6px;max-height:55vh;overflow:auto;padding:8px;background:var(--card);border:1px solid var(--bd);border-radius:12px;margin:8px 0}.msg{max-width:80%;padding:8px 10px;border-radius:12px;background:var(--bd);white-space:pre-wrap;word-break:break-word;align-self:flex-start}.msg.mine{background:var(--ac);color:#fff;align-self:flex-end}.cbox{margin:10px 0;display:flex;flex-direction:column;gap:8px}.cbox button,#mychats{cursor:pointer}textarea{font:inherit;color:inherit;background:var(--card);border:1px solid var(--bd);border-radius:10px;padding:9px 10px;width:100%;min-height:60px}
+</style>
+<style id="lagino-market-polish">
+:root{--lag-navy:#0f2a5c;--lag-orange:#f28c1b;--lag-line:#dce4f2;--lag-shadow:0 8px 24px #0f2a5c10}
+body{font-family:"IBM Plex Sans Arabic",Tahoma,system-ui,sans-serif;line-height:1.65}
+header{box-shadow:0 4px 18px #0f2a5c0b!important}
+main{width:min(100% - 24px,900px);margin-inline:auto}
+.card,.item,.listing,.ad,.box{border-radius:18px!important;border-color:var(--lag-line)!important;box-shadow:var(--lag-shadow)!important;overflow-wrap:anywhere}
+button,a.button{font-family:inherit;min-height:42px;border-radius:12px;touch-action:manipulation}
+input,select,textarea{font:inherit;max-width:100%;min-width:0;border-radius:12px}
+img{max-width:100%;height:auto}
+.grid,.cards,.items{grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}
+@media(max-width:360px){main{width:calc(100% - 16px)}.grid,.cards,.items{gap:8px}.card,.item,.listing,.ad,.box{padding:11px!important}}
+@media(min-width:768px){main{width:min(100% - 40px,1000px)}}
+</style>
+<style id="lagino-market-3d">
+/* المرحلة 29: واجهة السوق بإحساس 3D (ظلال متعددة الطبقات + ضغط/رفع عند اللمس) — تنسيق فقط، نفس الـDOM والوظائف */
+:root{--lag-ink:#16213a;--lag-mut:#5a6580}
+@media(prefers-color-scheme:dark){:root{--lag-ink:#eceff1;--lag-mut:#a9b3c2}}
+body{background:var(--bg)}
+header{background:linear-gradient(160deg,#0f2a5c,#1b3f86)!important;color:#fff;border:0!important;border-radius:0 0 26px 26px;box-shadow:0 14px 26px -12px rgba(15,42,92,.6)!important;padding:14px 14px 18px!important}
+header h1{font-size:26px;font-weight:900;color:#fff;margin:0 0 10px}
+header #mychats,header #myfav{background:rgba(255,255,255,.14);color:#fff;border:0;font-weight:700;padding:0 16px;min-height:44px;box-shadow:inset 0 1px 0 rgba(255,255,255,.3);cursor:pointer;margin-inline-end:6px}
+header #q{min-height:50px;border-radius:16px;border:0!important;background:#fff;color:#16213a;margin-top:10px;padding:0 14px;box-shadow:inset 0 2px 4px rgba(15,42,92,.14),0 6px 14px -6px rgba(0,0,0,.4)}
+header .row select,header .row input{min-height:44px;background:#fff;color:#16213a;border:0!important;box-shadow:inset 0 -2px 0 #dfe5f2,0 6px 10px -6px rgba(0,0,0,.35)}
+header #filters{flex-wrap:nowrap;overflow-x:auto;padding:2px 2px 8px;scrollbar-width:none}header #filters::-webkit-scrollbar{display:none}header #filters>*{flex:0 0 150px}
+.grid{gap:16px!important;padding-top:6px}
+@media(min-width:768px){.grid{grid-template-columns:repeat(3,minmax(0,1fr))!important}}
+.card{position:relative;background:var(--card);border:0!important;border-radius:22px!important;overflow:visible;transition:transform .18s ease,box-shadow .18s ease;box-shadow:0 10px 16px -8px rgba(15,42,92,.32),0 24px 36px -22px rgba(15,42,92,.4)!important;-webkit-tap-highlight-color:transparent}
+@media(hover:hover){.card:hover{transform:perspective(700px) rotateX(2deg) translateY(-4px);box-shadow:0 16px 22px -10px rgba(15,42,92,.38),0 34px 46px -24px rgba(15,42,92,.5)!important}}
+.card:active{transform:scale(.97) translateY(2px);box-shadow:0 4px 8px -4px rgba(15,42,92,.35)!important}
+.card:focus-visible{outline:3px solid #f28c1b;outline-offset:3px}
+.card .ph{position:relative;aspect-ratio:1/1;border-radius:22px 22px 0 0;overflow:hidden;background:linear-gradient(135deg,#dbe5fb,#b9c9ee);color:var(--lag-mut);font-weight:700}
+.card .ph::after{content:"";position:absolute;inset:auto 0 0 0;height:46px;background:linear-gradient(180deg,rgba(255,255,255,0),rgba(15,42,92,.25));pointer-events:none}
+.card .ph img{opacity:0;transition:opacity .35s ease;filter:blur(6px);transform:scale(1.03)}
+.card .ph img.ld{opacity:1;filter:none;transform:none;transition:opacity .35s ease,filter .35s ease,transform .35s ease}
+.card .b{position:relative;padding:26px 12px 12px!important}
+.card .p{position:absolute;top:-17px;inset-inline-start:10px;height:34px;padding:0 12px;border-radius:12px;background:#f28c1b;color:#2a1600;font-size:16px;font-weight:900;display:flex;align-items:center;box-shadow:0 8px 12px -5px rgba(160,80,0,.7),inset 0 1px 0 rgba(255,255,255,.45);z-index:2}
+.card .t{font-size:15px;font-weight:800;line-height:1.45;min-height:44px;color:var(--lag-ink)}
+.card .m{color:var(--lag-mut);font-size:12.5px;font-weight:500}
+.card .fresh{position:absolute;top:10px;inset-inline-end:10px;z-index:2;height:26px;padding:0 10px;border-radius:9px;background:#0f2a5c;color:#fff;font-size:12px;font-weight:900;display:flex;align-items:center;box-shadow:0 6px 10px -4px rgba(0,0,0,.5)}
+.tag{border:0;font-weight:700;padding:2px 9px;border-radius:8px;background:#e4ecff;color:#17408f;margin-bottom:4px}
+.tag.new{background:#e4ecff;color:#17408f}.tag.used{background:#e3f3ea;color:#0a6a33}.tag.neg{background:#fff1de;color:#a35300}.tag.closed{background:#fde7e4;color:#9a1f15}
+@media(prefers-color-scheme:dark){.tag.new{background:#1f3566;color:#cfe0ff}.tag.used{background:#173b2b;color:#bdebd0}.tag.neg{background:#4a3314;color:#ffd9a3}.tag.closed{background:#4a1e1a;color:#ffc9c3}}
+button.pri,.cbox button.pri{background:linear-gradient(180deg,#1b3f86,#0f2a5c);border:0;color:#fff;font-weight:900;min-height:50px;border-radius:16px;box-shadow:0 12px 16px -8px rgba(15,42,92,.75),inset 0 1px 0 rgba(255,255,255,.25);cursor:pointer}
+button.pri:active{transform:translateY(2px);box-shadow:0 4px 8px -4px rgba(15,42,92,.6)}
+.cbox button.alt{background:linear-gradient(180deg,#ffa133,#f28c1b);color:#2a1600;border:0;font-weight:900;min-height:50px;border-radius:16px;box-shadow:0 12px 16px -8px rgba(160,80,0,.75),inset 0 1px 0 rgba(255,255,255,.45)}
+.cbox button:not(.pri):not(.alt){min-height:46px;border:0;border-radius:14px;box-shadow:0 6px 10px -6px rgba(15,42,92,.35),inset 0 -2px 0 var(--bd);font-weight:700}
+/* صفحة التفاصيل */
+.det{border:0!important;border-radius:26px!important;padding:14px!important;box-shadow:0 10px 18px -10px rgba(15,42,92,.35),0 26px 40px -26px rgba(15,42,92,.4)!important}
+.det .main{border-radius:20px;background:linear-gradient(135deg,#dbe5fb,#b9c9ee);box-shadow:0 14px 20px -10px rgba(15,42,92,.45);cursor:zoom-in;touch-action:pan-y}
+.det .cnt{text-align:center;font-size:13px;font-weight:700;color:var(--lag-mut);margin-top:6px}
+.thumbs{gap:10px;padding:6px 2px 10px}
+.thumbs img{width:62px;height:62px;border-radius:16px;border:3px solid transparent;box-shadow:0 8px 12px -6px rgba(15,42,92,.5);flex:0 0 auto}
+.thumbs img.on{border-color:#f28c1b}
+.det h2{font-size:22px;font-weight:900;line-height:1.45;margin:8px 0;color:var(--lag-ink)}
+.det>.p{display:inline-flex;align-items:center;height:46px;padding:0 18px;border-radius:15px;background:linear-gradient(180deg,#1b3f86,#0f2a5c);color:#fff;font-size:24px;font-weight:900;margin:2px 0 10px;box-shadow:0 12px 18px -8px rgba(15,42,92,.7),inset 0 1px 0 rgba(255,255,255,.25)}
+.det .m{color:var(--lag-mut);font-size:14px;font-weight:500}
+.det table{margin-top:12px;border-radius:18px;background:var(--bg);padding:4px 12px;box-shadow:inset 0 2px 4px rgba(15,42,92,.08)}
+.det tr:last-child td{border-bottom:0}.det td{padding:11px 4px;font-size:15px;font-weight:700}.det td:first-child{color:var(--lag-mut);font-weight:500}
+.det p{font-size:15.5px;line-height:1.85;color:var(--lag-ink)}
+a.back{display:inline-flex;align-items:center;min-height:44px;padding:0 16px;border-radius:14px;background:var(--card);color:var(--lag-ink);font-weight:800;box-shadow:0 6px 10px -6px rgba(15,42,92,.4),inset 0 -2px 0 var(--bd);margin:10px 0}
+.lb{position:fixed;inset:0;z-index:50;background:rgba(8,16,36,.92);display:flex;align-items:center;justify-content:center;padding:16px;cursor:zoom-out}
+.lb img{max-width:100%;max-height:100%;border-radius:14px;box-shadow:0 20px 40px rgba(0,0,0,.6)}
+.lb button{position:absolute;top:14px;inset-inline-start:14px;min-height:46px;padding:0 18px;border-radius:14px;border:0;background:#fff;color:#16213a;font-weight:900;cursor:pointer}
+@media(prefers-reduced-motion:reduce){.card,.card .ph img{transition:none}.card:hover{transform:none}}
+<style id="lagino-market-featured">
+/* المرحلة 30: الإعلانات المميزة — قسم أعلى السوق بإطار ذهبي (الفئة .fc لا تتقاطع مع .card فلا تتأثر عدّادات الشبكة) */
+.feat{margin:6px 0 0}.feat h2{font-size:20px;font-weight:900;margin:6px 4px 8px;color:var(--lag-ink)}
+.feat-row{display:flex;gap:16px;overflow-x:auto;padding:8px 4px 44px;margin-bottom:-22px;scroll-snap-type:x mandatory;scrollbar-width:none;-webkit-overflow-scrolling:touch}.feat-row::-webkit-scrollbar{display:none}
+.fc{flex:0 0 min(292px,82%);scroll-snap-align:start;padding:3px;border-radius:28px;background:linear-gradient(145deg,#ffd27a,#f28c1b 55%,#ffd27a);box-shadow:0 18px 24px -12px rgba(160,80,0,.55),0 36px 50px -26px rgba(15,42,92,.55);cursor:pointer;transition:transform .18s ease;-webkit-tap-highlight-color:transparent}
+@media(hover:hover){.fc:hover{transform:perspective(900px) rotateY(-4deg) rotateX(2deg) translateY(-4px)}}
+.fc:active{transform:scale(.98)}.fc:focus-visible{outline:3px solid #0f2a5c;outline-offset:3px}
+.fc .in{border-radius:25px;background:var(--card);overflow:hidden;position:relative}
+.fc .ph{position:relative;aspect-ratio:4/3;background:linear-gradient(135deg,#ffe2b8,#f6b25e);display:flex;align-items:center;justify-content:center;color:#5a3600;font-weight:700}
+.fc .ph::after{content:"";position:absolute;inset:auto 0 0 0;height:56px;background:linear-gradient(180deg,rgba(255,255,255,0),rgba(15,42,92,.3));pointer-events:none}
+.fc img{width:100%;height:100%;object-fit:cover;display:block;opacity:0;transition:opacity .35s ease}.fc img.ld{opacity:1}
+.fc .star{position:absolute;top:12px;inset-inline-end:12px;z-index:2;height:32px;padding:0 12px;border-radius:11px;background:linear-gradient(180deg,#ffe29a,#f5b02e);color:#3a2300;font-size:14px;font-weight:900;display:flex;align-items:center;gap:6px;box-shadow:0 8px 12px -5px rgba(120,70,0,.7),inset 0 1px 0 rgba(255,255,255,.6)}
+.fc .bd{padding:14px 16px 16px;display:flex;flex-direction:column;gap:8px}
+.fc .ft{font-size:18px;font-weight:900;line-height:1.4;color:var(--lag-ink);overflow:hidden;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical}
+.fc .fr{display:flex;align-items:center;justify-content:space-between;gap:8px}
+.fc .fp{height:40px;padding:0 14px;border-radius:13px;background:linear-gradient(180deg,#1b3f86,#0f2a5c);color:#fff;font-size:19px;font-weight:900;display:flex;align-items:center;box-shadow:0 10px 14px -6px rgba(15,42,92,.7),inset 0 1px 0 rgba(255,255,255,.25)}
+.fc .fm{font-size:13px;color:var(--lag-mut);font-weight:500}
+.card .gold{position:absolute;top:10px;inset-inline-start:10px;z-index:2;height:26px;padding:0 10px;border-radius:9px;background:linear-gradient(180deg,#ffe29a,#f5b02e);color:#3a2300;font-size:12px;font-weight:900;display:flex;align-items:center;box-shadow:0 6px 10px -4px rgba(120,70,0,.7)}
+.tag.gold{background:#ffeab8;color:#6b4300}
+@media(prefers-color-scheme:dark){.tag.gold{background:#5a4210;color:#ffe6a8}}
+@media(prefers-reduced-motion:reduce){.fc{transition:none}.fc:hover{transform:none}}
+</style><style id="edge-to-edge">/* أندرويد 16 (API 36) يرسم المحتوى خلف شريط الحالة: نزيح الهيدر بقدر الحافة الآمنة */header{padding-top:calc(14px + env(safe-area-inset-top))!important}body{padding-left:env(safe-area-inset-left);padding-right:env(safe-area-inset-right);padding-bottom:env(safe-area-inset-bottom)}</style></head>
+<body>
+<header>
+  <h1>سوق لاقينو</h1>
+  <button id="mychats" type="button">محادثاتي</button>
+  <button id="myfav" type="button">مفضلتي</button>
+  <input id="q" type="search" placeholder="ابحث في الإعلانات…" aria-label="بحث">
+  <div class="row" id="filters">
+    <select id="cat" aria-label="التصنيف"><option value="">كل التصنيفات</option></select>
+    <select id="reg" aria-label="المحافظة"><option value="">كل المحافظات</option></select>
+    <select id="cond" aria-label="الحالة"><option value="">جديد ومستعمل</option><option value="new">جديد</option><option value="used">مستعمل</option></select>
+    <select id="sort" aria-label="الترتيب"><option value="newest">الأحدث</option><option value="oldest">الأقدم</option><option value="price_asc">الأرخص</option><option value="price_desc">الأغلى</option></select>
+    <input id="min" type="number" min="0" inputmode="numeric" placeholder="أقل سعر">
+    <input id="max" type="number" min="0" inputmode="numeric" placeholder="أعلى سعر">
+  </div>
+</header>
+<main id="app"></main>
+<script>
+"use strict";
+var PAGE = 20, state = {offset: 0, total: 0, busy: false};
+var $ = function (id) { return document.getElementById(id); };
+// كل النصوص القادمة من الخادم تُدرج عبر textContent فقط (لا innerHTML) منعًا لحقن HTML.
+function h(tag, attrs, kids) {
+  var e = document.createElement(tag);
+  Object.keys(attrs || {}).forEach(function (k) { if (k === "text") e.textContent = attrs[k]; else if (k.slice(0, 2) === "on") e.addEventListener(k.slice(2), attrs[k]); else e.setAttribute(k, attrs[k]); });
+  (kids || []).forEach(function (c) { if (c) e.appendChild(c); });
+  return e;
+}
+var REASONS = [["spam", "مكرر أو إعلان مزعج"], ["scam", "احتيال أو نصب"], ["prohibited", "سلعة أو محتوى ممنوع"], ["wrong_info", "بيانات أو صور مضللة"], ["sold", "تم البيع ولم يُغلق الإعلان"], ["other", "سبب آخر (اكتب التفاصيل)"]];
+function socialBox(d) {
+  var box = h("div", {class: "cbox"}), out = h("div", {class: "m"}), fav = !!d.is_favorite, reported = !!d.reported;
+  if (d.is_owner) return box;
+  var fb = h("button", {type: "button", "aria-pressed": fav ? "true" : "false"});
+  function paintFav() { fb.textContent = fav ? "♥ في المفضلة (إزالة)" : "♡ أضف للمفضلة"; fb.setAttribute("aria-pressed", fav ? "true" : "false"); }
+  paintFav();
+  fb.addEventListener("click", function () {
+    if (!TOKEN) { out.textContent = ""; out.appendChild(needLogin()); return; }
+    api("/api/listings/" + d.id + "/favorite", {method: "POST", body: {on: !fav}}).then(function (r) { fav = r.data.favorite; paintFav(); out.textContent = ""; }).catch(function (e) { out.textContent = e.message; });
+  });
+  var rb = h("button", {type: "button", text: reported ? "تم إرسال بلاغك" : "إبلاغ عن الإعلان"});
+  rb.disabled = reported;
+  rb.addEventListener("click", function () {
+    if (!TOKEN) { out.textContent = ""; out.appendChild(needLogin()); return; }
+    var sel = h("select", {"aria-label": "سبب البلاغ"}, [h("option", {value: "", text: "اختر السبب…"})].concat(REASONS.map(function (x) { return h("option", {value: x[0], text: x[1]}); })));
+    var det = h("textarea", {maxlength: "300", placeholder: "تفاصيل (اختياري، إلزامية عند «سبب آخر»)", "aria-label": "تفاصيل البلاغ"});
+    var form = h("div", {class: "row"}, [sel, det, h("button", {type: "button", class: "pri", text: "إرسال البلاغ", onclick: function () {
+      if (!sel.value) { out.textContent = "اختر سبب البلاغ"; return; }
+      api("/api/listings/" + d.id + "/report", {method: "POST", body: {reason: sel.value, details: det.value}}).then(function () { reported = true; form.remove(); rb.textContent = "تم إرسال بلاغك"; rb.disabled = true; out.textContent = "شكرًا، وصل البلاغ للإدارة"; }).catch(function (e) { out.textContent = e.message; });
+    }})]);
+    box.appendChild(form); rb.disabled = true;
+  });
+  box.appendChild(h("div", {class: "row"}, [fb, rb])); box.appendChild(out); return box;
+}
+function favView() {
+  var app = $("app"); app.textContent = ""; app.appendChild(h("a", {class: "back", onclick: function () { location.hash = "#/"; }, text: "→ كل الإعلانات"}));
+  if (!TOKEN) { app.appendChild(needLogin()); return; }
+  app.appendChild(h("h2", {text: "مفضلتي"})); var g = h("div", {class: "grid"}); app.appendChild(g);
+  api("/api/my/favorites").then(function (r) {
+    if (!r.data.length) { app.appendChild(h("div", {class: "empty", text: "لا توجد إعلانات في المفضلة بعد"})); return; }
+    r.data.forEach(function (x) { g.appendChild(card(x)); });
+  }).catch(function (e) { app.appendChild(h("div", {class: "err", text: e.message})); });
+}
+var TOKEN = ""; try { TOKEN = localStorage.getItem("t") || ""; } catch (e) {}
+function api(path, opt) {
+  opt = opt || {}; var hd = {Accept: "application/json"}; if (TOKEN) hd.Authorization = "Bearer " + TOKEN;
+  var init = {method: opt.method || "GET", headers: hd};
+  if (opt.body !== undefined) { hd["Content-Type"] = "application/json"; init.body = JSON.stringify(opt.body); }
+  return fetch(path, init).then(function (r) {
+    return r.json().catch(function () { return null; }).then(function (d) {
+      if (!r.ok) throw new Error((d && d.error) || "تعذّر التحميل");
+      return {data: d, total: parseInt(r.headers.get("X-Total-Count") || "0", 10)};
+    });
+  });
+}
+function money(v) { return v == null ? "بدون سعر" : Number(v).toLocaleString("ar-EG") + " ج.م"; }
+function ago(ts) { var d = Math.max(0, Date.now() / 1000 - ts), m = Math.floor(d / 60); if (m < 1) return "الآن"; if (m < 60) return "منذ " + m + " دقيقة"; var hr = Math.floor(m / 60); if (hr < 24) return "منذ " + hr + " ساعة"; return "منذ " + Math.floor(hr / 24) + " يوم"; }
+function img(lid, fid) { return "/api/listings/" + lid + "/images/" + fid; }
+
+function query(offset) {
+  var p = [];
+  function add(k, v) { if (v !== "" && v != null) p.push(k + "=" + encodeURIComponent(v)); }
+  add("q", $("q").value.trim()); add("category_id", $("cat").value); add("region_id", $("reg").value);
+  add("condition", $("cond").value); add("sort", $("sort").value); add("min_price", $("min").value); add("max_price", $("max").value);
+  add("limit", PAGE); add("offset", offset);
+  return "/api/listings?" + p.join("&");
+}
+function card(x) {
+  var ph = x.images.length ? h("img", {src: img(x.id, x.images[0]), alt: "", loading: "lazy"}) : h("span", {text: "بلا صورة"});
+  if (x.images.length) { var ld = function () { ph.classList.add("ld"); }; ph.addEventListener("load", ld); ph.addEventListener("error", ld); if (ph.complete && ph.naturalWidth) ld(); }
+  var fresh = x.featured ? h("span", {class: "gold", text: "★ مميز"}) : ((Date.now() / 1000 - x.created_at) < 86400 && !x.closed_kind ? h("span", {class: "fresh", text: "جديد الآن"}) : null);
+  var tags = [];
+  if (x.condition) tags.push(h("span", {class: "tag " + (x.condition === "new" ? "new" : "used"), text: x.condition === "new" ? "جديد" : "مستعمل"}));
+  if (x.negotiable) tags.push(h("span", {class: "tag neg", text: "قابل للتفاوض"}));
+  if (x.closed_kind) tags.push(h("span", {class: "tag closed", text: x.closed_kind === "sold" ? "تم البيع" : "تم التأجير"}));
+  return h("div", {class: "card", role: "link", tabindex: "0", onclick: function () { location.hash = "#/l/" + x.id; }}, [
+    h("div", {class: "ph"}, [ph, fresh]),
+    h("div", {class: "b"}, [h("p", {class: "t", text: x.title}), h("div", {class: "p", text: money(x.price)}), h("div", {}, tags), h("div", {class: "m", text: ago(x.created_at)})])
+  ]);
+}
+function featCard(x) {
+  var ph = x.images.length ? h("img", {src: img(x.id, x.images[0]), alt: ""}) : h("span", {text: "بلا صورة"});
+  if (x.images.length) { var ld = function () { ph.classList.add("ld"); }; ph.addEventListener("load", ld); ph.addEventListener("error", ld); if (ph.complete && ph.naturalWidth) ld(); }
+  var open = function () { location.hash = "#/l/" + x.id; };
+  return h("div", {class: "fc", role: "link", tabindex: "0", "aria-label": "إعلان مميز: " + x.title, onclick: open, onkeydown: function (e) { if (e.key === "Enter") open(); }}, [h("div", {class: "in"}, [
+    h("div", {class: "ph"}, [ph, h("span", {class: "star", text: "★ مميز"})]),
+    h("div", {class: "bd"}, [h("div", {class: "ft", text: x.title}), h("div", {class: "fr"}, [h("div", {class: "fp", text: money(x.price)}), h("div", {class: "fm", text: ago(x.created_at)})])])
+  ])]);
+}
+function loadFeatured() {
+  api(query(0) + "&featured=1").then(function (r) {
+    var app = $("app"), g = $("grid"); if (!g || !r.data.length || $("feat")) return;
+    var row = h("div", {class: "feat-row"}); r.data.slice(0, 12).forEach(function (x) { row.appendChild(featCard(x)); });
+    app.insertBefore(h("section", {id: "feat", class: "feat", "aria-label": "الإعلانات المميزة"}, [h("h2", {text: "إعلانات مميزة"}), row]), g);
+  }).catch(function () {});
+}
+function list(reset) {
+  if (state.busy) return; state.busy = true;
+  var app = $("app"); if (reset) { state.offset = 0; app.textContent = ""; app.appendChild(h("div", {class: "grid", id: "grid"})); app.appendChild(h("div", {id: "foot"})); loadFeatured(); }
+  api(query(state.offset)).then(function (r) {
+    var g = $("grid"); if (!g) return;
+    r.data.forEach(function (x) { g.appendChild(card(x)); }); state.offset += r.data.length; state.total = r.total;
+    var foot = $("foot"); foot.textContent = "";
+    if (!state.total) foot.appendChild(h("div", {class: "empty", text: "لا توجد إعلانات مطابقة"}));
+    else if (state.offset < state.total) foot.appendChild(h("button", {id: "more", class: "pri", onclick: function () { list(false); }, text: "عرض المزيد (" + (state.total - state.offset) + ")"}));
+  }).catch(function (e) { var f = $("foot"); if (f) { f.textContent = ""; f.appendChild(h("div", {class: "err", text: e.message})); } }).then(function () { state.busy = false; });
+}
+function needLogin() { return h("div", {class: "m"}, [document.createTextNode("سجّل الدخول من تطبيق لاقينو أولًا "), h("a", {href: "/", text: "فتح التطبيق"})]); }
+function contactBox(d) {
+  var box = h("div", {class: "cbox"}), out = h("div", {class: "m"});
+  if (d.is_owner) {
+    var sel = h("select", {"aria-label": "طريقة تواصل المشترين"}, [h("option", {value: "both", text: "محادثة داخل التطبيق + الرقم"}), h("option", {value: "chat", text: "محادثة داخل التطبيق فقط (الرقم مخفي)"}), h("option", {value: "phone", text: "الرقم فقط"})]);
+    sel.value = d.contact_mode || "both"; box.appendChild(h("div", {class: "m", text: "طريقة تواصل المشترين معك:"})); box.appendChild(sel);
+    box.appendChild(h("button", {class: "pri", text: "حفظ", onclick: function () { api("/api/listings/" + d.id + "/contact-mode", {method: "POST", body: {mode: sel.value}}).then(function () { out.textContent = "تم الحفظ"; }).catch(function (e) { out.textContent = e.message; }); }}));
+    box.appendChild(out); return box;
+  }
+  var mode = d.contact_mode || "both";
+  if (mode !== "phone") box.appendChild(h("button", {class: "pri", text: "راسل البائع", onclick: function () {
+    if (!TOKEN) { out.textContent = ""; out.appendChild(needLogin()); return; }
+    api("/api/listings/" + d.id + "/chat", {method: "POST"}).then(function (r) { location.hash = "#/chat/" + r.data.thread_id; }).catch(function (e) { out.textContent = e.message; });
+  }}));
+  if (mode !== "chat") box.appendChild(h("button", {class: "alt", text: "إظهار رقم البائع", onclick: function () {
+    if (!TOKEN) { out.textContent = ""; out.appendChild(needLogin()); return; }
+    api("/api/listings/" + d.id + "/contact").then(function (r) { out.textContent = ""; var ph = String(r.data.phone || ""); out.appendChild(/^[0-9+]+$/.test(ph) ? h("a", {href: "tel:" + ph, text: r.data.seller + " — " + ph}) : document.createTextNode(r.data.seller + " — " + ph)); }).catch(function (e) { out.textContent = e.message; });
+  }}));
+  box.appendChild(out); return box;
+}
+function b64u(x) { x = (x + "=".repeat((4 - x.length % 4) % 4)).replace(/-/g, "+").replace(/_/g, "/"); return Uint8Array.from(atob(x), function (c) { return c.charCodeAt(0); }); }
+function pushState() {
+  if (typeof navigator === "undefined" || !navigator.serviceWorker || typeof PushManager === "undefined" || typeof Notification === "undefined") return Promise.resolve("unsupported");
+  if (Notification.permission === "denied") return Promise.resolve("denied");
+  return navigator.serviceWorker.ready.then(function (r) { return r.pushManager.getSubscription(); }).then(function (s) { return s ? "on" : "off"; }).catch(function () { return "off"; });
+}
+function pushBox() {
+  var box = h("div", {class: "cbox"}), msg = h("div", {class: "m"});
+  function paint() {
+    pushState().then(function (st) {
+      box.textContent = "";
+      if (st === "on") { box.appendChild(h("div", {class: "m", text: "إشعارات الرسائل مفعّلة على هذا الجهاز"})); box.appendChild(h("button", {text: "إيقاف", onclick: off})); }
+      else if (st === "off") box.appendChild(h("button", {text: "تفعيل إشعارات الرسائل", onclick: on}));
+      else box.appendChild(h("div", {class: "m", text: st === "denied" ? "الإشعارات محظورة من إعدادات المتصفح لهذا الموقع" : "هذا المتصفح لا يدعم الإشعارات (على الآيفون: أضف التطبيق للشاشة الرئيسية أولًا)"}));
+      box.appendChild(msg);
+    });
+  }
+  function on() {
+    Notification.requestPermission().then(function (p) {
+      if (p !== "granted") throw new Error("لم يتم السماح بالإشعارات من إعدادات المتصفح");
+      return Promise.all([navigator.serviceWorker.ready, api("/api/push/key")]);
+    }).then(function (x) { return x[0].pushManager.subscribe({userVisibleOnly: true, applicationServerKey: b64u(x[1].data.key)}); })
+      .then(function (sub) { return api("/api/push/subscribe", {method: "POST", body: {endpoint: sub.endpoint}}); })
+      .then(function () { msg.textContent = "تم تفعيل إشعارات الرسائل"; paint(); }).catch(function (e) { msg.textContent = e.message || "تعذّر التفعيل"; paint(); });
+  }
+  function off() {
+    navigator.serviceWorker.ready.then(function (r) { return r.pushManager.getSubscription(); }).then(function (sub) {
+      if (!sub) return; return api("/api/push/unsubscribe", {method: "POST", body: {endpoint: sub.endpoint}}).then(function () { return sub.unsubscribe(); });
+    }).then(paint).catch(function (e) { msg.textContent = e.message || "تعذّر الإيقاف"; });
+  }
+  paint(); return box;
+}
+var poll = null; function stopPoll() { if (poll) { clearInterval(poll); poll = null; } }
+function chatsView() {
+  var app = $("app"); app.textContent = ""; app.appendChild(h("a", {class: "back", onclick: function () { location.hash = "#/"; }, text: "→ كل الإعلانات"}));
+  if (!TOKEN) { app.appendChild(needLogin()); return; }
+  app.appendChild(h("h2", {text: "محادثاتي"})); app.appendChild(pushBox()); var box = h("div"); app.appendChild(box);
+  api("/api/chats").then(function (r) {
+    if (!r.data.length) { box.appendChild(h("div", {class: "empty", text: "لا توجد محادثات بعد"})); return; }
+    r.data.forEach(function (t) { box.appendChild(h("div", {class: "card", style: "margin-bottom:8px;padding:10px", onclick: function () { location.hash = "#/chat/" + t.id; }}, [h("div", {class: "t", text: t.listing_title}), h("div", {class: "m", text: t.other_name + (t.unread ? " — " + t.unread + " جديدة" : "")}), h("div", {class: "m", text: t.last ? t.last.body : "لا رسائل"})])); });
+  }).catch(function (e) { box.appendChild(h("div", {class: "err", text: e.message})); });
+}
+function chatImg(tid, mid, box) {
+  fetch("/api/chats/" + tid + "/images/" + mid, {headers: {Authorization: "Bearer " + TOKEN}}).then(function (r) { if (!r.ok) throw 0; return r.blob(); }).then(function (b) {
+    var u = URL.createObjectURL(b), im = h("img", {class: "ci", src: u, alt: "صورة", onclick: function () { window.open(u, "_blank"); }}); box.insertBefore(im, box.firstChild);
+  }).catch(function () { box.insertBefore(h("div", {class: "ph", text: "تعذّر تحميل الصورة"}), box.firstChild); });
+}
+function shrinkImg(file, cb, fail) {  // تصغير في المتصفح (حتى 1280px، JPEG) قبل الرفع
+  var rd = new FileReader();
+  rd.onerror = function () { fail("تعذّر قراءة الصورة"); };
+  rd.onload = function () {
+    var im = new Image();
+    im.onerror = function () { fail("الصورة غير مدعومة، جرّب JPG أو PNG"); };
+    im.onload = function () {
+      var k = Math.min(1, 1280 / Math.max(im.width, im.height)), cv = document.createElement("canvas");
+      cv.width = Math.max(1, Math.round(im.width * k)); cv.height = Math.max(1, Math.round(im.height * k));
+      cv.getContext("2d").drawImage(im, 0, 0, cv.width, cv.height);
+      cb(cv.toDataURL("image/jpeg", 0.82).split(",")[1]);
+    };
+    im.src = rd.result;
+  };
+  rd.readAsDataURL(file);
+}
+function chatView(id) {
+  var app = $("app"), last = 0, title = h("h2"), note = h("div", {class: "m"}), list = h("div", {class: "msgs"}), inp = h("textarea", {maxlength: "1000", "aria-label": "اكتب رسالة"}), blockBtn = h("button", {text: "حظر"}), th = null;
+  app.textContent = ""; app.appendChild(h("a", {class: "back", onclick: function () { location.hash = "#/chats"; }, text: "→ محادثاتي"}));
+  if (!TOKEN) { app.appendChild(needLogin()); return; }
+  function add(ms) { ms.forEach(function (m) { last = Math.max(last, m.id); var b = h("div", {class: "msg" + (m.mine ? " mine" : "")}); if (m.body) b.appendChild(h("span", {text: m.body})); if (m.image) chatImg(id, m.id, b); list.appendChild(b); }); if (ms.length) list.scrollTop = list.scrollHeight; }
+  function state(t) { th = t; title.textContent = t.listing_title + " — " + t.other_name; blockBtn.textContent = t.blocked_by_me ? "رفع الحظر" : "حظر"; blockBtn.disabled = t.blocked && !t.blocked_by_me; note.textContent = t.blocked ? "المحادثة موقوفة" : (t.listing_status !== "approved" ? "الإعلان لم يعد متاحًا" : ""); }
+  function load() { return api("/api/chats/" + id + "?after=" + last).then(function (r) { state(r.data.thread); add(r.data.messages); }).catch(function (e) { note.textContent = e.message; }); }
+  var send = h("button", {class: "pri", text: "إرسال", onclick: function () { var v = inp.value.trim(); if (!v) return; api("/api/chats/" + id + "/messages", {method: "POST", body: {text: v}}).then(function () { inp.value = ""; note.textContent = ""; return load(); }).catch(function (e) { note.textContent = e.message; }); }});
+  blockBtn.addEventListener("click", function () { api("/api/chats/" + id + "/block", {method: "POST", body: {block: !(th && th.blocked_by_me)}}).then(load).catch(function (e) { note.textContent = e.message; }); });
+  var rep = h("button", {text: "إبلاغ", onclick: function () { var why = window.prompt("سبب البلاغ"); if (!why) return; api("/api/chats/" + id + "/report", {method: "POST", body: {reason: why}}).then(function () { note.textContent = "تم إرسال البلاغ للإدارة"; }).catch(function (e) { note.textContent = e.message; }); }});
+  var file = h("input", {type: "file", accept: "image/jpeg,image/png,image/*", style: "display:none", "aria-label": "اختر صورة"});
+  var pic = h("button", {text: "📷 صورة", onclick: function () { file.click(); }});
+  file.addEventListener("change", function () {
+    var f = file.files && file.files[0]; file.value = ""; if (!f) return;
+    note.textContent = "جارٍ إرسال الصورة…"; pic.disabled = true;
+    shrinkImg(f, function (b64) {
+      var cap = inp.value.trim();
+      api("/api/chats/" + id + "/images", {method: "POST", body: {data: b64, text: cap}}).then(function () { inp.value = ""; note.textContent = ""; return load(); }).catch(function (e) { note.textContent = e.message; }).then(function () { pic.disabled = false; });
+    }, function (m) { note.textContent = m; pic.disabled = false; });
+  });
+  [title, list, inp, h("div", {class: "row"}, [send, pic, file, blockBtn, rep]), note].forEach(function (e) { app.appendChild(e); });
+  load(); poll = setInterval(function () { if (!document.hidden) load(); }, 5000);
+}
+function detail(id) {
+  var app = $("app"); app.textContent = ""; app.appendChild(h("div", {class: "empty", text: "جارٍ التحميل…"}));
+  api("/api/listings/" + id).then(function (r) {
+    var d = r.data, box = h("div", {class: "det"}), main = h("img", {class: "main", alt: ""}), thumbs = h("div", {class: "thumbs"});
+    if (d.images.length) {
+      main.src = img(d.id, d.images[0]); box.appendChild(main);
+      var cur = 0, cnt = h("div", {class: "cnt"});
+      var show = function (i) { cur = (i + d.images.length) % d.images.length; main.src = img(d.id, d.images[cur]); Array.prototype.forEach.call(thumbs.children, function (c, k) { c.className = k === cur ? "on" : ""; }); cnt.textContent = d.images.length > 1 ? "الصورة " + (cur + 1) + " من " + d.images.length : ""; };
+      if (d.images.length > 1) d.images.forEach(function (f, i) { var t = h("img", {src: img(d.id, f), alt: "", class: i ? "" : "on", onclick: function () { show(i); }}); thumbs.appendChild(t); });
+      var sx = null; main.addEventListener("touchstart", function (e) { sx = e.touches[0].clientX; }, {passive: true});
+      main.addEventListener("touchend", function (e) { if (sx == null || d.images.length < 2) return; var dx = e.changedTouches[0].clientX - sx; sx = null; if (Math.abs(dx) > 40) show(cur + (dx < 0 ? 1 : -1)); }, {passive: true});
+      main.addEventListener("click", function () {
+        var lb = h("div", {class: "lb", role: "dialog", "aria-label": "عرض الصورة"}, [h("img", {src: main.src, alt: ""}), h("button", {type: "button", text: "إغلاق"})]);
+        var close = function () { lb.remove(); document.removeEventListener("keydown", esc); }, esc = function (e) { if (e.key === "Escape") close(); };
+        lb.addEventListener("click", close); document.addEventListener("keydown", esc); document.body.appendChild(lb);
+      });
+      box.appendChild(cnt); show(0); box.appendChild(thumbs);
+    }
+    box.appendChild(h("h2", {text: d.title})); box.appendChild(h("div", {class: "p", text: money(d.price)}));
+    var tags = h("div", {}); if (d.featured) tags.appendChild(h("span", {class: "tag gold", text: "★ مميز"})); if (d.condition) tags.appendChild(h("span", {class: "tag " + (d.condition === "new" ? "new" : "used"), text: d.condition === "new" ? "جديد" : "مستعمل"})); if (d.negotiable) tags.appendChild(h("span", {class: "tag neg", text: "قابل للتفاوض"})); box.appendChild(tags);
+    box.appendChild(h("div", {class: "m", text: d.category.map(function (c) { return c.name; }).join(" ‹ ") + " — " + d.region.map(function (c) { return c.name; }).join(" ‹ ")}));
+    var tb = h("table"); d.fields.forEach(function (f) { if (f.type !== "price") tb.appendChild(h("tr", {}, [h("td", {text: f.label}), h("td", {text: String(f.value)})])); });
+    tb.appendChild(h("tr", {}, [h("td", {text: "البائع"}), h("td", {text: d.seller})])); box.appendChild(tb);
+    if (d.description) box.appendChild(h("p", {text: d.description, style: "white-space:pre-wrap"}));
+    box.appendChild(h("div", {class: "m", text: "نُشر " + ago(d.created_at)})); box.appendChild(contactBox(d)); box.appendChild(socialBox(d));
+    app.textContent = ""; app.appendChild(h("a", {class: "back", onclick: function () { history.length > 1 ? history.back() : (location.hash = "#/"); }, text: "→ رجوع"})); app.appendChild(box);
+    document.title = d.title + " — سوق لاقينو"; window.scrollTo(0, 0);
+  }).catch(function () { app.textContent = ""; app.appendChild(h("div", {class: "err", text: "الإعلان غير موجود أو غير متاح"})); app.appendChild(h("a", {class: "back", onclick: function () { location.hash = "#/"; }, text: "→ كل الإعلانات"})); });
+}
+function chrome(show) { $("filters").style.display = show ? "" : "none"; $("q").style.display = show ? "" : "none"; }
+function route() { stopPoll(); var m = /^#\/l\/(\d+)$/.exec(location.hash), ch = /^#\/chat\/(\d+)$/.exec(location.hash); if (m) { chrome(false); detail(m[1]); } else if (ch) { chrome(false); chatView(ch[1]); } else if (location.hash === "#/chats") { chrome(false); chatsView(); } else if (location.hash === "#/fav") { chrome(false); favView(); } else { chrome(true); document.title = "سوق لاقينو"; list(true); } }
+function fillCats() {
+  api("/api/categories?section=souq").then(function (r) {
+    r.data.filter(function (c) { return c.parent_id != null; }).forEach(function (c) { $("cat").appendChild(h("option", {value: c.id, text: c.name_ar})); });
+  }).catch(function () {});
+}
+function fillRegions() {
+  api("/api/regions").then(function (r) { if (!r.data.length) return; return api("/api/regions?parent_id=" + r.data[0].id); }).then(function (r) {
+    if (r) r.data.forEach(function (g) { $("reg").appendChild(h("option", {value: g.id, text: g.name_ar})); });
+  }).catch(function () {});
+}
+var timer; function soon() { clearTimeout(timer); timer = setTimeout(function () { if (!/^#\/l\//.test(location.hash)) list(true); }, 350); }
+["q", "min", "max"].forEach(function (i) { $(i).addEventListener("input", soon); });
+["cat", "reg", "cond", "sort"].forEach(function (i) { $(i).addEventListener("change", function () { if (/^#\/l\//.test(location.hash)) location.hash = "#/"; else list(true); }); });
+if (typeof navigator !== "undefined" && navigator.serviceWorker) window.addEventListener("load", function () { navigator.serviceWorker.register("/sw.js").catch(function () {}); });
+$("mychats").addEventListener("click", function () { location.hash = "#/chats"; }); $("myfav").addEventListener("click", function () { location.hash = "#/fav"; }); window.addEventListener("hashchange", route); /* الموقع الموحد: لو للمستخدم منطقة محفوظة (يدويًا أو بالـGPS) تُحدَّد تلقائيًا في فلتر المنطقة؛ ويقدر يرجع لـ«كل المناطق». */
+function myRegion() { try { var id = +localStorage.getItem("rg") || 0; if (!id) return; var o = h("option", {value: id, text: "منطقتي: " + (localStorage.getItem("rgn") || "المحفوظة")}); $("reg").insertBefore(o, $("reg").children[1] || null); $("reg").value = String(id); } catch (e) {} }
+myRegion(); fillCats(); fillRegions(); route();
+</script>
+</body>
+</html>

@@ -1,0 +1,66 @@
+/* لاقينو — App Shell (المرحلة 21). يخص تطبيق العميل (body.app) فقط؛ لا يمس لوحات المندوب والصيدلية والإدارة.
+   يُحمَّل بعد app.css. السلوك في shell.js. */
+
+/* ---------- سلوك النظام ---------- */
+html{overscroll-behavior-y:none}
+body.app{min-height:100vh;min-height:100dvh;overscroll-behavior-y:none;-webkit-touch-callout:none}
+body.app button,body.app>nav,body.app header.bar,body.app .sc,body.app .sheet .pan{-webkit-user-select:none;user-select:none}
+body.app button,body.app a,body.app .tap,body.app .sc,body.app select{touch-action:manipulation}
+body.app input,body.app textarea,body.app .card,body.app .vcode{-webkit-user-select:text;user-select:text}
+
+/* ---------- الهيدر: رئيسي كبير / فرعي مضغوط ---------- */
+body.app header.bar{flex-wrap:wrap;transition:padding .2s}
+body.app header.bar .bk{display:none;flex:none;width:44px;height:44px;min-height:44px;margin:0;padding:0;border-radius:14px!important;background:#ffffff1c;color:#fff;border:0}
+body.app header.bar .bk svg{width:22px;height:22px;stroke:currentColor;fill:none;stroke-width:2.2;stroke-linecap:round;stroke-linejoin:round}
+body.app header.bar .bk:active{background:#ffffff38}
+body.app.sub header.bar .bk{display:inline-flex}
+body.app.sub header.bar .lg{display:none}
+body.app.sub header.bar .wm b{font-size:1.12rem}
+body.app header.bar .wm{flex:1}
+body.app header.bar .rg{margin-inline-start:0}
+
+/* ---------- حالة الاتصال ---------- */
+body.app .offbar{order:99;flex:0 0 calc(100% + 28px);margin:2px -14px -10px;padding:7px 14px;background:#fff0dc;color:#7a4300;font:600 .82rem var(--fb);display:none;text-align:start}
+body.app.off .offbar{display:block}
+
+/* ---------- Toast ---------- */
+.lq-toast{position:fixed;inset-inline:16px;margin-inline:auto;width:fit-content;max-width:min(420px,calc(100vw - 32px));bottom:calc(88px + env(safe-area-inset-bottom));z-index:90;padding:12px 18px;border-radius:14px;background:#14203a;color:#fff;font:600 .92rem "IBM Plex Sans Arabic",system-ui,sans-serif;text-align:center;box-shadow:0 10px 28px #0a1d4466;opacity:0;transform:translateY(8px);pointer-events:none;transition:opacity .2s,transform .2s}
+.lq-toast.on{opacity:1;transform:none}
+
+/* ---------- انتقال المحتوى ---------- */
+body.app #v.vt{animation:lqvin .22s ease both}
+@keyframes lqvin{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:none}}
+
+/* ---------- سحب للتحديث ---------- */
+.lq-ptr{position:fixed;inset-inline:0;top:calc(64px + env(safe-area-inset-top));margin-inline:auto;width:40px;height:40px;border-radius:50%;background:#fff;color:#0f2a5c;box-shadow:0 4px 14px #0f2a5c33;display:grid;place-items:center;z-index:40;opacity:0;transform:translateY(-30px);pointer-events:none;transition:opacity .15s}
+.lq-ptr svg{width:22px;height:22px;stroke:currentColor;fill:none;stroke-width:2.2;stroke-linecap:round;stroke-linejoin:round}
+.lq-ptr.go svg{animation:lqspin .7s linear infinite}
+@keyframes lqspin{to{transform:rotate(360deg)}}
+
+/* ---------- التبويب السفلي: أيقونات 3D + شارات ---------- */
+body.app>nav button .pl{position:relative;overflow:visible}
+body.app>nav button svg.i3{width:30px;height:30px;stroke:none;fill:none;stroke-width:0;filter:grayscale(1) opacity(.6);transition:filter .2s,transform .2s}
+body.app>nav button.on svg.i3{stroke:none;stroke-width:0;filter:drop-shadow(0 2px 2px #0f2a5c40);transform:translateY(-1px) scale(1.1)}
+body.app>nav .nb{position:absolute;top:-4px;inset-inline-end:6px;min-width:18px;height:18px;padding:0 5px;border-radius:9px;background:#e5483d;color:#fff;font:700 .68rem/18px var(--fb);text-align:center;border:2px solid #fff;box-sizing:content-box}
+body.app>nav .nb.dot{min-width:0;width:9px;height:9px;padding:0;top:-1px;inset-inline-end:12px;border-radius:50%}
+body.app>nav .nb[hidden]{display:none}
+
+/* ---------- بطاقات الرئيسية: أيقونات 3D ---------- */
+body.app .sc .ti{width:54px;height:54px;border-radius:16px}
+body.app .sc .ti svg.i3{width:40px;height:40px;filter:drop-shadow(0 3px 3px #0f2a5c33)}
+
+/* ---------- الشاشات الفاضية: بلاطة مجسمة ---------- */
+body.app .empty .ic{width:78px;height:78px;border-radius:26px;background:linear-gradient(150deg,#fff,#dde7f8);color:var(--navy2);box-shadow:inset 0 -5px 0 #c6d4ee,0 10px 20px #0f2a5c22;margin-bottom:14px}
+body.app .empty .ic svg.i{width:34px;height:34px;stroke-width:2}
+
+/* ---------- المسكوت: مكان مميز في الرئيسية ولوحة المنطقة ---------- */
+body.app .find .fi{position:relative;min-height:120px;padding-inline-end:96px;align-items:flex-start}
+body.app .find .mk{position:absolute;inset-inline-end:-2px;bottom:-8px;width:90px;height:124px;object-fit:cover;object-position:50% 0;filter:drop-shadow(0 6px 8px #0006);pointer-events:none;-webkit-mask-image:linear-gradient(#000 82%,transparent);mask-image:linear-gradient(#000 82%,transparent)}
+body.app .sheet .pan{position:relative;overflow:visible}
+body.app .sheet .pan .mk2{position:absolute;inset-inline-end:18px;top:-92px;width:74px;height:100px;object-fit:cover;object-position:50% 0;pointer-events:none;filter:drop-shadow(0 4px 6px #0005)}
+
+@media(prefers-reduced-motion:reduce){
+  body.app #v.vt,.lq-ptr.go svg{animation:none}
+  .lq-toast,body.app>nav button svg.i3{transition:none}
+}
+body.app .sc.soon svg.i3{filter:grayscale(1) opacity(.45)}

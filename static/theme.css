@@ -1,0 +1,84 @@
+/* لاقينو — طبقة التنسيق المشتركة (تحسين بصري فقط، لا تغيّر أي وظيفة) */
+:root{--navy:#0f2a5c;--navy2:#1b3f86;--orange:#f28c1b;--orange2:#e07a0a;--bg:#f4f6fb;--ink:#16213a;--mute:#667089;--line:#d8deec;--ok:#0a7a3b;--bad:#b3261e;--r:16px}
+html{-webkit-text-size-adjust:100%;-webkit-tap-highlight-color:transparent}
+body{font-family:"Segoe UI","Noto Sans Arabic","Noto Kufi Arabic",Cairo,Tahoma,system-ui,sans-serif;background:var(--bg);color:var(--ink);line-height:1.6;padding-left:env(safe-area-inset-left);padding-right:env(safe-area-inset-right)}
+header{background:linear-gradient(135deg,var(--navy),var(--navy2));padding-top:calc(12px + env(safe-area-inset-top))!important;font-weight:700;letter-spacing:.2px;box-shadow:0 2px 10px #0f2a5c33}
+header img{border:2px solid #ffffff55;box-shadow:0 2px 8px #0003}
+main{padding-bottom:24px}
+.card{border-radius:var(--r)!important;box-shadow:0 1px 3px #0f2a5c14,0 6px 18px #0f2a5c0d!important;border:1px solid #e6ebf5;animation:up .25s ease both}
+.card b{font-size:1.05rem}
+@keyframes up{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:none}}
+select,input,textarea{font-size:16px!important;min-height:46px;background:#fff;border:1.5px solid var(--line)!important;border-radius:12px!important;transition:border-color .15s,box-shadow .15s}
+textarea{min-height:90px}
+select:focus,input:focus,textarea:focus{outline:0;border-color:var(--navy2)!important;box-shadow:0 0 0 3px #1b3f8626}
+button{min-height:44px;border-radius:12px!important;cursor:pointer;transition:transform .08s,filter .15s;box-shadow:0 2px 6px #f28c1b40}
+button:active{transform:scale(.97);filter:brightness(.93)}
+button.s{box-shadow:0 2px 6px #0f2a5c40}
+button.r{box-shadow:0 2px 6px #b3261e40}
+button:disabled{opacity:.55;box-shadow:none}
+:focus-visible{outline:3px solid #f28c1b66;outline-offset:2px}
+small,.n{color:var(--mute)}
+.e{background:#fdecea;color:var(--bad)!important;border-radius:10px;padding:8px 12px;margin:8px 0}
+.ok{color:var(--ok)}.no{color:var(--bad)}
+a{color:var(--navy2)}
+img{max-width:100%}
+/* التبويب السفلي */
+body>nav{padding-bottom:env(safe-area-inset-bottom);background:#fffffff2;backdrop-filter:blur(8px);border-top:1px solid #e3e8f3;box-shadow:0 -4px 16px #0f2a5c14!important;z-index:10}
+body>nav button{display:flex;flex-direction:column;align-items:center;gap:2px;flex:1;min-height:58px;font-size:.74rem;font-weight:600;color:var(--mute)!important;box-shadow:none!important;border-top:0!important;border-radius:0!important;position:relative}
+body>nav button svg{width:24px;height:24px;stroke:currentColor;fill:none;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round}
+body>nav button.on{color:var(--navy)!important}
+body>nav button.on::before{content:"";position:absolute;top:0;width:34px;height:3px;border-radius:0 0 4px 4px;background:var(--orange)}
+body>nav button.on svg{stroke:var(--navy);stroke-width:2.2}
+body{padding-bottom:calc(72px + env(safe-area-inset-bottom))!important}
+/* لوحة الإدارة: تبويب علوي */
+#app>nav button.on,header+nav button.on{color:var(--navy)}
+/* مؤشر التحميل */
+.ld{display:flex;align-items:center;gap:10px;color:var(--mute)}
+.ld::before{content:"";width:20px;height:20px;border:3px solid var(--line);border-top-color:var(--orange);border-radius:50%;animation:sp .8s linear infinite;flex:none}
+@keyframes sp{to{transform:rotate(360deg)}}
+/* تجاوب الشاشات الكبيرة */
+@media(min-width:768px){main{max-width:640px!important}.card{padding:18px!important}}
+@media(min-width:1100px){#app main,main#m{max-width:760px!important}}
+@media(max-width:360px){body>nav button{font-size:.68rem}.card{padding:12px!important}}
+@media(prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}}
+/* صورة الشخصية داخل كارت الترحيب */
+.m{width:92px!important;height:116px;object-fit:cover;object-position:top;border-radius:14px;box-shadow:0 3px 10px #0f2a5c2e}
+.card::after{content:"";display:block;clear:both}
+/* الإدارة: الحقول المباشرة داخل الكارت بعرض كامل */
+#app .card>input,#app .card>select{width:100%}
+
+/* المرحلة 2 — توحيد المكونات المرئية عبر صفحات العميل والصيدلية والإدارة والمندوب */
+:root{--lagino-shadow:0 8px 24px rgba(15,42,92,.075);--lagino-soft:#edf3ff;--lagino-teal:#087f78}
+*{box-sizing:border-box}
+button,a,input,select,textarea{touch-action:manipulation}
+button{font-family:inherit;font-weight:700}
+button:not(.plain):not(.ghost){transition:transform .12s ease,box-shadow .16s ease,filter .16s ease}
+button:not(.plain):not(.ghost):hover{filter:brightness(.985);box-shadow:0 5px 14px rgba(15,42,92,.13)}
+.card,.box,.panel-card,.stat,.tile{border-radius:18px}
+.card{overflow-wrap:anywhere}
+input,select,textarea{max-width:100%;min-width:0}
+img{height:auto}
+#app,main,#m,#app main{min-width:0}
+.row,.actions,.acts,.toolbar{flex-wrap:wrap;min-width:0}
+.row>*{min-width:0;max-width:100%}
+/* لا نفرض عمودًا واحدًا على الجداول الإدارية؛ نسمح بالتمرير داخل حاويتها فقط */
+.table-wrap,.tbl-wrap,.table-responsive{max-width:100%;overflow-x:auto;-webkit-overflow-scrolling:touch}
+table{max-width:100%;border-collapse:separate;border-spacing:0}
+th,td{overflow-wrap:anywhere}
+@media(max-width:430px){
+  body{font-size:15px}
+  header{gap:8px}
+  main{padding-inline:12px}
+  .card{margin-block:9px;padding:14px!important}
+  button{max-width:100%;overflow-wrap:anywhere}
+  input,select,textarea{width:100%;}
+  .row>*{flex:1 1 100%}
+  .acts button,.actions button{flex:1 1 auto}
+  table{font-size:.86rem}
+  th,td{padding:8px 6px}
+}
+@media(min-width:431px) and (max-width:767px){main{padding-inline:16px}.card{padding:16px!important}}
+@media(min-width:768px){body{line-height:1.65}.card{box-shadow:var(--lagino-shadow)!important}}
+@media(prefers-reduced-motion:reduce){*,*::before,*::after{scroll-behavior:auto!important;animation-duration:.01ms!important;transition-duration:.01ms!important}}
+/* المرحلة 20: مربعات الاختيار والراديو بحجمها الطبيعي (القاعدة العامة input{width:100%;min-height:46px} كانت تضخّمها في لوحة الإدارة). app.css يخصّصها للتطبيق بأولوية أعلى. */
+input[type=checkbox],input[type=radio]{width:20px;min-height:0;height:20px;margin:0;accent-color:var(--navy,#0f2a5c);vertical-align:middle;flex:none}

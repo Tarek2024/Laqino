@@ -1,0 +1,116 @@
+from pathlib import Path
+from datetime import datetime
+import shutil, subprocess, sys
+
+root = Path.home() / "laqino-15"
+patch = Path.home() / "laqino-phase17-review/laqino"
+server = root / "server.py"
+phase_server = patch / "server.py"
+sw = root / "static/sw.js"
+courier = root / "static/courier.html"
+files = [server, sw, courier]
+
+required = files + [
+    phase_server, patch / "static/sw.js",
+    patch / "static/courier.html"
+]
+if not all(p.is_file() for p in required):
+    sys.exit("STOP: ملف مطلوب غير موجود؛ لم يتم تعديل أي شيء.")
+
+cur = server.read_text()
+ph = phase_server.read_text()
+
+a = cur.find("def push_new_order(oid):")
+b = cur.find("_AR = str.maketrans", a)
+x = ph.find("# ---- Repeating push (phase 17):")
+y = ph.find("_AR = str.maketrans", x)
+
+if min(a, b, x, y) < 0 or not (a < b and x < y):
+    sys.exit("STOP: حدود جزء التكرار غير مطابقة؛ لم يتم تعديل أي شيء.")
+
+merged = cur[:a] + ph[x:y] + cur[b:]
+
+route_start = '            if method == "POST" and path == "/api/push/state":'
+route_end = '            if method == "GET" and path == "/api/courier/push/key":'
+
+if merged.count(route_start) != 0 or ph.count(route_start) != 1:
+    sys.exit("STOP: تحقق مسار push/state فشل.")
+
+r1 = ph.find(route_start)
+r2 = ph.find(route_end, r1)
+if r1 < 0 or r2 < 0 or merged.count(route_end) != 1:
+    sys.exit("STOP: مكان إدراج المسار غير فريد.")
+
+route = ph[r1:r2]
+merged = merged.replace(route_end, route + route_end, 1)
+
+customer_marker = 'm = re.fullmatch(r"/api/delivery/orders/(\\d+)/(cancel|confirm)", path)'
+customer_start = merged.find(customer_marker)
+customer_end_marker = 'if method == "POST" and path in ("/api/courier/heartbeat", "/api/courier/online"):'
+customer_end = merged.find(customer_end_marker, customer_start)
+
+if customer_start < 0 or customer_end < 0:
+    sys.exit("STOP: لم أتعرف على حدود مسار العميل.")
+
+part = merged[customer_start:customer_end]
+old_return = 'c.commit(); return self.send(200, {"status": to})'
+
+if part.count(old_return) != 1:
+    sys.exit("STOP: سطر نهاية مسار العميل غير فريد.")
+
+part = part.replace(
+    old_return,
+    'c.commit();\n                if act == "cancel": push_stop_order(oid)\n                return self.send(200, {"status": to})',
+    1
+)
+merged = merged[:customer_start] + part + merged[customer_end:]
+
+accept_old = 'ev(oid, "searching", "assigned"); c.commit(); return self.send(200, {"ok": True})'
+if merged.count(accept_old) != 1:
+    sys.exit("STOP: سطر قبول المندوب غير فريد.")
+
+merged = merged.replace(
+    accept_old,
+    'ev(oid, "searching", "assigned"); c.commit(); push_stop_order(oid); return self.send(200, {"ok": True})',
+    1
+)
+
+for marker in [
+    "def push_pending(c, uid):",
+    "def push_stop_order(oid):",
+    'path == "/api/push/state"',
+    'cfg(c, "push_repeat_secs", 25)',
+]:
+    if marker not in merged:
+        sys.exit("STOP: التحقق النهائي فشل عند: " + marker)
+
+backup = Path.home() / "laqino-backups" / (
+    "phase17-safe-" + datetime.now().strftime("%Y%m%d-%H%M%S")
+)
+backup.mkdir(parents=True, exist_ok=False)
+
+for p in files:
+    dest = backup / p.relative_to(root)
+    dest.parent.mkdir(parents=True, exist_ok=True)
+    shutil.copy2(p, dest)
+
+try:
+    server.write_text(merged)
+    shutil.copy2(patch / "static/sw.js", sw)
+    shutil.copy2(patch / "static/courier.html", courier)
+
+    check = subprocess.run(
+        [sys.executable, "-m", "py_compile", str(server)],
+        cwd=root, capture_output=True, text=True
+    )
+    if check.returncode:
+        raise RuntimeError(check.stderr or check.stdout or "فشل فحص Python")
+except Exception as e:
+    for p in files:
+        shutil.copy2(backup / p.relative_to(root), p)
+    sys.exit(f"تم إرجاع الملفات للنسخة الاحتياطية بسبب الخطأ: {e}")
+
+print("نجح الدمج وفحص صياغة Python.")
+print("النسخة الاحتياطية:", backup)
+print("تم تعديل: server.py و static/sw.js و static/courier.html")
+print("لم يتم تعديل قاعدة البيانات أو الصور.")

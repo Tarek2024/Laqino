@@ -1,0 +1,18 @@
+{
+  "appId": "com.laqino.app",
+  "appName": "لاقينو",
+  "webDir": "www",
+  "server": {
+    "url": "https://laqino.tech",
+    "cleartext": false
+  },
+  "plugins": {
+    "PushNotifications": {
+      "presentationOptions": [
+        "badge",
+        "sound",
+        "alert"
+      ]
+    }
+  }
+}

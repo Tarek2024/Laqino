@@ -1,0 +1,71 @@
+/* لاقينو — تصميم لوحتي الصيدلية والمندوب (المهمة 3). تنسيق فقط: لا يغيّر أي وظيفة.
+   يُحمَّل بعد theme.css. نفس هوية التطبيق (app.css): الألوان والخطوط والبطاقات والأزرار. */
+:root{--navy:#0f2a5c;--navy-d:#0a1d44;--orange:#f28c1b;--orange-d:#c96a00;--bg:#eef2f8;--ink:#14203a;--mute:#5b6783;--line:#d6deed;--ok:#0a7a3b;--bad:#b3261e;--teal:#0d7f73;--teal-bg:#dff3ef;--sand-bg:#fff0dc;--sky-bg:#e4ecfb;
+  --fd:"Baloo Bhaijaan 2","IBM Plex Sans Arabic","Noto Sans Arabic",Tahoma,system-ui,sans-serif;--fb:"IBM Plex Sans Arabic","Noto Sans Arabic","Segoe UI",Tahoma,system-ui,sans-serif}
+body.panel{margin:0;background:var(--bg);color:var(--ink);font-family:var(--fb);line-height:1.65}
+
+/* الهيدر: رجوع للتطبيق + هوية + مكان محجوز لجرس الإشعارات (المهمة 4) */
+body.panel .ph{position:sticky;top:0;z-index:20;padding:calc(10px + env(safe-area-inset-top)) 14px 10px!important;text-align:start;background:linear-gradient(135deg,var(--navy),#1b3f86)}
+body.panel .ph .in{max-width:1080px;margin:0 auto;display:flex;align-items:center;gap:10px}
+body.panel .ph .back{flex:none;display:inline-flex;align-items:center;gap:6px;min-height:42px;padding:0 14px 0 12px;border-radius:999px;background:#ffffff1f;color:#fff;text-decoration:none;font-weight:600;font-size:.9rem;white-space:nowrap}
+body.panel .ph .back svg{width:18px;height:18px;fill:none;stroke:currentColor;stroke-width:2.2;stroke-linecap:round;stroke-linejoin:round}
+body.panel .ph .back:active{background:#ffffff38}
+body.panel .ph .tt{flex:1;min-width:0;display:flex;align-items:center;gap:10px}
+body.panel .ph .lg{width:38px;height:38px;border-radius:50%;object-fit:cover;flex:none}
+body.panel .ph h1{margin:0;font-family:var(--fd);font-size:1.12rem;font-weight:700;line-height:1.2;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+body.panel .ph .ph-end{flex:none;display:flex;align-items:center;gap:8px;min-height:42px}
+body.panel .ph a:focus-visible{outline:3px solid var(--orange);outline-offset:2px}
+@media(max-width:340px){body.panel .ph .back span{display:none}body.panel .ph .back{padding:0 12px}}
+
+/* المحتوى: عمود واحد على الهاتف، عمودان على الشاشات الواسعة */
+body.panel main#m{box-sizing:border-box;max-width:560px!important;margin:0 auto;padding:14px 14px calc(28px + env(safe-area-inset-bottom))}
+@media(min-width:900px){body.panel main#m{max-width:1080px!important;padding:22px 20px 40px;column-count:2;column-gap:18px}}
+body.panel main#m:has(> .card:only-child){column-count:1;max-width:520px!important}
+body.panel .card{display:block;break-inside:avoid;-webkit-column-break-inside:avoid;background:#fff;border:1px solid #e3e9f4!important;border-radius:20px!important;box-shadow:0 1px 2px #0f2a5c0f!important;padding:16px;margin:0 0 14px;animation:none}
+body.panel .card>b:first-child{display:block;font-family:var(--fd);font-size:1.05rem;color:var(--navy);margin-bottom:4px}
+body.panel h2.sec{column-span:all;margin:6px 4px 12px;font-family:var(--fd);font-size:1.08rem;color:var(--navy);display:flex;align-items:center;gap:8px}
+body.panel h2.sec::before{content:"";width:5px;height:20px;border-radius:3px;background:var(--orange)}
+body.pharm h2.sec::before{background:var(--teal)}
+@media(min-width:900px){body.courier main#m>.card:first-child{column-span:all}}
+/* theme.css يحدّد main#m بعرض 760px!important على الشاشات الواسعة؛ لذلك نستخدم main#m مع !important هنا عمدًا */
+
+/* نصوص ونماذج وأزرار (نفس مقاسات التطبيق: حقول 48px، أزرار 46px، خط 16px لمنع تكبير iOS) */
+body.panel small{color:var(--mute);font-size:.85rem}
+body.panel p{margin:8px 0}
+body.panel a{color:var(--navy);font-weight:600}
+body.panel img{max-width:100%;border-radius:12px;background:var(--sky-bg)}
+body.panel ul{margin:6px 0;padding-inline-start:20px}
+body.panel .ok{color:var(--ok);font-weight:700}
+body.panel .no{color:var(--bad)}
+body.panel p.e{column-span:all;margin:0 0 14px;padding:10px 14px;border-radius:14px;background:#fdecea;color:var(--bad);font-weight:600}
+body.panel input,body.panel select{box-sizing:border-box;width:100%;min-height:48px;margin:6px 0;padding:10px 14px;border:1px solid var(--line);border-radius:12px;background:#fff;color:var(--ink);font:inherit;font-size:16px}
+body.panel input[type=file]{min-height:0;padding:9px 10px;font-size:.9rem}
+body.panel label{display:block;margin-top:8px;font-size:.9rem;color:var(--mute)}
+body.panel input:focus,body.panel select:focus{outline:none;border-color:var(--navy);box-shadow:0 0 0 3px #0f2a5c26}
+body.panel button{min-height:46px;margin:6px 0;padding:0 18px;border:0;border-radius:12px;background:var(--orange);color:#fff;font:inherit;font-weight:700;cursor:pointer;touch-action:manipulation}
+body.panel button:active{transform:scale(.98)}
+body.panel button.s{background:#fff;color:var(--navy);border:1.5px solid var(--navy)}
+body.panel button:disabled{opacity:.55;cursor:default}
+body.panel button:focus-visible{outline:3px solid var(--navy);outline-offset:2px}
+body.pharm .card button{width:100%}
+body.courier .k button{margin-inline-end:6px}
+body.courier .k button.s{margin-inline-end:0}
+
+/* بلاطات الأرقام والطلبات */
+body.panel .g{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:8px}
+body.panel .k{background:#f3f6fc;border:1px solid #e3e9f4;border-radius:14px;padding:12px;text-align:center}
+body.panel .k b{display:block;font-family:var(--fd);font-size:1.3rem;color:var(--navy)}
+body.panel .card.ld{color:var(--mute);text-align:center}
+@media(prefers-reduced-motion:reduce){body.panel *{animation:none!important;transition:none!important}}
+body.panel .k small b{display:inline;font-family:inherit;font-size:inherit}   /* عدّاد المهلة داخل السطر لا بلوك كبير */
+body.panel .ph h1{color:#fff}
+body.panel .card>b:first-child+br{display:none}
+/* المرحلة 20: عنوان اللوحة لا يُقطع على الهاتف (الجرس + رجوع للتطبيق يزاحمانه): نخفي الشعار ونصغّر الخط قليلًا */
+@media(max-width:430px){body.panel .ph .lg{display:none}body.panel .ph h1{font-size:1.02rem}body.panel .ph .in{gap:8px}}
+
+/* ===== المرحلة 38: صورة بروفايل المندوب ===== */
+body.panel .pfc{display:flex!important;align-items:center;gap:14px}
+body.panel .pfc .av{flex:none;display:inline-flex;align-items:center;justify-content:center;width:72px;height:72px;border-radius:50%;overflow:hidden;background:var(--navy2,#1b3f86);color:#fff;font:700 1.8rem var(--fd);border:3px solid var(--orange,#f28c1b)}
+body.panel .pfc .av img{width:100%;height:100%;object-fit:cover;display:block}
+body.panel .pfc .pi{flex:1;min-width:0;display:flex;flex-direction:column;gap:4px;align-items:flex-start}
+body.panel .pfc .pi b{margin:0}

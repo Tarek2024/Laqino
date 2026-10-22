@@ -1,0 +1,16 @@
+# التشغيل:  cp deploy/env.example .env  ثم عدّل القيم،  ثم:  docker compose up -d --build
+services:
+  app:
+    build: .
+    restart: unless-stopped
+    env_file: .env
+    volumes: ["laqino-data:/data"]
+    expose: ["8000"]
+  caddy:   # HTTPS تلقائي (Let's Encrypt) — يلزم دومين موجَّه إلى السيرفر
+    image: caddy:2
+    restart: unless-stopped
+    ports: ["80:80", "443:443"]
+    volumes: ["./deploy/Caddyfile:/etc/caddy/Caddyfile:ro", "caddy-data:/data"]
+    environment: ["DOMAIN=${DOMAIN}"]
+    depends_on: [app]
+volumes: {laqino-data: {}, caddy-data: {}}

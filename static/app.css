@@ -1,0 +1,439 @@
+/* لاقينو — تصميم تطبيق العميل (index.html فقط). كل القواعد تحت body.app حتى لا تتأثر لوحات المندوب والإدارة والصيدلية. */
+body.app{
+  --navy:#0f2a5c;--navy-d:#0a1d44;--navy2:#1b3f86;--orange:#f28c1b;--orange-d:#c96a00;
+  --bg:#eef2f8;--ink:#14203a;--mute:#5b6783;--line:#d6deed;--ok:#0a7a3b;--bad:#b3261e;
+  --teal:#0d7f73;--teal-bg:#dff3ef;--sand-bg:#fff0dc;--sky-bg:#e4ecfb;
+  --fd:"Baloo Bhaijaan 2","IBM Plex Sans Arabic","Noto Sans Arabic",Tahoma,system-ui,sans-serif;
+  --fb:"IBM Plex Sans Arabic","Noto Sans Arabic","Segoe UI",Tahoma,system-ui,sans-serif;
+  margin:0;font-family:var(--fb);background:var(--bg);color:var(--ink);line-height:1.65;
+  padding-bottom:calc(84px + env(safe-area-inset-bottom))!important}
+body.app *{box-sizing:border-box}
+body.app.lock{overflow:hidden}
+body.app h1,body.app h2,body.app h3{font-family:var(--fd);margin:0;line-height:1.3}
+body.app p{margin:0 0 8px}
+body.app svg.i{width:22px;height:22px;flex:none;stroke:currentColor;fill:none;stroke-width:1.9;stroke-linecap:round;stroke-linejoin:round}
+
+/* ---------- الشريط العلوي ---------- */
+body.app header.bar{position:sticky;top:0;z-index:30;display:flex;align-items:center;gap:10px;
+  padding:calc(10px + env(safe-area-inset-top)) 14px 10px!important;background:var(--navy);color:#fff;text-align:start;box-shadow:none;font-weight:400}
+body.app header.bar .lg{width:40px;height:40px;border-radius:50%;border:2px solid var(--orange);box-shadow:none;flex:none}
+body.app header.bar .wm{display:flex;flex-direction:column;line-height:1.1;min-width:0}
+body.app header.bar .wm b{font-family:var(--fd);font-size:1.25rem;font-weight:700}
+body.app header.bar .wm small{color:#aebde0;font-size:.68rem;white-space:nowrap}
+body.app .rg{margin-inline-start:auto;display:flex;align-items:center;gap:6px;max-width:52%;min-height:40px!important;padding:0 12px!important;
+  border-radius:999px!important;background:#ffffff1c;color:#fff;border:1px solid #ffffff40;box-shadow:none!important;font:600 .85rem var(--fb);width:auto}
+body.app .rg span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+body.app .rg svg.i{width:16px;height:16px;stroke-width:2.2}
+body.app .rg.need{background:var(--orange);border-color:var(--orange);color:var(--navy-d)}
+
+/* ---------- الأزرار والحقول ---------- */
+body.app button{width:auto;font:700 1rem var(--fb);min-height:46px;padding:0 18px;border:0;border-radius:12px!important;background:var(--orange);color:var(--navy-d);
+  display:inline-flex;align-items:center;justify-content:center;gap:8px;cursor:pointer;margin:4px 0;box-shadow:none!important}
+body.app button.s{background:var(--navy);color:#fff}
+body.app button.r{background:#fbe9e7;color:var(--bad)}
+body.app button.ghost{background:transparent;color:var(--navy2);min-height:40px;padding:0 10px}
+body.app button.line{background:#fff;color:var(--navy);border:1.5px solid var(--line)}
+body.app button.full{width:100%}
+body.app button:disabled{opacity:.5}
+body.app button:active{transform:scale(.97)}
+body.app input,body.app select,body.app textarea{width:100%;font:400 1rem var(--fb)!important;min-height:48px;padding:10px 14px;margin:5px 0;color:var(--ink);
+  background:#fff;border:1.5px solid var(--line)!important;border-radius:12px!important}
+body.app input[type=checkbox]{width:20px;min-height:0;height:20px;margin:0 0 0 8px;accent-color:var(--navy)}
+body.app input[type=file]{min-height:0;padding:10px;font-size:.9rem!important}
+body.app select{appearance:none;-webkit-appearance:none;padding-inline-end:38px;
+  background:#fff url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%235b6783' stroke-width='2.2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M6 9l6 6 6-6'/%3E%3C/svg%3E") no-repeat left 12px center/18px}
+body.app label{display:block;font-size:.88rem;color:var(--mute);margin-top:6px}
+body.app .row{display:flex;gap:8px;align-items:center}body.app .row>*{flex:1}
+body.app small,body.app .n{color:var(--mute)}
+body.app a{color:var(--navy2)}
+body.app :focus-visible{outline:3px solid #f28c1b88;outline-offset:2px}
+
+/* ---------- الكروت والرسائل ---------- */
+body.app main{max-width:560px;margin:0 auto;padding:14px 14px 8px}
+body.app .card{background:#fff;border:1px solid #e3e9f4;border-radius:18px!important;padding:16px;margin-bottom:12px;box-shadow:0 1px 2px #0f2a5c0f!important;animation:none}
+body.app .card>button:not(.ghost){width:100%}
+body.app .card>small{display:block;margin-top:6px}
+body.app .card>b:first-child{font-family:var(--fd);font-size:1.1rem;font-weight:700;display:block;margin-bottom:4px}
+body.app .e,body.app .okb{display:flex;gap:8px;align-items:flex-start;border-radius:12px;padding:10px 14px;margin:8px 0;font-weight:500}
+body.app .e{background:#fdecea;color:var(--bad)!important}
+body.app .okb{background:#e5f5ea;color:var(--ok)}
+body.app .empty{text-align:center;padding:28px 16px}
+body.app .empty .ic{width:56px;height:56px;border-radius:50%;background:var(--sky-bg);color:var(--navy2);display:grid;place-items:center;margin:0 auto 10px}
+body.app .empty .ic svg.i{width:26px;height:26px}
+body.app .empty h3{font-size:1.05rem;margin-bottom:4px}
+body.app .empty p{color:var(--mute);margin-bottom:12px}
+
+/* ---------- الرئيسية ---------- */
+body.app main:has(.find){padding:0 0 8px;max-width:none}
+body.app .find{background:var(--navy);color:#fff;padding:4px max(14px,calc(50% - 266px)) 18px;border-radius:0 0 26px 26px}
+body.app .find .fi{display:flex;align-items:center;gap:12px;margin-bottom:12px}
+body.app .find .fx{flex:1;min-width:0}
+body.app .find h1{font-size:1.45rem;font-weight:800;letter-spacing:0}
+body.app .find p{color:#c3d0ee;font-size:.92rem;margin:4px 0 0}
+body.app .find .mini{flex:none;width:56px;height:56px;border-radius:50%;overflow:hidden;border:2.5px solid var(--orange);background:#e9d8c4}
+body.app .find .mini img{width:100%;height:100%;object-fit:cover;object-position:50% 14%;display:block}
+body.app .sbar.lg{margin:0;min-height:56px;border:0;border-radius:16px;box-shadow:0 6px 18px #0a1d4459}
+body.app .sbar.lg input{min-height:54px;font-size:1.02rem!important}
+body.app .sbar.lg button{min-height:44px;padding:0 20px}
+body.app .home{margin:14px auto 0;padding:0 14px;max-width:560px}
+body.app .need-rg{display:flex;align-items:center;gap:12px;background:#fff;border:1.5px solid var(--orange);border-radius:18px;padding:12px 14px;margin-bottom:12px;box-shadow:0 6px 18px #0f2a5c26}
+body.app .need-rg .pn{width:42px;height:42px;border-radius:50%;background:var(--sand-bg);color:var(--orange-d);display:grid;place-items:center;flex:none}
+body.app .need-rg div{flex:1;font-weight:600;font-size:.92rem;line-height:1.45}
+body.app .need-rg button{min-height:40px;padding:0 14px;margin:0}
+body.app .tiles{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:6px}
+body.app .sc{position:relative;width:100%;min-height:128px;margin:0;padding:14px;border-radius:20px!important;background:#fff;color:var(--ink);border:1px solid #e3e9f4;box-shadow:0 1px 2px #0f2a5c0f!important;
+  display:flex;flex-direction:column;align-items:flex-start;justify-content:flex-start;gap:2px;text-align:start;font-weight:400}
+body.app .sc .ti{width:44px;height:44px;border-radius:13px;display:grid;place-items:center;margin-bottom:8px;flex:none}
+body.app .sc .ti svg.i{width:24px;height:24px}
+body.app .sc .h{display:block;font:700 1.05rem var(--fd);line-height:1.3}
+body.app .sc .d{display:block;font-size:.8rem;line-height:1.5;color:var(--mute)}
+body.app .sc svg.go{position:absolute;top:14px;inset-inline-end:12px;width:18px;height:18px;color:#9aa8c6}
+body.app .sc.med .ti{background:var(--teal-bg);color:var(--teal)}
+body.app .sc.souq .ti{background:var(--sand-bg);color:var(--orange-d)}
+body.app .sc.svc .ti{background:var(--sky-bg);color:var(--navy2)}
+body.app .sc.dlv .ti{background:var(--orange);color:var(--navy-d)}
+body.app .sc.soon{background:#f6f8fc;border:1.5px dashed #b9c4dc;cursor:default;box-shadow:none!important;opacity:1}
+body.app .sc.soon .ti{background:#e3e9f4;color:var(--mute)}
+body.app .sc.soon .h{color:var(--mute)}
+body.app .soonp{position:absolute;top:14px;inset-inline-end:12px;background:#e3e9f4;border-radius:999px;padding:0 10px;font-size:.72rem;font-weight:700;color:var(--mute)}
+body.app>nav button[hidden]{display:none}
+body.app .sc.row{min-height:0;display:flex;flex-direction:row;align-items:center;gap:12px;text-align:start;margin-bottom:6px}
+body.app .sc.row .ti{margin:0}
+body.app .sc.row .tx{flex:1;min-width:0}
+body.app .sc.row svg.go{position:static}
+body.app>nav button[aria-current]{color:var(--navy)!important}
+body.app .sec.sh{justify-content:space-between}
+body.app .sec.sh .ghost{min-height:34px;margin:0;padding:0 6px;font:600 .85rem var(--fb)}
+body.app .ad.tap{cursor:pointer}
+body.app .me{display:flex;align-items:center;gap:12px}
+body.app .av{width:44px;height:44px;border-radius:50%;background:var(--navy);color:#fff;display:grid;place-items:center;font:700 1.15rem var(--fd);flex:none}
+body.app .me .nm{flex:1;min-width:0}body.app .me .nm b{display:block}
+body.app .foot{text-align:center;color:var(--mute);font-size:.85rem;padding:10px 0 4px}
+body.app .foot a{display:inline-block;margin-top:4px}
+body.app .vcode{text-align:center;font:800 2rem var(--fd);letter-spacing:8px;background:var(--sand-bg);border-radius:14px;padding:8px;margin:10px 0}
+body.app .wa-btn{display:flex;align-items:center;justify-content:center;gap:8px;min-height:48px;border-radius:12px;background:var(--ok);color:#fff;text-decoration:none;font-weight:700;margin:6px 0}
+
+body.app .hint{display:flex;align-items:center;gap:8px;background:var(--sand-bg);color:#7a4300;border-radius:12px;padding:6px 6px 6px 14px;margin-bottom:10px;font-weight:500}
+body.app .hint .ghost{margin-inline-start:auto;color:var(--orange-d);font-weight:800}
+
+/* ---------- رؤوس الصفحات والبحث ---------- */
+body.app .ph{padding:6px 2px 10px}
+body.app .ph h2{font-size:1.5rem;font-weight:800}
+body.app .ph p{color:var(--mute);margin:2px 0 0}
+body.app .sbar{display:flex;align-items:center;gap:6px;background:#fff;border:1.5px solid var(--line);border-radius:14px;padding:0 6px 0 4px;margin-bottom:10px}
+body.app .sbar svg.i{margin-inline:10px 4px;color:var(--mute)}
+body.app .sbar input{border:0!important;margin:0;min-height:48px;padding:0 4px;background:transparent;flex:1;min-width:0}
+body.app .sbar button{min-height:38px;padding:0 16px;margin:0}
+body.app .chips{display:flex;gap:8px;overflow-x:auto;padding:2px 0 10px;margin:0 -14px;padding-inline:14px;scrollbar-width:none}
+body.app .chips::-webkit-scrollbar{display:none}
+body.app .chips button{flex:none;min-height:38px;padding:0 16px;margin:0;background:#fff;color:var(--ink);border:1.5px solid var(--line);font-weight:600;font-size:.92rem}
+body.app .chips button.on{background:var(--navy);color:#fff;border-color:var(--navy)}
+body.app .seg2{display:grid;grid-auto-flow:column;grid-auto-columns:1fr;gap:4px;background:#dfe6f3;border-radius:14px;padding:4px;margin-bottom:12px}
+body.app .seg2 button{background:transparent;color:var(--mute);min-height:44px;margin:0;border-radius:11px!important;font-size:.95rem}
+body.app .seg2 button.on{background:#fff;color:var(--navy);box-shadow:0 1px 3px #0f2a5c26!important}
+
+/* ---------- إعلانات السوق ---------- */
+body.app .ad{padding:14px 16px}
+body.app .ad .top{display:flex;justify-content:space-between;align-items:flex-start;gap:10px}
+body.app .ad h3{font-size:1.08rem;font-weight:700;flex:1}
+body.app .ad .pr{font:800 1.15rem var(--fd);color:var(--orange-d);white-space:nowrap}
+body.app .ad .pr small{font:600 .8rem var(--fb);color:var(--orange-d)}
+body.app .ad .ds{color:var(--mute);margin:6px 0 10px;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
+body.app .ad .meta{display:flex;align-items:center;gap:8px;font-size:.85rem;color:var(--mute)}
+body.app .ad .meta .av{width:28px;height:28px;font-size:.85rem;background:var(--sky-bg);color:var(--navy)}
+body.app .ad .meta .tg{margin-inline-start:auto;background:var(--sky-bg);color:var(--navy);border-radius:999px;padding:0 10px;font-weight:600;font-size:.78rem}
+body.app .ad .acts{display:flex;gap:8px;margin-top:10px;flex-wrap:wrap}
+body.app .ad .acts button,body.app .acts a{min-height:42px;margin:0}
+body.app .acts a{display:inline-flex;align-items:center;justify-content:center;gap:6px;padding:0 16px;border-radius:12px;background:var(--navy);color:#fff;text-decoration:none;font-weight:700;flex:1}
+body.app .acts a+a{background:var(--ok)}
+body.app .ctb{margin-top:10px;padding:12px;background:#f3f6fc;border-radius:14px}
+body.app .ctb p{margin:0 0 8px}
+body.app .ctb .acts{margin-top:0}
+
+/* ---------- الدليفري ---------- */
+body.app .rt{position:relative;padding-inline-start:34px;margin:6px 0 10px}
+body.app .rt::before{content:"";position:absolute;inset-inline-start:11px;top:44px;bottom:44px;border-inline-start:2px dotted #9fb0d3}
+body.app .rt .dot{position:absolute;inset-inline-start:2px;width:20px;height:20px;border-radius:50%;display:grid;place-items:center}
+body.app .rt .d1{top:19px;background:var(--orange);box-shadow:0 0 0 4px #fff0dc}
+body.app .rt .d2{bottom:19px;background:var(--navy);border-radius:50% 50% 50% 0;transform:rotate(-45deg);box-shadow:0 0 0 4px #e4ecfb}
+body.app .rt .dot::after{content:"";width:6px;height:6px;border-radius:50%;background:#fff}
+body.app .feebox{display:flex;align-items:center;gap:12px;background:var(--sand-bg);border-radius:14px;padding:12px 14px;margin:8px 0}
+body.app .feebox b{font:800 1.4rem var(--fd);color:var(--orange-d)}
+body.app .feebox small{line-height:1.4;display:block}
+
+/* ---------- طلباتي ---------- */
+body.app .sec{font:700 1.1rem var(--fd);margin:18px 2px 8px;display:flex;align-items:center;gap:8px}
+body.app .od .hd{display:flex;align-items:center;gap:8px;margin-bottom:10px}
+body.app .od .hd b{font:700 1.05rem var(--fd)}
+body.app .pill{margin-inline-start:auto;border-radius:999px;padding:2px 12px;font-size:.8rem;font-weight:700;background:#e3e9f4;color:var(--navy)}
+body.app .pill.w{background:var(--sand-bg);color:var(--orange-d)}body.app .pill.g{background:#e5f5ea;color:var(--ok)}body.app .pill.b{background:#fdecea;color:var(--bad)}
+body.app .trk{display:grid;grid-template-columns:repeat(5,1fr);gap:4px;margin:2px 0 8px}
+body.app .trk i{height:6px;border-radius:3px;background:#e3e9f4}body.app .trk i.on{background:var(--orange)}
+body.app .od .st{font-weight:600;margin-bottom:6px}
+body.app .od .rte{display:flex;gap:8px;align-items:center;color:var(--mute);font-size:.9rem;flex-wrap:wrap}
+body.app .code{display:flex;align-items:center;justify-content:space-between;gap:10px;margin:10px 0;padding:10px 14px;border:2px dashed var(--orange);border-radius:14px;background:#fffaf2}
+body.app .code b{font:800 1.7rem var(--fd);letter-spacing:6px;color:var(--navy)}
+body.app .code small{max-width:150px;line-height:1.4}
+body.app .od .acts{display:flex;gap:8px;flex-wrap:wrap;margin-top:8px}body.app .od .acts>*{flex:1;margin:0}
+body.app .od select{margin:0;flex:1}
+body.app details.cr{padding:0}
+body.app details.cr summary{list-style:none;cursor:pointer;display:flex;align-items:center;gap:12px;padding:14px 16px;font-weight:700}
+body.app details.cr summary::-webkit-details-marker{display:none}
+body.app details.cr summary .ti{width:40px;height:40px;border-radius:12px;background:var(--sky-bg);color:var(--navy2);display:grid;place-items:center}
+body.app details.cr[open] summary{border-bottom:1px solid var(--line)}
+body.app details.cr .bd{padding:6px 16px 16px}
+
+/* ---------- الطبي ---------- */
+body.app #v .k{background:#f3f6fc;border-radius:14px;padding:12px 14px;margin-top:8px;text-align:start;box-shadow:none}
+body.app .rs{border-top:1px solid #edf1f8;padding:10px 0 0;margin-top:10px}
+body.app .rs p{margin:0 0 6px}
+
+/* ---------- التبويب السفلي ---------- */
+body.app>nav{position:fixed;bottom:0;inset-inline:0;display:flex;padding:6px 6px calc(6px + env(safe-area-inset-bottom));background:#fffffff5;backdrop-filter:blur(10px);-webkit-backdrop-filter:blur(10px);border-top:1px solid #e3e9f4;box-shadow:0 -6px 20px #0f2a5c14!important;z-index:20}
+body.app>nav button{flex:1;display:flex;flex-direction:column;align-items:center;gap:2px;min-height:58px;padding:4px 0;margin:0;background:transparent;color:var(--mute)!important;font-size:.72rem;font-weight:600;border:0!important;border-radius:14px!important}
+body.app>nav button .pl{width:54px;height:30px;border-radius:15px;display:grid;place-items:center;transition:background .2s}
+body.app>nav button svg{width:23px;height:23px;stroke:currentColor;fill:none;stroke-width:1.9;stroke-linecap:round;stroke-linejoin:round}
+body.app>nav button.on{color:var(--navy)!important;font-weight:800}
+body.app>nav button.on .pl{background:var(--sand-bg)}
+body.app>nav button.on svg{stroke:var(--navy-d);stroke-width:2.2}
+body.app>nav button.on::before{display:none}
+
+/* ---------- نافذة اختيار المنطقة ---------- */
+body.app .sheet{position:fixed;inset:0;z-index:50;background:#0a1d4499;display:flex;align-items:flex-end;justify-content:center}
+body.app .sheet[hidden]{display:none}
+body.app .pan{width:100%;max-width:560px;background:#fff;border-radius:26px 26px 0 0;padding:10px 18px calc(18px + env(safe-area-inset-bottom));animation:rise .22s ease-out}
+body.app .pan .grab{width:44px;height:5px;border-radius:3px;background:#cfd8ea;margin:0 auto 14px}
+body.app .pan h2{font-size:1.3rem;margin-bottom:2px}
+@keyframes rise{from{transform:translateY(40px);opacity:.6}to{transform:none;opacity:1}}
+
+/* ---------- التحميل ---------- */
+body.app .sk{height:96px;border-radius:18px;margin-bottom:12px;background:linear-gradient(100deg,#e3e9f4 30%,#f2f5fb 50%,#e3e9f4 70%);background-size:300% 100%;animation:shim 1.2s linear infinite}
+body.app .sk.t{height:44px;width:60%}
+@keyframes shim{to{background-position:-300% 0}}
+
+@media(min-width:768px){body.app .find{border-radius:0 0 32px 32px}body.app .find h1{font-size:1.8rem}}
+@media(max-width:350px){body.app .sc .h{font-size:.98rem}body.app .sc{padding:12px}body.app .find h1{font-size:1.25rem}body.app .find .mini{width:48px;height:48px}}
+@media(prefers-reduced-motion:reduce){body.app *{animation:none!important;transition:none!important}}
+
+/* ---------- بطاقات الأطباء والمعامل (المرحلة 16) ---------- */
+body.app .prow{display:flex;gap:12px;align-items:flex-start}
+body.app .pc.tap{cursor:pointer}
+body.app .pc.tap:active{background:var(--sky-bg)}
+body.app .pb{flex:1;min-width:0}
+body.app .pb h3{font-size:1.05rem;font-weight:700;overflow-wrap:anywhere}
+body.app .pic{width:84px;height:84px;border-radius:18px;object-fit:cover;object-position:center top;flex:none;display:block;background:var(--sky-bg);box-shadow:0 0 0 1px var(--line)}
+body.app .pic.ph{display:grid;place-items:center;color:var(--navy2);background:linear-gradient(145deg,var(--sky-bg),#fff)}
+body.app .pic.ph.lab{color:var(--teal);background:linear-gradient(145deg,var(--teal-bg),#fff)}
+body.app .pic.ph svg.i{width:38px;height:38px}
+body.app .pic.sm{width:48px;height:48px;border-radius:13px}
+body.app .pic.sm.ph svg.i{width:24px;height:24px}
+body.app .pic.big{width:112px;height:112px;border-radius:24px}
+body.app .pic.big.ph svg.i{width:50px;height:50px}
+body.app .sp{display:inline-block;background:var(--sky-bg);color:var(--navy);border-radius:999px;padding:0 10px;font-weight:600;font-size:.8rem;margin:4px 0}
+body.app .pc .meta{margin-top:2px}
+body.app .pc .inf{margin-top:12px;padding-top:10px;border-top:1px solid var(--line)}
+body.app .pc .inf p{margin:0 0 6px}
+body.app .lc .prow .ds{margin:4px 0 0}
+@media(max-width:360px){body.app .pic{width:72px;height:72px}body.app .pic.big{width:92px;height:92px}}
+body.app .pc .acts{display:flex;gap:8px;margin-top:10px;flex-wrap:wrap}
+body.app .pc .acts button{min-height:44px;margin:0}
+body.app .ad .cv{display:block;width:100%;aspect-ratio:4/3;object-fit:cover;border-radius:12px;margin-bottom:8px;background:#e9edf0}
+body.app .imgs{display:flex;flex-direction:column;gap:6px;margin:6px 0}
+body.app .imgs #lip{display:flex;flex-wrap:wrap;gap:8px}
+body.app .imgs .lt{position:relative;width:72px;height:72px}
+body.app .imgs .lt img{width:100%;height:100%;object-fit:cover;border-radius:10px}
+body.app .imgs .lt button{position:absolute;top:-6px;inset-inline-start:-6px;width:24px;height:24px;min-height:0;padding:0;border-radius:50%;line-height:1}
+body.app label.chk{display:flex;align-items:center;gap:8px}
+
+
+/* كروت الدخول للوحات حسب الدور (المهمة 2) */
+body.app .pnls{display:grid;gap:10px;margin:14px 0}
+body.app .pnl{display:flex;align-items:center;gap:12px;min-height:72px;padding:12px 14px;border-radius:20px;background:#fff;color:var(--ink);border:1px solid #e3e9f4;box-shadow:0 1px 2px #0f2a5c0f;text-decoration:none}
+body.app .pnl .ti{flex:none;width:44px;height:44px;border-radius:14px;display:grid;place-items:center;background:var(--sky-bg);color:var(--navy)}
+body.app .pnl.pharmacy .ti{background:var(--teal-bg);color:var(--teal)}
+body.app .pnl.courier .ti{background:var(--sand-bg);color:var(--orange-d)}
+body.app .pnl .ti svg{width:24px;height:24px}
+body.app .pnl .pb{flex:1;min-width:0;display:flex;flex-direction:column;gap:2px}
+body.app .pnl .pb b{font-family:var(--fd);font-size:1rem;color:var(--navy)}
+body.app .pnl .pb small{color:var(--mute);font-size:.82rem;line-height:1.5}
+body.app .pnl .pill{margin:0;flex:none}
+body.app a.pnl.on{border-color:var(--navy);box-shadow:0 2px 8px #0f2a5c1f}
+body.app a.pnl.on:active{transform:scale(.99)}
+body.app a.pnl:focus-visible{outline:3px solid var(--orange);outline-offset:2px}
+body.app .pnl.st-rejected,body.app .pnl.st-suspended{border-color:#f0c9c6;background:#fffafa}
+@media(max-width:350px){body.app .pnl{padding:10px;gap:8px}body.app .pnl .pb b{font-size:.95rem}}
+
+
+/* إعادة تنظيم واجهة لاقينو — بطاقات الطبي */
+body.app .tiles{grid-template-columns:repeat(2,minmax(0,1fr));align-items:stretch;gap:12px}
+body.app .sc{min-width:0;min-height:138px;overflow-wrap:anywhere;transition:transform .16s ease,border-color .16s ease,box-shadow .16s ease}
+body.app .sc:active{transform:scale(.985);box-shadow:0 4px 14px #0f2a5c18!important}
+body.app .sc:focus-visible,body.app .mq:focus-visible{outline:3px solid var(--orange);outline-offset:2px}
+body.app .ph{margin:8px 0 12px}
+body.app .ph h2{font-size:1.35rem;line-height:1.4}
+body.app .medical-sub{margin:3px 0 0;color:var(--mute);font-size:.9rem}
+body.app .medical-quick{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px;margin:12px 0 16px}
+body.app .mq{position:relative;display:flex;align-items:flex-start;gap:10px;min-width:0;min-height:112px;padding:13px 12px;border:1px solid var(--line)!important;border-radius:18px!important;background:#fff!important;color:var(--ink)!important;text-align:start;box-shadow:0 2px 8px #0f2a5c0a!important}
+body.app .mq .mq-ic{display:grid;place-items:center;flex:none;width:38px;height:38px;border-radius:12px;background:var(--sky-bg);color:var(--navy);margin-top:1px}
+body.app .mq .mq-ic svg{width:22px;height:22px}
+body.app .mq .mq-copy{display:flex;flex-direction:column;gap:5px;min-width:0;padding-top:2px}
+body.app .mq .mq-copy b{font:700 .96rem var(--fd);line-height:1.35;overflow-wrap:anywhere}
+body.app .mq .mq-copy small{font-size:.78rem;line-height:1.5;color:var(--mute)}
+body.app .mq>svg.go{position:absolute;inset-inline-end:9px;bottom:9px;width:15px;height:15px;color:#9aa8c6}
+body.app .mq.quote .mq-ic{background:var(--sand-bg);color:var(--orange-d)}
+body.app .mq.doctors .mq-ic{background:var(--teal-bg);color:var(--teal)}
+body.app .mq.labs .mq-ic{background:#eee9fb;color:#6550a4}
+body.app .seg2{margin-bottom:12px}
+@media(max-width:360px){body.app .medical-quick{gap:8px}body.app .mq{padding:10px;gap:7px;min-height:108px}body.app .mq .mq-ic{width:32px;height:32px}body.app .mq .mq-copy b{font-size:.88rem}body.app .mq .mq-copy small{font-size:.74rem}body.app .sc{padding:11px;min-height:126px}}
+@media(min-width:768px){body.app .home{max-width:720px}body.app .tiles{gap:14px}body.app .sc{min-height:148px;padding:18px}}
+/* المرحلة 20: تبويبات الطبي لا يتكسر نصها، وكارت الخدمة الطبية الفردي الأخير يأخذ العرض كاملًا */
+body.app .seg2 button{display:inline-flex;align-items:center;justify-content:center;gap:5px;min-width:0;padding-inline:6px;white-space:nowrap;font-size:.88rem}
+body.app .seg2 button svg{width:18px;height:18px;flex:none}
+@media(max-width:360px){body.app .seg2 button{font-size:.8rem;gap:3px;padding-inline:3px}body.app .seg2 button svg{width:16px;height:16px}}
+body.app .medical-quick>.mq:last-child:nth-child(odd){grid-column:1/-1;min-height:84px}
+
+/* المرحلة 24: تبويبات الطبي بأيقونات 3D (بديل الكروت المكررة والتبويبات القديمة) */
+body.app .mtabs{display:grid;grid-auto-flow:column;grid-auto-columns:minmax(0,1fr);gap:8px;margin:12px 0 14px}
+body.app .mt{position:relative;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:6px;min-width:0;min-height:88px;padding:10px 4px 9px;margin:0;background:#fff!important;color:var(--mute)!important;border:1.5px solid var(--line)!important;border-radius:18px!important;box-shadow:0 2px 8px #0f2a5c0a!important;font:700 .86rem var(--fd);line-height:1.3;transition:transform .16s,border-color .16s,background .16s,box-shadow .16s}
+body.app .mt svg.i3{width:40px;height:40px;flex:none;stroke:none;filter:drop-shadow(0 3px 3px #0f2a5c33);transition:transform .2s}
+body.app .mt span{max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+body.app .mt:active{transform:scale(.97)}
+body.app .mt.on{background:var(--sky-bg)!important;color:var(--navy)!important;border-color:var(--navy)!important;box-shadow:0 4px 14px #0f2a5c22!important}
+body.app .mt.on svg.i3{transform:translateY(-2px) scale(1.08)}
+body.app .mt.on::after{content:"";position:absolute;bottom:-1.5px;width:26px;height:3px;border-radius:3px 3px 0 0;background:var(--orange)}
+body.app .mt:focus-visible,body.app .chip:focus-visible,body.app .pph:focus-visible{outline:3px solid var(--orange);outline-offset:2px}
+@media(max-width:360px){body.app .mtabs{gap:6px}body.app .mt{min-height:80px;font-size:.78rem}body.app .mt svg.i3{width:34px;height:34px}}
+
+/* المنتجات: شيبس التصنيفات + شبكة بطاقات عمودين */
+body.app .chips{display:flex;gap:8px;overflow-x:auto;padding:2px 1px 10px;margin:0 -2px 4px;scrollbar-width:none;scroll-snap-type:x proximity}
+body.app .chips::-webkit-scrollbar{display:none}
+body.app .chip{flex:none;display:inline-flex;align-items:center;gap:6px;min-height:42px;margin:0;padding:0 14px 0 12px;background:#fff!important;color:var(--ink)!important;border:1.5px solid var(--line)!important;border-radius:999px!important;box-shadow:none!important;font-weight:600;font-size:.88rem;white-space:nowrap;scroll-snap-align:start}
+body.app .chip svg.i3{width:24px;height:24px;stroke:none;filter:drop-shadow(0 1px 1px #0f2a5c33)}
+body.app .chip.on{background:var(--navy)!important;color:#fff!important;border-color:var(--navy)!important}
+body.app .pcount{margin:0 2px 8px;color:var(--mute);font-size:.84rem}
+body.app .pgrid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px;margin-bottom:12px}
+body.app .pcd{display:flex;flex-direction:column;min-width:0;background:#fff;border:1px solid #e3e9f4;border-radius:18px;overflow:hidden;box-shadow:0 1px 2px #0f2a5c0f}
+body.app .pimg{position:relative;aspect-ratio:1/1;background:linear-gradient(160deg,#eef3fd,#e1e9f8);display:grid;place-items:center;overflow:hidden}
+body.app .pimg img{width:100%;height:100%;object-fit:cover;display:block}
+body.app .pph3{display:grid;place-items:center;width:100%;height:100%}
+body.app .pph3 svg.i3{width:46%;height:46%;stroke:none;filter:drop-shadow(0 6px 6px #0f2a5c38)}
+body.app .pdisc{position:absolute;top:8px;inset-inline-start:8px;background:var(--orange);color:#fff;border-radius:999px;padding:2px 9px;font:800 .74rem var(--fd);box-shadow:0 2px 6px #e57d0c66}
+body.app .pbd{display:flex;flex-direction:column;gap:4px;padding:10px 11px 12px;flex:1;min-width:0}
+body.app .pbr{color:var(--mute);font-size:.74rem;line-height:1.3;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+body.app .pt{margin:0;font:700 .95rem/1.45 var(--fd);color:var(--navy);display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;min-height:2.9em}
+body.app .ppr{display:flex;align-items:baseline;flex-wrap:wrap;gap:3px 8px;margin-top:2px}
+body.app .ppr .pr{font:800 1.12rem var(--fd);color:var(--orange-d);white-space:nowrap}
+body.app .ppr .pr small{font-size:.74rem;color:inherit}
+body.app .ppr s{color:#98a2b8;font-size:.8rem}
+body.app .pph{display:flex;align-items:center;gap:4px;min-width:0;width:100%;min-height:32px;margin:2px 0 0;padding:0;background:transparent!important;border:0!important;box-shadow:none!important;color:var(--navy2)!important;font-weight:600;font-size:.8rem;text-align:start}
+body.app .pph svg{width:15px;height:15px;flex:none}
+body.app .pph span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+body.app .pdt{margin-top:auto;padding-top:6px;border-top:1px solid var(--line);color:var(--mute);font-size:.72rem;line-height:1.4}
+@media(min-width:560px){body.app .pgrid{grid-template-columns:repeat(3,minmax(0,1fr))}}
+body.app .sec svg.i3{width:22px;height:22px}
+
+/* phase-26: شاشة تتبع الطلب 3D (CSS فقط) + شارة التحديث المباشر */
+body.app .lvb{margin-inline-start:8px;font:600 .72rem var(--fd);color:var(--ok);background:#e3f4ea;border-radius:10px;padding:2px 8px;vertical-align:middle;animation:lvp 1.6s ease-in-out infinite}
+body.app .sc3d{perspective:520px;height:122px;margin:2px 0 8px;direction:ltr;overflow:hidden;border-radius:16px;background:linear-gradient(180deg,#f7faff,#e1eaf9)}
+body.app .sc3d .pl{position:relative;width:84%;height:58px;margin:46px auto 0;transform:rotateX(58deg);transform-style:preserve-3d;border-radius:14px;background:repeating-linear-gradient(90deg,rgba(255,255,255,.85) 0 12px,transparent 12px 24px) center/100% 3px no-repeat,linear-gradient(#34456b,#1b2a49);box-shadow:0 20px 22px -8px rgba(15,42,92,.5)}
+body.app .sc3d .fl{position:absolute;inset:0 auto 0 0;width:var(--p);border-radius:14px;background:linear-gradient(90deg,rgba(242,140,27,.1),rgba(242,140,27,.6));animation:flw 1.4s cubic-bezier(.4,0,.2,1) both}
+body.app .sc3d.done .fl{background:linear-gradient(90deg,rgba(10,122,59,.15),rgba(10,122,59,.6))}
+body.app .sc3d .pn,body.app .sc3d .bk{position:absolute;bottom:50%;transform-origin:50% 100%;transform:rotateX(-58deg);filter:drop-shadow(0 6px 4px rgba(10,29,68,.35))}
+body.app .sc3d .pn.a{left:-6px}body.app .sc3d .pn.b{right:-6px}
+body.app .sc3d .bk{left:var(--p);margin-left:-21px;animation:bkmv 1.4s cubic-bezier(.4,0,.2,1) both}
+body.app .sc3d .bk svg{display:block;animation:bob .55s ease-in-out infinite alternate}
+body.app .sc3d.done .bk svg{animation:none}
+body.app .sc3d .rd{position:absolute;left:12px;top:50%;width:22px;height:22px;margin:-11px 0 0 -11px;border-radius:50%;border:2px solid var(--orange);opacity:0}
+body.app .sc3d.srch .rd{animation:rdr 2.4s ease-out infinite}body.app .sc3d.srch .rd.r2{animation-delay:.8s}body.app .sc3d.srch .rd.r3{animation-delay:1.6s}
+@keyframes bkmv{from{left:var(--f)}to{left:var(--p)}}
+@keyframes flw{from{width:var(--f)}to{width:var(--p)}}
+@keyframes bob{from{transform:translateY(0)}to{transform:translateY(-3px)}}
+@keyframes rdr{0%{transform:scale(1);opacity:.85}100%{transform:scale(5.5);opacity:0}}
+@keyframes lvp{50%{opacity:.55}}
+
+/* phase-34: طلباتك (الطبي) */
+body.app .rqc{display:flex;justify-content:space-between;align-items:center;gap:10px;width:100%;margin:6px 0;padding:12px 14px;border-radius:16px;background:#fff;color:#0f2a5c;border:1px solid #e3e8f2;border-inline-start:6px solid #9aa3b5;text-align:start;font:inherit;min-height:48px;box-shadow:none}
+body.app .rqc b{font-weight:700}body.app .rqc span{font-weight:700;font-size:.88rem;color:#5b6577;white-space:nowrap}
+body.app .rqc.o{border-inline-start-color:#f28c1b;background:#fff7ec}body.app .rqc.o span{color:#c26a00}
+body.app .rqc.b{border-inline-start-color:#2a6fdb}body.app .rqc.b span{color:#2a6fdb}
+body.app .rqc.g{border-inline-start-color:#cfd5e2;opacity:.75}
+
+/* phase-35: أعلى الطبي (اختيارين كبار) + الخدمات التانية مضغوطة تحت */
+body.app .rxbig{display:grid;gap:10px;margin:8px 0 14px}
+body.app .rxbig button{display:flex;align-items:center;gap:12px;width:100%;min-height:68px;margin:0;padding:12px 16px;border-radius:18px;text-align:start;background:#fff;color:#0f2a5c;border:1.5px solid #dfe6f3;box-shadow:none;font:inherit}
+body.app .rxbig button svg{width:30px;height:30px;flex:none}
+body.app .rxbig button span{display:flex;flex-direction:column;gap:2px;min-width:0}
+body.app .rxbig button b{font-size:1.08rem}body.app .rxbig button small{font-size:.8rem;color:#5b6577}
+body.app .rxbig button.pri{background:#f28c1b;color:#fff;border-color:#f28c1b;min-height:78px}
+body.app .rxbig button.pri small{color:#fff}
+body.app .rxbig button.on{outline:3px solid #0f2a5c33}
+body.app .mtabs.sm{margin:6px 0 14px;gap:6px}
+body.app .mtabs.sm .mt{min-height:64px;padding:8px 4px;gap:3px;font-size:.78rem}
+body.app .mtabs.sm .mt svg.i3{width:26px;height:26px}
+body.app .mtabs.sm .mt.on::after{display:none}
+
+/* المرحلة 37: إعادة تصميم القسم الطبي (واجهة فقط): كروت 3D للروشتة/الدواء/الطبيب */
+body.app .rxbig{grid-template-columns:repeat(2,minmax(0,1fr));gap:12px;margin:10px 0 16px}
+body.app .rxbig button,body.app .rxbig .drc{position:relative;display:flex;flex-direction:column;align-items:flex-start;justify-content:space-between;gap:10px;width:100%;min-height:150px;margin:0;padding:14px;text-align:start;font:inherit;cursor:pointer;color:#fff;border:0!important;border-radius:22px!important;border-bottom:7px solid #081a3d!important;background:#0f2a5c;box-shadow:0 10px 18px -8px #0f2a5c66!important;transition:transform .12s,border-bottom-width .12s,box-shadow .12s}
+body.app .rxbig button svg.i,body.app .rxbig button svg.i3,body.app .rxbig .drc svg.i3{width:34px;height:34px;flex:none;stroke:none}
+body.app .rxbig button svg.i{stroke:currentColor;fill:none;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round;color:#0f2a5c}
+body.app .rxbig button>svg,body.app .rxbig .drc>svg{box-sizing:content-box;padding:10px;background:#fff;border-radius:16px;border-bottom:4px solid #d3dcef;filter:none}
+body.app .rxbig span{display:flex;flex-direction:column;gap:3px;min-width:0}
+body.app .rxbig b{font:700 1.05rem var(--fd);color:#fff}
+body.app .rxbig button small,body.app .rxbig .drc small{font-size:.8rem;line-height:1.5;color:#ffffffd9}
+body.app .rxbig button.pri{grid-column:1/-1;flex-direction:row;align-items:center;justify-content:flex-start;gap:14px;min-height:104px;padding:16px;background:#f28c1b;border-bottom-color:#b9650a!important;box-shadow:0 12px 20px -8px #f28c1b99!important}
+body.app .rxbig button.pri>svg{width:40px;height:40px;color:#b9650a}
+body.app .rxbig button.pri b{font-size:1.22rem}
+body.app .rxbig button.pri small{color:#fff}
+body.app .rxbig button.pri::after{content:"‹";margin-inline-start:auto;font-size:2rem;line-height:1;opacity:.85}
+body.app .rxbig .drc{background:#0f8b8d;border-bottom-color:#09605f!important;box-shadow:0 10px 18px -8px #0f8b8d77!important;outline-offset:2px}
+body.app .rxbig button:active,body.app .rxbig .drc:active{transform:translateY(4px);border-bottom-width:3px!important;box-shadow:none!important}
+body.app .rxbig button.on{outline:3px solid #f28c1b66;outline-offset:2px}
+body.app .rxbig button:focus-visible,body.app .rxbig .drc:focus-visible{outline:3px solid #f28c1b;outline-offset:3px}
+@media(min-width:700px){body.app .rxbig{grid-template-columns:repeat(2,minmax(0,1fr))}body.app .rxbig button,body.app .rxbig .drc{min-height:132px}}
+body.app .mtabs.sm .mt,body.app .mtabs .mt{border-bottom:4px solid #cbd6ec!important;box-shadow:0 6px 12px -8px #0f2a5c55!important}
+body.app .mt.on{border-bottom:4px solid var(--orange)!important}
+body.app .mt.on::after{display:none}
+body.app .medph h2{font-size:1.5rem}
+
+/* ===== المرحلة 38: بروفايل المندوب (يُفتح من كارت المندوب في «طلباتي») ===== */
+body.app .cpm{display:flex;align-items:center;gap:12px;width:100%;box-sizing:border-box;margin-top:8px;padding:10px 12px;border:1.5px solid var(--line);border-radius:16px;background:#f7f9fd;cursor:pointer;color:var(--ink);text-align:start;box-shadow:0 3px 0 #cbd6ec;transition:transform .12s,box-shadow .12s}
+body.app .cpm:active{transform:translateY(2px);box-shadow:0 1px 0 #cbd6ec}
+body.app .cpm:focus-visible{outline:3px solid var(--orange);outline-offset:2px}
+body.app .cpm .cpt{flex:1;min-width:0;display:flex;flex-direction:column}
+body.app .cpm .cpt b{font:700 1rem var(--fd);color:var(--navy);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+body.app .cpm .cpt small{color:var(--mute);font-size:.8rem}
+body.app .cpm svg{width:20px;height:20px;flex:none;fill:none;stroke:var(--navy2);stroke-width:2.4;stroke-linecap:round;stroke-linejoin:round}
+body.app .cphint{display:block;color:var(--mute);margin:2px 0 6px}
+.cpa{display:inline-flex;align-items:center;justify-content:center;flex:none;width:46px;height:46px;border-radius:50%;overflow:hidden;background:var(--navy2,#1b3f86);color:#fff;font:700 1.2rem var(--fd);border:2px solid var(--orange,#f28c1b)}
+.cpa.big{width:56px;height:56px}.cpa.xl{width:104px;height:104px;font-size:2.4rem;border-width:3px;box-shadow:0 6px 18px #0a1d4466}
+.cpa img{width:100%;height:100%;object-fit:cover;display:block}
+body.cplock{overflow:hidden}
+.cpv{position:fixed;inset:0;z-index:1000;background:var(--bg,#eef2f8);display:flex;flex-direction:column;font-family:var(--fb);color:var(--ink);animation:cpin .18s ease-out}
+@keyframes cpin{from{opacity:0;transform:translateY(14px)}to{opacity:1;transform:none}}
+@media(prefers-reduced-motion:reduce){.cpv{animation:none}}
+.cpv .cph{display:flex;align-items:center;gap:10px;padding:calc(10px + env(safe-area-inset-top)) 14px 10px;background:var(--navy,#0f2a5c);color:#fff}
+.cpv .cph h2{margin:0;font:700 1.1rem var(--fd);flex:1}
+.cpv .cpb{display:inline-flex;align-items:center;gap:6px;min-height:42px;padding:0 14px 0 12px;border:0;border-radius:999px;background:#ffffff26;color:#fff;font:700 .95rem var(--fb);cursor:pointer;width:auto}
+.cpv .cpb:active{background:#ffffff40}.cpv .cpb:focus-visible{outline:3px solid var(--orange);outline-offset:2px}
+.cpv .cpb svg{width:18px;height:18px;fill:none;stroke:currentColor;stroke-width:2.4;stroke-linecap:round;stroke-linejoin:round}
+.cpv .cpbody{flex:1;overflow-y:auto;-webkit-overflow-scrolling:touch;padding:0 0 16px;max-width:640px;width:100%;margin:0 auto;box-sizing:border-box}
+.cpv .cphero{display:flex;flex-direction:column;align-items:center;gap:8px;padding:22px 16px 26px;background:linear-gradient(180deg,var(--navy,#0f2a5c),var(--navy2,#1b3f86));color:#fff;border-radius:0 0 28px 28px;text-align:center}
+.cpv .cphero h3{margin:4px 0 0;font:700 1.35rem var(--fd)}
+.cpv .cpav{display:inline-block;padding:4px 14px;border-radius:999px;font-weight:700;font-size:.85rem;background:#ffffff26;color:#fff}
+.cpv .cpav.on{background:#d9f5e3;color:#0a5c2d}
+.cpv .cpav::before{content:"";display:inline-block;width:8px;height:8px;border-radius:50%;background:#9aa6c0;margin-inline-end:6px}.cpv .cpav.on::before{background:#12a150}
+.cpv .cpr{display:flex;align-items:center;gap:8px;font-size:1.05rem}.cpv .cpr small{color:#d6deed}
+.cps{color:var(--orange,#f28c1b);letter-spacing:2px}.cps i{font-style:normal;color:#c5cde0}
+.cpv .cphero .cps i{color:#ffffff55}
+.cpv .cpg{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px;padding:16px 14px 0}
+.cpv .cpg>div{background:#fff;border:1px solid var(--line);border-radius:16px;padding:12px 8px;text-align:center;box-shadow:0 3px 0 #dbe3f2}
+.cpv .cpg b{display:block;font:700 1.35rem var(--fd);color:var(--navy)}.cpv .cpg small{color:var(--mute)}
+.cpv .cpsec{font:700 1.05rem var(--fd);color:var(--navy);padding:18px 16px 6px}
+.cpv .cpc{margin:0 14px 10px;background:#fff;border:1px solid var(--line);border-radius:16px;padding:10px 14px}
+.cpv .cpc .cpch{display:flex;align-items:center;gap:8px;flex-wrap:wrap}.cpv .cpc .cpch small{margin-inline-start:auto;color:var(--mute)}
+.cpv .cpc p{margin:6px 0 0;overflow-wrap:anywhere}
+.cpv .cpl{padding:18px 16px;text-align:center;color:var(--mute)}.cpv .cpl.e{color:var(--bad)}
+.cpv .cpf{padding:10px 14px calc(10px + env(safe-area-inset-bottom));background:#fff;border-top:1px solid var(--line)}
+.cpv .cpf button{width:100%;max-width:640px;display:block;margin:0 auto;min-height:48px;border:0;border-radius:12px;background:var(--navy);color:#fff;font:700 1rem var(--fb);cursor:pointer}
+@media(min-width:560px){.cpv .cpg{grid-template-columns:repeat(4,minmax(0,1fr))}}

@@ -1,0 +1,9 @@
+uploads/
+*.db
+*.db-wal
+*.db-shm
+__pycache__/
+test_*
+testutil.py
+backup/
+.git
