@@ -19,7 +19,7 @@ import re, json, time
 import gsearch
 
 MAX_ITEMS, MAX_QTY, MAX_UNIT, MAX_TOTAL, MAX_AUTO, MAX_MANY = 30, 99, 100_000, 1_000_000, 8, 10
-MAX_IMAGES = 3  # صور الروشتة الواحدة
+MAX_IMAGES = 5  # صور الروشتة الواحدة؛ الحد لكل طلب وليس إجماليًا لكل عميل
 push_hook = None  # injected by server.py; best-effort generic push, no medical details
 EXPIRE_DAYS_DEFAULT = 14  # روشتة أقدم من ذلك لا تقبل تسعيرات جديدة (settings.rx_expire_days اختياري)
 STOCK_FRESH_HOURS_DEFAULT = 24  # نفس مفتاح server.py: stock_fresh_hours

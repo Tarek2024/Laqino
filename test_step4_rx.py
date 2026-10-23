@@ -28,28 +28,29 @@ def up(tok=cust): return call("POST", "/files", {"data": png()}, tok)[1]["id"]
 ITEMS = [{"name": "باراسيتامول", "qty": 2, "unit_price": 20}]
 
 # ---- صور متعددة
-f1, f2, f3, f4 = up(), up(), up(), up()
-ok("4 images rejected (max 3)", call("POST", "/medical/prescriptions", {"file_ids": [f1, f2, f3, f4], "region_id": 3}, cust)[0] == 400)
+f1, f2, f3, f4, f5, f6 = up(), up(), up(), up(), up(), up()
+ok("6 images rejected (max 5)", call("POST", "/medical/prescriptions", {"file_ids": [f1, f2, f3, f4, f5, f6], "region_id": 3}, cust)[0] == 400)
 ok("duplicate image ids rejected", call("POST", "/medical/prescriptions", {"file_ids": [f1, f1], "region_id": 3}, cust)[0] == 400)
 ok("empty / non-list rejected", all(call("POST", "/medical/prescriptions", {"file_ids": v, "region_id": 3}, cust)[0] == 400 for v in ([], "x", [True], ["x"])))
 ok("someone else's image rejected", call("POST", "/medical/prescriptions", {"file_ids": [up(other)], "region_id": 3}, cust)[0] == 400)
 ok("nothing was created by rejected calls", sql("SELECT COUNT(*) FROM prescriptions")[0][0] == 0)
-s, r = call("POST", "/medical/prescriptions", {"file_ids": [f1, f2, f3], "region_id": 3, "note": "n"}, cust); R = r["id"]
-ok("3 images accepted", s == 201 and sql("SELECT file_id FROM rx_images WHERE prescription_id=? ORDER BY pos", (R,)) == [(f1,), (f2,), (f3,)])
+s, r = call("POST", "/medical/prescriptions", {"file_ids": [f1, f2, f3, f4, f5], "region_id": 3, "note": "n"}, cust); R = r["id"]
+ok("5 images accepted", s == 201 and sql("SELECT file_id FROM rx_images WHERE prescription_id=? ORDER BY pos", (R,)) == [(f1,), (f2,), (f3,), (f4,), (f5,)])
 ok("cover file_id = first image (old code keeps working)", sql("SELECT file_id FROM prescriptions WHERE id=?", (R,))[0][0] == f1)
+ok("prescription images do not consume the generic upload quota", sql(server.COUNT_SQL["files"], (cid,))[0][0] == 1)
 ok("image cannot be reused by a second prescription", call("POST", "/medical/prescriptions", {"file_ids": [f2], "region_id": 3}, cust)[0] == 409 and call("POST", "/medical/prescriptions", {"file_id": f1, "region_id": 3}, cust)[0] == 409)
 s, r = call("POST", "/medical/prescriptions", {"file_id": up(), "region_id": 3}, cust); ok("legacy single file_id still works", s == 201); RL = r["id"]
 mine = {x["id"]: x for x in call("GET", "/medical/prescriptions", None, cust)[1]}
-ok("customer list: images + stage review", mine[R]["images"] == [f1, f2, f3] and mine[R]["stage"] == "review" and len(mine[RL]["images"]) == 1)
+ok("customer list: images + stage review", mine[R]["images"] == [f1, f2, f3, f4, f5] and mine[R]["stage"] == "review" and len(mine[RL]["images"]) == 1)
 adm = {x["id"]: x for x in call("GET", "/admin/prescriptions", None, at)[1]}
-ok("admin list carries all images", adm[R]["images"] == [f1, f2, f3])
+ok("admin list carries all images", adm[R]["images"] == [f1, f2, f3, f4, f5])
 
 # ---- تحويل + استلام/اطلاع
 ok("pharmacy cannot read image before forwarding", raw("GET", f"/files/{f2}", None, pa)[0] == 404)
 call("POST", f"/admin/prescriptions/{R}/forward-many", {"provider_ids": [ids["a"], ids["b"]]}, at)
 s, r = call("GET", f"/medical/prescriptions/{R}/quotes", None, cust)
 ok("stage at_pharmacies; both pharmacies listed, none seen/quoted, no phones", r["stage"] == "at_pharmacies" and len(r["pharmacies"]) == 2 and not any(p["seen"] or p["quoted"] for p in r["pharmacies"]) and "0101" not in json.dumps(r))
-ok("provider list exposes all 3 images", next(x for x in call("GET", "/provider/prescriptions", None, pa)[1] if x["id"] == R)["images"] == [f1, f2, f3])
+ok("provider list exposes all 5 images", next(x for x in call("GET", "/provider/prescriptions", None, pa)[1] if x["id"] == R)["images"] == [f1, f2, f3, f4, f5])
 st, body, ct = raw("GET", f"/files/{f3}", None, pa); ok("pharmacy can open the 3rd image (not only the cover)", st == 200 and ct == "image/png")
 ok("other pharmacy not yet seen; opening an image marks only that pharmacy", sql("SELECT provider_id FROM rx_seen WHERE prescription_id=?", (R,)) == [(ids["a"],)])
 tr = {x["id"]: x for x in call("GET", "/admin/rx/tracking", None, at)[1]}[R]
@@ -71,7 +72,7 @@ s, r = call("POST", "/medical/delivery", {"source_type": "prescription", "source
 ok("cannot order delivery from an unapproved response", s == 404)
 # الأدمن
 pend = call("GET", "/admin/rx/responses", None, at)[1]
-ok("admin sees pending list with items + images", len(pend) == 1 and pend[0]["pharmacy"] == "صيدلية a" and pend[0]["items"][0]["name"] == "باراسيتامول" and pend[0]["images"] == [f1, f2, f3])
+ok("admin sees pending list with items + images", len(pend) == 1 and pend[0]["pharmacy"] == "صيدلية a" and pend[0]["items"][0]["name"] == "باراسيتامول" and pend[0]["images"] == [f1, f2, f3, f4, f5])
 ok("review endpoints: auth + validation", call("POST", f"/admin/rx/responses/{R}/{ids['a']}/review", {"decision": "approve"}, cust)[0] == 403
    and call("POST", f"/admin/rx/responses/{R}/{ids['a']}/review", {"decision": "maybe"}, at)[0] == 400
    and call("POST", f"/admin/rx/responses/{R}/{ids['a']}/review", {"decision": "reject"}, at)[0] == 400
@@ -98,7 +99,8 @@ ok("delivery from an approved response works", s in (200, 201))
 ok("legacy /respond path also lands as pending", (lambda: (call("POST", f"/provider/prescriptions/{RL}/respond", {"status": "unavailable"}, pa), sql("SELECT 1"))[0][0] == 404)())
 
 # ---- حذف صورة من روشتة متعددة الصور
-ok("deleting a non-cover image keeps the prescription open", call("POST", f"/files/{f3}/delete", {}, cust)[0] == 200 and sql("SELECT status FROM prescriptions WHERE id=?", (R,))[0][0] != "closed" and [x[0] for x in sql("SELECT file_id FROM rx_images WHERE prescription_id=? ORDER BY pos", (R,))] == [f1, f2])
+ok("deleting a non-cover image keeps the prescription open", call("POST", f"/files/{f3}/delete", {}, cust)[0] == 200 and sql("SELECT status FROM prescriptions WHERE id=?", (R,))[0][0] != "closed" and [x[0] for x in sql("SELECT file_id FROM rx_images WHERE prescription_id=? ORDER BY pos", (R,))] == [f1, f2, f4, f5])
+ok("deleting remaining extra images keeps the prescription open", call("POST", f"/files/{f4}/delete", {}, cust)[0] == 200 and call("POST", f"/files/{f5}/delete", {}, cust)[0] == 200 and [x[0] for x in sql("SELECT file_id FROM rx_images WHERE prescription_id=? ORDER BY pos", (R,))] == [f1, f2])
 ok("deleting the cover promotes the next image and keeps it open", call("POST", f"/files/{f1}/delete", {}, cust)[0] == 200 and sql("SELECT file_id,status FROM prescriptions WHERE id=?", (R,))[0][0] == f2 and sql("SELECT status FROM prescriptions WHERE id=?", (R,))[0][0] != "closed" and sql("SELECT file_id FROM rx_images WHERE prescription_id=?", (R,)) == [(f2,)])
 ok("deleting the last image closes it (old behaviour)", call("POST", f"/files/{f2}/delete", {}, cust)[0] == 200 and sql("SELECT status FROM prescriptions WHERE id=?", (R,))[0][0] == "closed")
 ok("closed → stage closed in list", next(x for x in call("GET", "/medical/prescriptions", None, cust)[1] if x["id"] == R)["stage"] == "closed")

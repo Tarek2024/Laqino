@@ -337,7 +337,7 @@ def check_admin_password(pw, phone=""):
 LIMITS = {"orders": 5, "inquiries": 10, "prescriptions": 5, "files": 20}  # per-user caps on open items (server-side abuse guard)
 OPEN_ORDERS = "('searching','assigned','heading_pickup','picked_up','heading_customer','arrived','awaiting_confirmation')"
 COUNT_SQL = {"orders": "SELECT COUNT(*) FROM delivery_orders WHERE customer_id=? AND status IN " + OPEN_ORDERS, "inquiries": "SELECT COUNT(*) FROM medicine_inquiries WHERE customer_id=? AND status='open'",
-    "prescriptions": "SELECT COUNT(*) FROM prescriptions WHERE customer_id=? AND status!='closed'", "files": "SELECT COUNT(*) FROM files WHERE owner_id=? AND id NOT IN (SELECT file_id FROM market_files) AND id NOT IN (SELECT file_id FROM chat_messages WHERE file_id IS NOT NULL) AND id NOT IN (SELECT file_id FROM service_request_images)"}
+    "prescriptions": "SELECT COUNT(*) FROM prescriptions WHERE customer_id=? AND status!='closed'", "files": "SELECT COUNT(*) FROM files WHERE owner_id=? AND id NOT IN (SELECT file_id FROM market_files) AND id NOT IN (SELECT file_id FROM chat_messages WHERE file_id IS NOT NULL) AND id NOT IN (SELECT file_id FROM service_request_images) AND id NOT IN (SELECT file_id FROM prescriptions WHERE file_id IS NOT NULL) AND id NOT IN (SELECT file_id FROM rx_images)"}
 def _exif_orientation(seg):
     """Read only the Orientation tag (1-8) from an APP1 'Exif' payload; None when absent or malformed."""
     try:
