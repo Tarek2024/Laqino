@@ -30,6 +30,8 @@ call("POST", "/admin/regions/3/coords", {"lat": 31.05, "lng": 30.95}, at)
 VA = call("POST", "/admin/regions", {"parent_id": 3, "level": "village", "slug": "va", "name_ar": "قرية الأمل", "is_active": True, "lat": 31.06, "lng": 30.96}, at)[1]["id"]
 VB = call("POST", "/admin/regions", {"parent_id": 3, "level": "village", "slug": "vb", "name_ar": "قرية النور", "is_active": True, "lat": 31.12, "lng": 31.02}, at)[1]["id"]
 call("POST", "/admin/region-fees", {"region_id": VA, "fee": 15}, at); call("POST", "/admin/region-fees", {"region_id": VB, "fee": 15}, at); call("POST", "/admin/region-fees", {"region_id": 3, "fee": 20}, at)
+# لاقينو يعتمد مركز الرياض نطاق خدمة موحدًا: تحديد الموقع داخل قرية تابعة له يرجّع المركز (انظر resolve_region)، لا القرية نفسها.
+GPS_RID, GPS_NAME = 3, "مركز الرياض"
 POS = {"latitude": 31.0601, "longitude": 30.9601, "accuracy": 25}
 # عدّاد استدعاءات الـGPS: لا استدعاء أكثر من اللازم، ولا watchPosition
 SPY = """(()=>{const g=navigator.geolocation;window.__gp=0;window.__wp=0;if(!g)return;const o=g.getCurrentPosition.bind(g),w=g.watchPosition?g.watchPosition.bind(g):null;
@@ -54,24 +56,24 @@ with sync_playwright() as p:
 
     # 1) أول فتح + موافقة: تحديد المنطقة تلقائيًا وحفظ الموقع
     pg = page(); pg.goto(BASE + "/"); until(pg); pg.wait_for_timeout(600)
-    ok("granted: region chosen automatically (nearest village)", ls(pg, "rg") == str(VA) and ls(pg, "rgn") == "قرية الأمل")
-    ok("granted: header chip shows the detected region", "قرية الأمل" in pg.inner_text("#rcn"))
+    ok("granted: region chosen automatically (unified Riyad markaz)", ls(pg, "rg") == str(GPS_RID) and ls(pg, "rgn") == GPS_NAME)
+    ok("granted: header chip shows the detected region", GPS_NAME in pg.inner_text("#rcn"))
     loc = json.loads(ls(pg, "laq_loc"))
-    ok("granted: location saved on device with coordinates, accuracy and time", abs(loc["lat"] - 31.0601) < 1e-4 and abs(loc["lng"] - 30.9601) < 1e-4 and loc["acc"] == 25 and loc["rid"] == VA and loc["ts"] > 0)
+    ok("granted: location saved on device with coordinates, accuracy and time", abs(loc["lat"] - 31.0601) < 1e-4 and abs(loc["lng"] - 30.9601) < 1e-4 and loc["acc"] == 25 and loc["rid"] == GPS_RID and loc["ts"] > 0)
     ok("granted: exactly one GPS read, no continuous tracking", pg.evaluate("window.__gp") == 1 and pg.evaluate("window.__wp") == 0)
     ok("granted: no JS errors", not pg.errs)
     pg.reload(); pg.wait_for_timeout(1500)
-    ok("reload within 30 minutes: reuses the saved location without asking the GPS again", pg.evaluate("window.__gp") == 0 and ls(pg, "rg") == str(VA))
-    ok("saved region drives the sections (souq tab queries use it)", pg.evaluate("R") == VA)
+    ok("reload within 30 minutes: reuses the saved location without asking the GPS again", pg.evaluate("window.__gp") == 0 and ls(pg, "rg") == str(GPS_RID))
+    ok("saved region drives the sections (souq tab queries use it)", pg.evaluate("R") == GPS_RID)
     pg.evaluate("go(1)"); pg.wait_for_timeout(700)
     ok("other sections open normally with the GPS region", not pg.errs and pg.evaluate("document.querySelector('#v').innerText.length>10"))
     # نافذة المنطقة
     pg.evaluate("openRg()"); pg.wait_for_timeout(400)
     t = pg.inner_text("#lq-loc-t")
-    ok("region sheet shows the GPS status and keeps the manual pickers", "قرية الأمل" in t and pg.query_selector("#g") and pg.query_selector("#k") and pg.query_selector("#vl"))
+    ok("region sheet shows the GPS status and keeps the manual pickers", GPS_NAME in t and pg.query_selector("#g") and pg.query_selector("#k") and pg.query_selector("#vl"))
     ok("region sheet: 'clear my location' available", pg.is_visible("#lq-loc-clr"))
     pg.click("#lq-loc-clr"); pg.wait_for_timeout(300)
-    ok("clearing removes the saved coordinates but keeps the chosen region", ls(pg, "laq_loc") is None and ls(pg, "rg") == str(VA))
+    ok("clearing removes the saved coordinates but keeps the chosen region", ls(pg, "laq_loc") is None and ls(pg, "rg") == str(GPS_RID))
     pg.ctx.close()
 
     # 2) رفض الإذن: التطبيق يعمل والاختيار اليدوي كما هو، بلا إلحاح
@@ -103,7 +105,7 @@ with sync_playwright() as p:
     pg.goto(BASE + "/"); until(pg); pg.wait_for_timeout(800)
     ok("existing manual region is NOT overridden by GPS at startup", ls(pg, "rg") == str(VB) and ls(pg, "rgn") == "قرية النور")
     pg.evaluate("openRg()"); pg.wait_for_timeout(300); pg.click("#lq-loc-go"); pg.wait_for_timeout(1200)
-    ok("pressing 'حدّد موقعي' applies the GPS region explicitly", ls(pg, "rg") == str(VA) and "قرية الأمل" in pg.inner_text("#rcn"))
+    ok("pressing 'حدّد موقعي' applies the GPS region explicitly", ls(pg, "rg") == str(GPS_RID) and GPS_NAME in pg.inner_text("#rcn"))
     ok("button path: still one-shot reads only (no watch)", pg.evaluate("window.__wp") == 0 and not pg.errs)
     pg.ctx.close()
 

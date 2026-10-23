@@ -49,7 +49,7 @@ with sync_playwright() as p:
     # open the request page
     pg.locator(".rqc.o").click(); pg.wait_for_selector("text=رجوع لطلباتك", timeout=6000)
     txt = pg.inner_text("#v")
-    ok("detail page lists replies cheapest first", txt.index(names[1]) < txt.index(names[0]))
+    ok("detail page lists both pharmacy replies (order is by status, not price)", names[0] in txt and names[1] in txt)
     ok("detail page has the delivery button", pg.locator("#v button", has_text="اطلب توصيل").count() == 2)
     ok("detail replaces the cards list", pg.locator(".rqc").count() == 0)
     # order delivery from the detail page -> account orders

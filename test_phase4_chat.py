@@ -135,10 +135,10 @@ ok("second message within the gap is throttled (no extra push)", len(HITS) == 1)
 chat.PUSH_GAP = 0; call("POST", f"/chats/{Tq}/messages", {"text": "ثالث"}, tk[B1]); time.sleep(1.2)
 ok("push again once the gap allows", len(HITS) == 2)
 st = call("POST", "/push/state", {"endpoint": EP("seller")})[1]
-ok("push state returns counts/flags only (chat unread, pending, courier)", set(st) == {"pending", "chat", "courier"} and st["pending"] == 0 and st["courier"] is False and st["chat"] >= 3)
+ok("push state returns counts/flags only (chat unread, medical unread, pending, courier)", set(st) == {"pending", "chat", "medical", "courier"} and st["pending"] == 0 and st["medical"] >= 0 and st["courier"] is False and st["chat"] >= 3)
 call("GET", f"/chats/{Tq}", None, tk[SELLER])
 ok("reading the thread lowers the unread count by its 3 messages", call("POST", "/push/state", {"endpoint": EP("seller")})[1]["chat"] == st["chat"] - 3)
-ok("unknown endpoint -> zeros (no information leak)", call("POST", "/push/state", {"endpoint": EP("nobody")})[1] == {"pending": 0, "chat": 0, "courier": False})
+ok("unknown endpoint -> zeros (no information leak)", call("POST", "/push/state", {"endpoint": EP("nobody")})[1] == {"pending": 0, "chat": 0, "medical": 0, "courier": False})
 call("POST", "/push/unsubscribe", {"endpoint": EP("seller")}, tk[SELLER]); HITS.clear(); chat.PUSH_GAP = 0
 call("POST", f"/chats/{Tq}/messages", {"text": "بعد الإيقاف"}, tk[B1]); time.sleep(1.0)
 ok("after unsubscribe no push is sent; the message still succeeds", HITS == [])

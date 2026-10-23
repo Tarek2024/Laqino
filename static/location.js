@@ -98,8 +98,10 @@
     inflight = getPos().then(function (p) {
       lsSet(DENY, null); lastReason = '';
       return resolve(p.lat, p.lng).then(function (j) {
-        var reg = j && j.region ? j.region : null, old = read();
-        var loc = { lat: +p.lat.toFixed(6), lng: +p.lng.toFixed(6), acc: Math.round(p.acc || 0), ts: Date.now(),
+        var state = j && (j.state === 'clear' || j.state === 'ambiguous' || j.state === 'unspecified') ? j.state : (j && j.region ? 'clear' : 'unspecified');
+        var reg = state === 'clear' && j && j.region ? j.region : null, old = read();
+        window._regionSuggestion = { state: state, region: reg || null };
+        var loc = { lat: +p.lat.toFixed(6), lng: +p.lng.toFixed(6), acc: Math.round(p.acc || 0), ts: Date.now(), state: state,
                     rid: reg ? reg.id : (j ? 0 : (old && old.rid) || 0), rn: reg ? reg.name_ar : (j ? '' : (old && old.rn) || '') };
         write(loc);
         return applyRegion(reg, !!opts.explicit).catch(function () { return 'none'; }).then(function (act) {
@@ -136,7 +138,7 @@
     if (!t) return;
     var l = read(), msg;
     if (l) {
-      msg = (l.rn ? 'موقعك الحالي: ' + l.rn : 'اتحدد موقعك، بس مفيش منطقة مسجّلة قريبة منه — اختار منطقتك من القوائم.') + ' · آخر تحديث ' + ago(l.ts);
+      msg = l.state === 'ambiguous' ? 'موقعك قريب من أكثر من منطقة محتملة. اختار المركز/المنطقة يدويًا من القوائم.' : l.state === 'unspecified' ? 'اتحدد موقعك لكن لم يمكن ربطه بمنطقة معتمدة. اختار المركز/المنطقة يدويًا من القوائم.' : (l.rn ? 'موقعك الحالي: ' + l.rn : 'اتحدد موقعك، بس مفيش منطقة مسجّلة قريبة منه — اختار منطقتك من القوائم.') + ' · آخر تحديث ' + ago(l.ts);
     } else if (lastReason) msg = REASON[lastReason] || REASON.unavailable;
     else if (lsGet(DENY)) msg = REASON.denied;
     else msg = 'ممكن نحدد منطقتك تلقائيًا بالـGPS. الموقع بيتحفظ على جهازك بس ومابنتتبّعكش.';

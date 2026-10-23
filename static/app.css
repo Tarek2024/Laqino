@@ -437,3 +437,6 @@ body.cplock{overflow:hidden}
 .cpv .cpf{padding:10px 14px calc(10px + env(safe-area-inset-bottom));background:#fff;border-top:1px solid var(--line)}
 .cpv .cpf button{width:100%;max-width:640px;display:block;margin:0 auto;min-height:48px;border:0;border-radius:12px;background:var(--navy);color:#fff;font:700 1rem var(--fb);cursor:pointer}
 @media(min-width:560px){.cpv .cpg{grid-template-columns:repeat(4,minmax(0,1fr))}}
+
+/* Phase 2 / ج2: prescription image selection and previews */
+.rx-pick-actions{display:flex;gap:8px;margin:12px 0}.rx-pick-actions button{flex:1}.rx-previews{display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin:10px 0}.rx-thumb{position:relative;width:84px;height:84px}.rx-thumb img{width:100%;height:100%;object-fit:cover;border-radius:10px;border:1px solid #d8deea}.rx-thumb button{position:absolute;top:-6px;left:-6px;border:0;border-radius:50%;width:25px;height:25px;background:#b42318;color:white;font-size:18px}.med-ask summary{cursor:pointer;display:flex;flex-direction:column;gap:4px;list-style:none}.med-ask summary::-webkit-details-marker{display:none}.med-ask summary:after{content:'＋';align-self:flex-end;margin-top:-24px}

@@ -168,10 +168,30 @@ def install(c):
     c.commit()
 
 
+def _riyad_scope_ids(c, region_id):
+    """نطاق البحث الموحد لمركز الرياض فقط؛ المناطق الأخرى تحتفظ بسلوك المطابقة القديم."""
+    r = c.execute("SELECT slug,level FROM regions WHERE id=? AND is_active=1", (region_id,)).fetchone()
+    if not r or r["slug"] != "eg-kfs-riyad" or r["level"] != "markaz": return [region_id]
+    return [x[0] for x in c.execute("WITH RECURSIVE tree(id) AS (SELECT ? UNION SELECT g.id FROM regions g JOIN tree t ON g.parent_id=t.id) SELECT id FROM tree", (region_id,)).fetchall()]
+
+def _provider_request_regions(c, provider_region_id):
+    """المناطق التي يمكن أن تطابق طلب مقدم الخدمة: منطقته، ومركز الرياض إذا كان تابعًا له."""
+    ids = [provider_region_id]; rid = provider_region_id; seen = set()
+    while rid and rid not in seen:
+        seen.add(rid)
+        r = c.execute("SELECT parent_id,level,slug FROM regions WHERE id=?", (rid,)).fetchone()
+        if not r: break
+        if r["level"] == "markaz" and r["slug"] == "eg-kfs-riyad":
+            if rid not in ids: ids.append(rid)
+            break
+        rid = r["parent_id"]
+    return ids
+
 def _matching(c, type_id, region_id):
-    """عدد/أسماء مقدمي الخدمة المنشورين المطابقين (نفس النوع والمنطقة). بلا أي رقم."""
+    """عدد/أسماء مقدمي الخدمة المنشورين المطابقين لنطاق مركز الرياض أو المنطقة المحددة. بلا أي رقم."""
+    ids = _riyad_scope_ids(c, region_id)
     return c.execute("SELECT p.id,p.name_ar FROM service_providers p JOIN regions rg ON rg.id=p.region_id "
-                     "WHERE p.type_id=? AND p.region_id=? AND p.is_published=1 AND rg.is_active=1 ORDER BY p.name_ar LIMIT 20", (type_id, region_id)).fetchall()
+                     "WHERE p.type_id=? AND p.region_id IN (%s) AND p.is_published=1 AND rg.is_active=1 ORDER BY p.name_ar LIMIT 20" % ",".join("?" * len(ids)), (type_id, *ids)).fetchall()
 
 
 def _notify(c, user_id, kind, title, body, link, ref_id):
@@ -241,9 +261,10 @@ def _comment(d):
 
 
 def _eligible(c, type_id, region_id, exclude_user=None):
-    """مقدمون يصلحون لعروض الأسعار: منشورون، نفس النوع والمنطقة، ولهم حساب يرد (owner_user_id)، وليسوا صاحب الطلب."""
-    return c.execute("SELECT p.id,p.name_ar,p.owner_user_id FROM service_providers p JOIN regions rg ON rg.id=p.region_id WHERE p.type_id=? AND p.region_id=? AND p.is_published=1 AND rg.is_active=1 "
-                     "AND p.owner_user_id IS NOT NULL AND p.owner_user_id<>? ORDER BY p.name_ar LIMIT 50", (type_id, region_id, exclude_user or 0)).fetchall()
+    """مقدمون يصلحون لعروض الأسعار داخل النطاق الموحد، مع الحفاظ على مطابقة المناطق الأخرى."""
+    ids = _riyad_scope_ids(c, region_id)
+    return c.execute("SELECT p.id,p.name_ar,p.owner_user_id FROM service_providers p JOIN regions rg ON rg.id=p.region_id WHERE p.type_id=? AND p.region_id IN (%s) AND p.is_published=1 AND rg.is_active=1 " % ",".join("?" * len(ids)) +
+                     "AND p.owner_user_id IS NOT NULL AND p.owner_user_id<>? ORDER BY p.name_ar LIMIT 50", (type_id, *ids, exclude_user or 0)).fetchall()
 
 
 def _phone_in(text):
@@ -512,8 +533,9 @@ def handle(h, c, u, method, path, q):
         if path == "/api/my/service-jobs" and method == "GET":
             jobs = []
             for p in live:
-                for r in c.execute(SEL + " WHERE s.provider_id IS NULL AND s.type_id=? AND s.region_id=? AND (s.status='open' OR (s.status IN('awaiting_quotes','quotes_received') AND "
-                                   "EXISTS(SELECT 1 FROM service_request_invites i WHERE i.request_id=s.id AND i.provider_id=?))) ORDER BY s.id DESC LIMIT 50", (p["type_id"], p["region_id"], p["id"])).fetchall():
+                request_regions = _provider_request_regions(c, p["region_id"])
+                for r in c.execute(SEL + " WHERE s.provider_id IS NULL AND s.type_id=? AND s.region_id IN (%s) AND (s.status='open' OR (s.status IN('awaiting_quotes','quotes_received') AND " % ",".join("?" * len(request_regions)) +
+                                   "EXISTS(SELECT 1 FROM service_request_invites i WHERE i.request_id=s.id AND i.provider_id=?))) ORDER BY s.id DESC LIMIT 50", (p["type_id"], *request_regions, p["id"])).fetchall():
                     jobs.append({"quote_mode": r["status"] != "open", "my_quote": _myquote(c, r["id"], p["id"]) if r["status"] != "open" else None, "id": r["id"], "type": r["type"], "region_name": r["region_name"], "description": r["description"], "status": r["status"], "status_label": LABELS[r["status"]],
                                  "created_at": r["created_at"], "preferred_at": r["preferred_at"], "budget_min": r["budget_min"], "budget_max": r["budget_max"],
                                  "image_count": len(_images(c, r["id"])), "provider_id": p["id"], "mine": False})  # بلا عنوان/صور/أرقام قبل القبول
@@ -597,7 +619,7 @@ def handle(h, c, u, method, path, q):
         if act == "accept":
             if r["user_id"] == u["id"]: return err(403, "لا يمكنك قبول طلب صادر من حسابك")
             if r["status"] in ("awaiting_quotes", "quotes_received"): return err(409, "الطلب بنظام عروض الأسعار، قدّم عرضك بدل القبول المباشر")
-            cand = [p for p in live if p["type_id"] == r["type_id"] and p["region_id"] == r["region_id"]]
+            cand = [p for p in live if p["type_id"] == r["type_id"] and p["region_id"] in _riyad_scope_ids(c, r["region_id"])]
             if not cand: return err(403, "هذا الطلب لا يطابق نوع ومنطقة خدمتك المنشورة")
             if c.execute("SELECT COUNT(*) FROM service_requests WHERE provider_id IN(%s) AND status IN%s" % (",".join("?" * len(mine_p)), _in(ASSIGNED)), [p["id"] for p in mine_p]).fetchone()[0] >= MAX_JOBS:
                 return err(429, "عندك %d طلبات قيد التنفيذ، أنهِ واحدًا أولًا" % MAX_JOBS)
@@ -722,7 +744,8 @@ def handle(h, c, u, method, path, q):
         tname = c.execute("SELECT name_ar FROM service_types WHERE id=?", (tid,)).fetchone()[0]
         for a in c.execute("SELECT id FROM users WHERE role IN('admin','staff')").fetchall():
             _notify(c, a["id"], "service_request.new", "طلب خدمة جديد", tname, "admin:svcreq", cur.lastrowid)
-        for o in c.execute("SELECT DISTINCT p.owner_user_id FROM service_providers p JOIN regions rg ON rg.id=p.region_id WHERE p.owner_user_id IS NOT NULL AND p.is_published=1 AND rg.is_active=1 AND p.type_id=? AND p.region_id=? AND p.owner_user_id<>?", (tid, rid, u["id"])).fetchall():
+        request_regions = _riyad_scope_ids(c, rid)
+        for o in c.execute("SELECT DISTINCT p.owner_user_id FROM service_providers p JOIN regions rg ON rg.id=p.region_id WHERE p.owner_user_id IS NOT NULL AND p.is_published=1 AND rg.is_active=1 AND p.type_id=? AND p.region_id IN (%s) AND p.owner_user_id<>?" % ",".join("?" * len(request_regions)), (tid, *request_regions, u["id"])).fetchall():
             _notify(c, o[0], "service_request.job", "طلب خدمة جديد في منطقتك", tname[:120], "svcjob", cur.lastrowid)
         c.commit(); h.send(201, {"id": cur.lastrowid, "status": "open"}); return True
 

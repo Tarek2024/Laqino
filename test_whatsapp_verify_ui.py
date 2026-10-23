@@ -18,24 +18,18 @@ def page(pg, tok, steps):
 ADMIN_CONFIRM = "(async()=>{const L=await(await fetch('/api/login',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({phone:'01000000000',password:'AdminPass123'})})).json();const r=await fetch('/api/admin/verifications/confirm',{method:'POST',headers:{'Content-Type':'application/json',Authorization:'Bearer '+L.token},body:JSON.stringify({phone:VF.phone,purpose:VF.purpose,code:VF.code})});if(r.status!==200)throw 'confirm '+r.status})()"
 at = call("POST", "/login", {"phone": "01000000000", "password": "AdminPass123"})[1]["token"]
 
-# --- تسجيل جديد: يطلب التحقق ثم يكمل تلقائيًا
-r = page("index", "", [
-    {"js": "go(0)", "wait": 800},
-    {"js": "$('nm').value='سارة';$('ph').value='01155550000';$('pw').value='password1';auth('register')", "snap": "v", "wait": 1200},
-    {"js": ADMIN_CONFIRM, "wait": 300},
-    {"js": "vfp()", "snap": "v", "wait": 1800},
-])
-v = r["v"]
-ok("after confirm the page registered, logged in and shows the user", not r["errs"] and "أهلًا سارة" in v)
-c = sqlite3.connect(server.DB)
-ok("user created in DB and verification consumed", c.execute("SELECT COUNT(*) FROM users WHERE phone='01155550000'").fetchone()[0] == 1 and c.execute("SELECT COUNT(*) FROM phone_verifications WHERE phone='01155550000'").fetchone()[0] == 0)
-r = page("index", "", [
-    {"js": "go(0)", "wait": 800},
-    {"js": "$('nm').value='منى';$('ph').value='01155551111';$('pw').value='password1';auth('register')", "snap": "v", "wait": 1200},
-])
-code = sqlite3.connect(server.DB).execute("SELECT code FROM phone_verifications WHERE phone='01155551111'").fetchone()[0]
-ok("registration shows the WhatsApp step: code, Laqino number, wa.me link, cancel", not r["errs"] and "تأكيد رقم الهاتف" in r["v"] and code in r["v"] and "01017011170" in r["v"] and "https://wa.me/201017011170?text=" in r["v"] and "إلغاء" in r["v"])
-ok("account NOT created before verification", sqlite3.connect(server.DB).execute("SELECT COUNT(*) FROM users WHERE phone='01155551111'").fetchone()[0] == 0)
+# --- تسجيل جديد: صار في register.html (auth() في index.html تسجيل دخول فقط)؛ نختبر عقد الـAPI الذي تستخدمه الصفحة ثم سكربت الصفحة نفسه
+rv = call("POST", "/verify/start", {"phone": "01155550000", "purpose": "register"})[1]
+ok("register start returns code, Laqino number and wa.me link (what register.html renders)", rv["code"] and rv["wa_number"] == "01017011170" and rv["wa_link"].startswith("https://wa.me/201017011170?text="))
+ok("account NOT created before verification", sqlite3.connect(server.DB).execute("SELECT COUNT(*) FROM users WHERE phone='01155550000'").fetchone()[0] == 0 and call("POST", "/verify/status", {"phone": "01155550000", "purpose": "register"})[1]["verified"] is False)
+at = call("POST", "/login", {"phone": "01000000000", "password": "AdminPass123"})[1]["token"]
+ok("admin confirms the code", call("POST", "/admin/verifications/confirm", {"phone": "01155550000", "purpose": "register", "code": rv["code"]}, at)[0] == 200)
+ok("status becomes verified", call("POST", "/verify/status", {"phone": "01155550000", "purpose": "register"})[1]["verified"] is True)
+ok("register then login succeed after verification", call("POST", "/register", {"phone": "01155550000", "name": "سارة", "password": "password1"})[0] == 201 and call("POST", "/login", {"phone": "01155550000", "password": "password1"})[0] == 200)
+ok("verification consumed", sqlite3.connect(server.DB).execute("SELECT COUNT(*) FROM phone_verifications WHERE phone='01155550000'").fetchone()[0] == 0)
+# register.html: لا TypeError لو أُلغي التحقق أثناء طلب poll قيد التنفيذ
+src = open(os.path.join(os.path.dirname(os.path.abspath(__file__)), "static", "register.html"), encoding="utf-8").read()
+ok("register.html poll re-checks verification after the await (no null deref on cancel)", "const v0=verification" in src and "verification!==v0" in src)
 
 # --- استعادة كلمة المرور عبر واتساب
 call("POST", "/verify/start", {"phone": "01166660000"}); server.wa_ingest(server.db(), "201166660000", sqlite3.connect(server.DB).execute("SELECT code FROM phone_verifications WHERE phone='01166660000' AND purpose='register'").fetchone()[0])

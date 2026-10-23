@@ -1,4 +1,4 @@
-# phase-33: pharmacy replies sorted cheapest-first (inquiries + prescription quotes) and delivery request lands on «طلباتي»
+# phase-33: pharmacy replies sorted by status (cheapest badge/price sort later removed on purpose) (inquiries + prescription quotes) and delivery request lands on «طلباتي»
 import os, sys, json, threading, time, tempfile, sqlite3, urllib.request, urllib.error
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 os.environ["LAQINO_DB"] = tempfile.mktemp(suffix=".db"); os.environ["LAQINO_UPLOADS"] = tempfile.mkdtemp()
@@ -40,8 +40,9 @@ with sync_playwright() as p:
     pg.evaluate("go(4)"); pg.wait_for_selector("text=استعلاماتي", timeout=8000)
     txt = pg.evaluate("[...document.querySelectorAll('#v .card p')].map(e=>e.innerText)")
     order = [next((n for n in names if n in t), None) for t in txt]; order = [o for o in order if o]
-    ok("inquiry replies order: cheapest, middle, priciest, unavailable last", order == [names[1], names[3], names[0], names[2]])
-    ok("exactly one reply tagged «الأرخص» and it is the 60 ج one", sum("الأرخص" in t for t in txt) == 1 and any(names[1] in t and "الأرخص" in t for t in txt))
+    # السلوك الحالي المقصود: الترتيب بالحالة فقط (متوفر ← يحتاج تأكيد ← غير متوفر) دون ترتيب بالسعر، وشارة «الأرخص» أُزيلت.
+    ok("inquiry replies order by status only: the 3 available first (any price order), unavailable last", len(order) == 4 and set(order[:3]) == {names[0], names[1], names[3]} and order[3] == names[2])
+    ok("no reply is tagged «الأرخص» (badge removed on purpose)", sum("الأرخص" in t for t in txt) == 0)
     # delivery request lands on «طلباتي» (tab 3) with the success note
     pg.on("dialog", lambda d: d.accept("شارع الجمهورية 10") if d.type == "prompt" else d.dismiss())
     pg.locator("#v .card p", has_text=names[1]).locator("button", has_text="اطلب توصيل").click()
@@ -59,5 +60,5 @@ js = m.group(0) + """
 const q=[{n:'partial',partial:true,price:10},{n:'unav',price:null},{n:'b',complete:true,price:80},{n:'a',complete:true,price:50}];
 console.log(JSON.stringify(qsrt(q).map(x=>x.n)))"""
 out = subprocess.run(["node", "-e", js], capture_output=True, text=True).stdout.strip()
-ok("prescription quotes: complete cheapest-first, then partial, then unavailable", out == '["a","b","partial","unav"]')
+ok("prescription quotes: complete first, then partial, then unavailable (price not compared; stable)", out == '["b","a","partial","unav"]')
 print("DONE %d/%d" % (sum(res), len(res))); exit(0 if all(res) else 1)

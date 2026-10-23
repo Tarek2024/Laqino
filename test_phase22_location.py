@@ -38,14 +38,15 @@ at = call("POST", "/login", {"phone": "01000000000", "password": "AdminPass123"}
 # ---- 2) تحويل الإحداثيات لمنطقة ----
 ok("fresh install seeds Riyad markaz coordinates → a GPS point there resolves to it", (lambda r: r.get("region") and r["region"]["id"] == 3 and r["distance_km"] == 0.0)(call("POST", "/location/resolve", {"lat": 31.314810, "lng": 30.928087})[1]))
 call("POST", "/admin/regions/3/coords", {"lat": None, "lng": None}, at)
-ok("resolve with no coordinates configured → region null (app falls back to manual)", call("POST", "/location/resolve", {"lat": 31.1, "lng": 30.9})[1] == {"region": None, "distance_km": None})
+r = call("POST", "/location/resolve", {"lat": 31.1, "lng": 30.9})[1]
+ok("resolve with no coordinates configured → unspecified/manual selection", r.get("region") is None and r.get("distance_km") is None and r.get("state") == "unspecified")
 ok("admin can set coordinates on a markaz", call("POST", "/admin/regions/3/coords", {"lat": 31.05, "lng": 30.95}, at)[0] == 200)
 v1 = call("POST", "/admin/regions", {"parent_id": 3, "level": "village", "slug": "v1", "name_ar": "قرية أ", "is_active": True, "lat": 31.06, "lng": 30.96}, at)[1]["id"]
 v2 = call("POST", "/admin/regions", {"parent_id": 3, "level": "village", "slug": "v2", "name_ar": "قرية ب", "is_active": True, "lat": 31.20, "lng": 31.10}, at)[1]["id"]
 vx = call("POST", "/admin/regions", {"parent_id": 3, "level": "village", "slug": "vx", "name_ar": "قرية موقوفة", "is_active": False, "lat": 31.0501, "lng": 30.9501}, at)[1]["id"]
 st, r = call("POST", "/location/resolve", {"lat": 31.0601, "lng": 30.9601})
-ok("resolve works without login and picks the nearest active village", st == 200 and r["region"]["id"] == v1 and r["region"]["name_ar"] == "قرية أ" and r["distance_km"] < 1)
-ok("resolve returns the readable path (markaz > village), never the country", r["region"]["path"][-1] == "قرية أ" and "مصر" not in r["region"]["path"])
+ok("Riyad child villages resolve to the unified markaz scope", st == 200 and r["region"]["id"] == 3 and r["region"]["name_ar"] == "مركز الرياض")
+ok("resolve returns the unified markaz path, never the country", r["region"]["path"][-1] == "مركز الرياض" and "مصر" not in r["region"]["path"])
 ok("inactive regions are never matched", call("POST", "/location/resolve", {"lat": 31.0501, "lng": 30.9501})[1]["region"]["id"] != vx)
 st, r = call("POST", "/location/resolve", {"lat": 31.25, "lng": 30.95})
 ok("outside every village radius but inside the markaz radius → the markaz", r["region"]["id"] == 3)

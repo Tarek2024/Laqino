@@ -1,0 +1,22 @@
+// لاقينو — المرحلة 40: بطاقة «اطلب دليفري» في لوحة الصيدلية. ملحق مستقل عن pharmacy.html: يُحمَّل بعد سكربت الصفحة ويحقن بطاقته أعلى اللوحة
+// (MutationObserver على #m) بدون تعديل دالة load(). يعتمد على globals الصفحة: $ و esc و api و T. يظهر فقط حين تفعّله الإدارة (المفتاح العام).
+(()=>{
+const DLS={searching:'بانتظار مندوب',assigned:'تم قبول الطلب',heading_pickup:'المندوب في الطريق إليك',picked_up:'تم الاستلام',completed:'تم تسليم الأوردر للمندوب ✓',cancelled:'ملغي',disputed:'قيد المراجعة'};
+let DLB=0,DLK='',PDC=null,BZ=0,TYP='';
+const dlmin=x=>x<60?'أقل من دقيقة':Math.round(x/60)+' د';
+const dltxt=it=>{const q=it.filter(x=>x.status=='searching').length;if(q)return 'جاري البحث عن مندوب…'+(q>1?' ('+q+' طلبات)':'');const a=it.find(x=>x.status=='assigned'||x.status=='heading_pickup');if(a)return a.courier_name?'المندوب '+a.courier_name+' في الطريق إليك':'المندوب في الطريق إليك';return it.length&&it[0].status=='completed'?'آخر أوردر اتسلّم للمندوب ✓':'جاهز — اضغط عند الحاجة لمندوب'};
+const dlrows=it=>it.slice(0,8).map(x=>{const t=[];if(x.accepted_at)t.push('قبول بعد '+dlmin(x.accepted_at-x.created_at));if(x.status=='completed'&&x.picked_at)t.push('استلام بعد '+dlmin(x.picked_at-x.created_at));return `<div class="dl-it"><b>#${esc(x.id)}</b> — ${esc(DLS[x.status]||x.status)}${x.courier_name?' — '+esc(x.courier_name):''}${x.courier_phone?` <a href="tel:${esc(x.courier_phone)}">${esc(x.courier_phone)}</a>`:''}${x.dropoff_text?'<br><small>العنوان: '+esc(x.dropoff_text)+'</small>':''}${t.length?'<br><small>'+t.join(' · ')+'</small>':''}${['searching','assigned','heading_pickup'].includes(x.status)?`<button class="dl-x" onclick="dlx(${+x.id})">إلغاء</button>`:''}</div>`}).join('');
+const card=d=>`<div class="dl" id="dlw"><h3>اطلب مندوب</h3><p class="sub">اضغط الزر وأول مندوب متاح يستلم الأوردر من صيدليتك</p><div class="dl-row"><div class="dl-well"><button class="dl-btn" id="dlb" onclick="dlsend()" aria-label="اطلب دليفري"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="6" cy="17" r="3"/><circle cx="18" cy="17" r="3"/><path d="M6 17h5l3-7h3M14 10l-2-3H9"/></svg><span>اطلب دليفري</span></button></div><div class="dl-ring${d.items.some(x=>x.status=='searching')?' go':''}" id="dlr" aria-hidden="true"></div></div><div class="dl-st" id="dls" role="status">${esc(dltxt(d.items))}</div><details class="dl-opt"><summary>＋ إضافة عنوان العميل (اختياري)</summary><input id="dla" maxlength="300" placeholder="عنوان العميل — اختياري"></details><div id="dll">${dlrows(d.items)}</div></div>`;
+const panel=()=>document.getElementById('m')&&document.getElementById('sn');  // حقل «تأكيد توافر دواء»: يوجد فقط للصيدلية المعتمدة
+async function fetchState(){try{PDC=await api('/provider/delivery-requests')}catch(e){PDC={enabled:false,items:[]}}}
+function put(){const mm=document.getElementById('m');if(!mm||document.getElementById('dlw')||!panel())return;
+ if(PDC){if(PDC.enabled){mm.insertAdjacentHTML('afterbegin',card(PDC));const a=document.getElementById('dla');if(a)a.value=TYP}}
+ else if(!BZ){BZ=1;fetchState().then(()=>{BZ=0;put()})}}
+async function poll(){if(!T||!panel())return;await fetchState();const w=document.getElementById('dlw');if(!PDC.enabled){if(w)w.remove();return}if(!w){put();return}const it=PDC.items;document.getElementById('dlr').classList.toggle('go',it.some(x=>x.status=='searching'));document.getElementById('dls').textContent=dltxt(it);document.getElementById('dll').innerHTML=dlrows(it);if(!DLB){const b=document.getElementById('dlb');if(b){b.disabled=false;setTimeout(()=>b.classList.remove('on'),350)}}}
+window.dlsend=async()=>{if(DLB)return;DLB=1;const b=document.getElementById('dlb');if(b){b.disabled=true;b.classList.add('on')}const r=document.getElementById('dlr');if(r)r.classList.add('go');navigator.vibrate&&navigator.vibrate(25);
+ try{DLK=DLK||(crypto.randomUUID?crypto.randomUUID():Date.now()+'-'+Math.random());const a=document.getElementById('dla');await api('/provider/delivery-request',{request_key:DLK,dropoff_text:((a&&a.value)||'').trim()});DLK='';TYP='';if(a)a.value=''}catch(e){alert(e)}DLB=0;await poll()};
+window.dlx=async id=>{if(!confirm('إلغاء طلب المندوب؟'))return;try{await api('/delivery/orders/'+id+'/cancel',{})}catch(e){alert(e)}poll()};
+document.addEventListener('input',e=>{if(e.target&&e.target.id=='dla')TYP=e.target.value});
+new MutationObserver(put).observe(document.getElementById('m'),{childList:true});put();
+setInterval(()=>{if(!document.hidden)poll()},12000);
+})();

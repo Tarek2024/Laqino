@@ -28,7 +28,7 @@ call("POST", f"/admin/doctors/{d}/publish", {"published": True}, at)
 
 # --- الإدارة
 r = page("admin", at, [{"js": "tab='doctors';shell()", "snap": "v", "wait": 1200}]); ok("admin doctors tab: no script errors, shows specialty+doctor+forms", not r["errs"] and "أطفال" in r["v"] and "أحمد محمود" in r["v"] and "إضافة تخصص" in r["v"] and "إخفاء" in r["v"])
-r = page("admin", at, [{"js": "tab='dispatch';shell()", "snap": "v", "wait": 1200}]); ok("admin dispatch tab: settings + couriers + log", not r["errs"] and "مهل التوزيع" in r["v"] and "المندوبون المعتمدون" in r["v"] and "غير متصل" in r["v"])
+r = page("admin", at, [{"js": "tab='dispatch';shell()", "snap": "v", "wait": 1200}]); ok("admin dispatch tab: settings + couriers + log", not r["errs"] and ("مهل توزيع طلبات الدليفري" in r["v"] or "مهل التوزيع" in r["v"]) and "المندوبون المعتمدون" in r["v"] and "غير متصل" in r["v"])
 # --- العميل: البحث عن طبيب
 r = page("index", cu, [{"js": "mt='dr';go(4)", "snap": "v", "wait": 1000}, {"js": "document.getElementById('dq').value='احمد';dsr()", "snap": "dres", "wait": 800}, {"js": "document.getElementById('dq').value='زيدان';dsr()", "snap": "dres", "wait": 800}])
 ok("customer medical tab shows doctor search", not r["errs"] and "ابحث عن طبيب" in r["v"])

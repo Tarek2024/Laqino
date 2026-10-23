@@ -38,7 +38,7 @@ with sync_playwright() as p:
         ok("[%d] no full-size tabs row above the actions" % w, pg.locator(".mtabs:not(.sm)").count() == 0 and pg.locator(".mtabs.sm .mt").count() >= 1)
         ok("[%d] «طلباتك» sits between the actions and the compact row" % w, pg.evaluate("(()=>{const y=s=>document.querySelector(s).getBoundingClientRect().top;return y('.rxbig')<y('.rqc')&&y('.rqc')<y('.mtabs.sm')})()"))
         ok("[%d] no horizontal overflow" % w, pg.evaluate("document.documentElement.scrollWidth<=innerWidth+1"))
-        pg.locator(".rxbig button.pri").click(); pg.wait_for_selector("#rf", timeout=6000)
+        pg.locator(".rxbig button.pri").click(); pg.wait_for_selector("#rf", state="attached", timeout=6000)
         ok("[%d] «ابعت روشتتك» opens the prescription upload" % w, pg.locator("#rf").count() == 1 and "on" in pg.get_attribute(".rxbig button.pri", "class").split())
         pg.locator(".rxbig button:not(.pri)").click(); pg.wait_for_selector("#ms", timeout=6000)
         ok("[%d] «اسأل عن دواء» opens the medicine search box" % w, pg.locator("#ms").count() == 1)

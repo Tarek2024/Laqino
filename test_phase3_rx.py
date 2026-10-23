@@ -73,7 +73,7 @@ ok("pharmacy cannot read another pharmacy's lines (no access → 404)", call("GE
 s, r = call("GET", f"/medical/prescriptions/{R1}/quotes", None, cust); qs = r["quotes"]
 ok("customer sees both quotes cheapest first", s == 200 and [x["pharmacy"] for x in qs] == ["صيدلية b", "صيدلية a"] and qs[0]["price"] == 80)
 ok("only the cheapest complete fresh quote is flagged", qs[0]["cheapest"] and not qs[1]["cheapest"])
-ok("quote carries line items with availability", qs[0]["items"][0] == {"name": "باراسيتامول", "qty": 2, "unit_price": 15.0, "available": True})
+ok("quote carries line items with availability", {k: v for k, v in qs[0]["items"][0].items() if k != "item_status"} == {"name": "باراسيتامول", "qty": 2, "unit_price": 15.0, "available": True} and qs[0]["items"][0].get("item_status") == "available")
 ok("no phone numbers in the comparison payload", not any(p in json.dumps(r, ensure_ascii=False) for p in ("01011111111", "01022222222", "01012345678")) and '"phone"' not in json.dumps(r))
 ok("another customer cannot see my quotes; anonymous 401", call("GET", f"/medical/prescriptions/{R1}/quotes", None, other)[0] == 404 and call("GET", f"/medical/prescriptions/{R1}/quotes")[0] == 401)
 ok("quotes for unknown prescription 404", call("GET", "/medical/prescriptions/99999/quotes", None, cust)[0] == 404)
@@ -128,7 +128,7 @@ rd = lambda p: open(os.path.join(os.path.dirname(os.path.abspath(__file__)), p),
 ph, ad, ix, sw = rd("static/pharmacy.html"), rd("static/admin.html"), rd("static/index.html"), rd("static/sw.js")
 ok("pharmacy UI: line-item quote form wired to /quote", all(x in ph for x in ("window.qsend", "window.qadd", "window.qinit", "/provider/prescriptions/'+id+'/quote", "p.forEach(qinit)")) and "form('p'" not in ph)
 ok("admin UI: multi-select + region forward + auto toggle", all(x in ad for x in ("forward-many", "window.fmany", "/admin/rx/auto-forward", "تحويل لصيدليات المنطقة")))
-ok("customer UI: comparison + close wired", all(x in ix for x in ("const rxq=", "/quotes", "window.rc=", "/close", "الأرخص", "rxq(qs[k]")))
+ok("customer UI: comparison + close wired, without cheapest badge", all(x in ix for x in ("const rxq=", "/quotes", "window.rc=", "/close", "rxq(qs[k]")) and "الأرخص" not in ix)
 ok("every UI string is escaped through esc() for pharmacy/customer data", all(x in ix for x in ("esc(x.pharmacy)", "esc(i.name)")) and "esc(it.name" in ph)
 ok("service worker cache version >= v32", (lambda m: bool(m) and int(m.group(1)) >= 32)(__import__("re").search(r'const V = "laqino-v(\d+)"', sw)))
 print("ALL PASSED")

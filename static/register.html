@@ -1,0 +1,53 @@
+<!doctype html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="theme-color" content="#0f2a5c">
+<title>إنشاء حساب جديد — لاقينو</title>
+<link rel="stylesheet" href="/theme.css">
+<link rel="stylesheet" href="/app.css">
+<style>
+:root{color-scheme:light}*{box-sizing:border-box}body{margin:0;background:#f4f7fb;color:#17243b;font-family:system-ui,-apple-system,"Segoe UI",sans-serif;min-height:100vh;display:grid;place-items:center;padding:20px}.register-wrap{width:min(100%,460px)}.brand{text-align:center;margin-bottom:16px}.brand img{width:74px;height:74px;object-fit:contain}.brand h1{font-size:1.45rem;margin:8px 0 4px;color:#0f2a5c}.brand p{margin:0;color:#64748b}.register-card{background:#fff;border:1px solid #e1e8f0;border-radius:22px;padding:22px;box-shadow:0 12px 36px #102b5010}.register-card h2{margin:0 0 8px;font-size:1.2rem}.hint{color:#64748b;font-size:.92rem;line-height:1.7;margin:0 0 16px}.register-card label{display:block;font-size:.9rem;font-weight:650;margin:13px 0 6px}.register-card input{width:100%;border:1px solid #ccd6e3;border-radius:12px;padding:13px 12px;font:inherit;background:#fff;color:#17243b}.register-card input:focus{outline:2px solid #8fb6f1;border-color:#366bb1}.primary,.secondary,.wa{display:block;width:100%;border:0;border-radius:12px;padding:13px 14px;font:inherit;font-weight:700;text-align:center;text-decoration:none;cursor:pointer;margin-top:14px}.primary{background:#0f2a5c;color:#fff}.secondary{background:#edf2f8;color:#0f2a5c}.wa{background:#e6f7ec;color:#176a38}.status{display:none;border-radius:12px;padding:11px 12px;margin-top:12px;line-height:1.6;font-size:.92rem}.status.show{display:block}.status.error{background:#fff0f0;color:#a32121}.status.ok{background:#edf8f0;color:#176a38}.code{font-size:1.7rem;font-weight:800;letter-spacing:.16em;text-align:center;padding:10px;background:#f3f6fb;border-radius:12px;margin:12px 0}.foot{text-align:center;margin:16px 0 0;color:#64748b;font-size:.93rem}.foot a{color:#0f2a5c;font-weight:700}.legal{font-size:.78rem;color:#758196;line-height:1.6;margin-top:14px}
+</style>
+</head>
+<body>
+<main class="register-wrap">
+  <header class="brand"><img src="/assets/logo.jpg" alt="شعار لاقينو"><h1>أهلًا بيك في لاقينو</h1><p>حسابك الجديد في خطوات بسيطة</p></header>
+  <section class="register-card" aria-labelledby="heading">
+    <h2 id="heading">إنشاء حساب جديد</h2>
+    <p class="hint">اكتب بياناتك لإنشاء حساب تقدر من خلاله تطلب وتتابع خدماتك.</p>
+    <form id="registerForm" novalidate>
+      <label for="name">الاسم</label><input id="name" name="name" autocomplete="name" maxlength="100" required placeholder="اسمك بالكامل">
+      <label for="phone">رقم الهاتف</label><input id="phone" name="phone" autocomplete="tel" inputmode="tel" maxlength="11" required placeholder="01xxxxxxxxx">
+      <label for="password">كلمة المرور</label><input id="password" name="password" type="password" autocomplete="new-password" minlength="8" required placeholder="8 أحرف على الأقل">
+      <label for="password2">تأكيد كلمة المرور</label><input id="password2" name="password2" type="password" autocomplete="new-password" minlength="8" required placeholder="اكتب كلمة المرور مرة أخرى">
+      <button class="primary" id="submit" type="submit">إنشاء الحساب</button>
+    </form>
+    <div id="status" class="status" role="status" aria-live="polite"></div>
+    <div id="verify" hidden></div>
+    <p class="legal">باستمرارك، أنت توافق على استخدام لاقينو وفق <a href="/terms.html">الشروط</a> و<a href="/privacy.html">سياسة الخصوصية</a>.</p>
+  </section>
+  <p class="foot">عندك حساب بالفعل؟ <a href="/">سجّل الدخول</a></p>
+</main>
+<script>
+(()=>{
+  const $=id=>document.getElementById(id), form=$('registerForm'), status=$('status'), verify=$('verify'), submit=$('submit');
+  let verification=null, timer=null, busy=false;
+  const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+  const api=async(path,data)=>{let r;try{r=await fetch('/api'+path,{method:data===undefined?'GET':'POST',headers:{'Content-Type':'application/json'},body:data===undefined?undefined:JSON.stringify(data),cache:'no-store'});}catch(_){throw 'تعذّر الاتصال، حاول مرة أخرى.'}let j;try{j=await r.json()}catch(_){throw 'حصل خطأ غير متوقع.'}if(!r.ok)throw j.error||'تعذّر تنفيذ الطلب.';return j};
+  const message=(text,kind='error')=>{status.className='status show '+kind;status.textContent=text};
+  const lock=v=>{busy=v;submit.disabled=v;submit.textContent=v?'جارٍ التنفيذ…':'إنشاء الحساب'};
+  const values=()=>({name:$('name').value.trim(),phone:$('phone').value.trim(),password:$('password').value});
+  const validate=()=>{const d=values();if(!d.name)return 'اكتب اسمك.';if(!/^01[0125][0-9]{8}$/.test(d.phone))return 'اكتب رقم هاتف مصري صحيحًا.';if(d.password.length<8)return 'كلمة المرور لازم تكون 8 أحرف على الأقل.';if(d.password!==$('password2').value)return 'كلمتا المرور غير متطابقتين.';return '';};
+  const clearTimer=()=>{if(timer){clearInterval(timer);timer=null}};
+  const cancelVerify=()=>{clearTimer();verification=null;verify.hidden=true;verify.innerHTML='';form.hidden=false;lock(false)};
+  const finishRegistration=async d=>{await api('/register',{name:d.name,phone:d.phone,password:d.password});const login=await api('/login',{phone:d.phone,password:d.password});localStorage.setItem('t',login.token);message('تم إنشاء حسابك بنجاح. جاري فتح لاقينو…','ok');setTimeout(()=>location.replace('/'),250)};
+  const poll=async()=>{if(!verification)return;if(Date.now()>verification.until){cancelVerify();message('انتهت صلاحية التحقق. ابدأ إنشاء الحساب من جديد.');return}try{const v0=verification;const s=await api('/verify/status',{phone:v0.phone,purpose:'register'});if(verification!==v0||!s.verified)return;const d=v0;clearTimer();verification=null;lock(true);try{await finishRegistration(d)}catch(e){form.hidden=false;verify.hidden=true;lock(false);message(String(e));return}verify.hidden=true}catch(_){/* Keep polling through brief network interruptions. */}};
+  const startVerify=async d=>{const r=await api('/verify/start',{phone:d.phone,purpose:'register'});if(!/^https:\/\/wa\.me\//.test(r.wa_link))throw 'تعذّر تجهيز رابط واتساب.';verification={...d,until:Date.now()+Number(r.expires_in||600)*1000};form.hidden=true;verify.hidden=false;verify.innerHTML=`<p class="hint">لاستكمال التسجيل، ابعت رسالة واتساب لرقم لاقينو <b>${esc(r.wa_number)}</b> من نفس رقمك ${esc(d.phone)}.</p><div class="code">${esc(r.code)}</div><a class="wa" href="${esc(r.wa_link)}" target="_blank" rel="noopener">فتح واتساب وإرسال الكود</a><p class="hint">هنكمل التسجيل تلقائيًا بعد تأكيد الرسالة.</p><button type="button" id="cancelVerify" class="secondary">إلغاء والرجوع</button>`;$('cancelVerify').addEventListener('click',()=>{cancelVerify();message('يمكنك المحاولة مرة أخرى.','ok')});clearTimer();timer=setInterval(poll,3000);};
+  form.addEventListener('submit',async e=>{e.preventDefault();if(busy)return;const err=validate();if(err){message(err);return}const d=values();lock(true);status.className='status';try{try{await finishRegistration(d)}catch(e){if(/واتساب|تحقق من رقمك/i.test(String(e))){await startVerify(d);lock(false);return}throw e}}catch(e){message(String(e));lock(false)}});
+  window.addEventListener('pagehide',clearTimer);
+})();
+</script>
+</body>
+</html>

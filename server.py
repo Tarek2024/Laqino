@@ -3,7 +3,7 @@ import notif, account
 from http.server import ThreadingHTTPServer, BaseHTTPRequestHandler
 from urllib.parse import urlparse, parse_qs, quote
 import market
-import gsearch, products, rx, chat, svc, overview, fcm, exchange, lsocial, bulk_import
+import gsearch, products, provider_delivery, rx, chat, svc, overview, fcm, exchange, lsocial, bulk_import
 DB = os.environ.get("LAQINO_DB", "laqino.db")
 UP = os.environ.get("LAQINO_UPLOADS", "uploads")
 ROOT = os.path.realpath(os.path.join(os.path.dirname(os.path.abspath(__file__)), "static"))
@@ -56,7 +56,8 @@ CREATE UNIQUE INDEX IF NOT EXISTS ux_wadj_key ON wallet_adjustments(admin_id,req
 CREATE TABLE IF NOT EXISTS ratings(order_id INTEGER PRIMARY KEY REFERENCES delivery_orders(id), customer_id INTEGER NOT NULL, courier_id INTEGER NOT NULL,
  stars INTEGER NOT NULL CHECK(stars BETWEEN 1 AND 5), comment TEXT, created_at INTEGER NOT NULL);
 CREATE TABLE IF NOT EXISTS providers(user_id INTEGER PRIMARY KEY REFERENCES users(id), name_ar TEXT NOT NULL, kind TEXT NOT NULL DEFAULT 'pharmacy' CHECK(kind IN('pharmacy')),
- region_id INTEGER NOT NULL REFERENCES regions(id), address TEXT, status TEXT NOT NULL DEFAULT 'pending' CHECK(status IN('pending','approved','suspended','rejected')), created_at INTEGER NOT NULL);
+ region_id INTEGER NOT NULL REFERENCES regions(id), address TEXT, status TEXT NOT NULL DEFAULT 'pending' CHECK(status IN('pending','approved','suspended','rejected')), created_at INTEGER NOT NULL,
+ lat REAL, lng REAL, distribution_enabled INTEGER NOT NULL DEFAULT 0 CHECK(distribution_enabled IN(0,1)));
 CREATE TABLE IF NOT EXISTS files(id INTEGER PRIMARY KEY, owner_id INTEGER NOT NULL REFERENCES users(id), path TEXT NOT NULL, mime TEXT NOT NULL, size INTEGER NOT NULL, created_at INTEGER NOT NULL);
 CREATE TABLE IF NOT EXISTS provider_stock(provider_id INTEGER NOT NULL REFERENCES providers(user_id), name_norm TEXT NOT NULL, medicine_name TEXT NOT NULL, available INTEGER NOT NULL, price REAL, confirmed_at INTEGER NOT NULL, PRIMARY KEY(provider_id,name_norm));
 CREATE TABLE IF NOT EXISTS medicine_inquiries(id INTEGER PRIMARY KEY, customer_id INTEGER NOT NULL REFERENCES users(id), region_id INTEGER NOT NULL REFERENCES regions(id), medicine_name TEXT NOT NULL, note TEXT,
@@ -64,7 +65,7 @@ CREATE TABLE IF NOT EXISTS medicine_inquiries(id INTEGER PRIMARY KEY, customer_i
 CREATE TABLE IF NOT EXISTS inquiry_responses(inquiry_id INTEGER NOT NULL REFERENCES medicine_inquiries(id), provider_id INTEGER NOT NULL REFERENCES providers(user_id),
  status TEXT NOT NULL CHECK(status IN('available','unavailable','needs_confirmation')), price REAL, note TEXT, updated_at INTEGER NOT NULL, PRIMARY KEY(inquiry_id,provider_id));
 CREATE TABLE IF NOT EXISTS prescriptions(id INTEGER PRIMARY KEY, customer_id INTEGER NOT NULL REFERENCES users(id), region_id INTEGER NOT NULL REFERENCES regions(id), file_id INTEGER REFERENCES files(id), note TEXT,
- status TEXT NOT NULL DEFAULT 'pending' CHECK(status IN('pending','forwarded','closed')), created_at INTEGER NOT NULL);
+ status TEXT NOT NULL DEFAULT 'pending' CHECK(status IN('pending','forwarded','closed')), created_at INTEGER NOT NULL, kind TEXT NOT NULL DEFAULT 'rx' CHECK(kind IN('rx','item')));
 CREATE TABLE IF NOT EXISTS prescription_access(prescription_id INTEGER NOT NULL REFERENCES prescriptions(id), provider_id INTEGER NOT NULL REFERENCES providers(user_id), PRIMARY KEY(prescription_id,provider_id));
 CREATE TABLE IF NOT EXISTS prescription_responses(prescription_id INTEGER NOT NULL REFERENCES prescriptions(id), provider_id INTEGER NOT NULL REFERENCES providers(user_id),
  status TEXT NOT NULL CHECK(status IN('available','unavailable','needs_confirmation')), price REAL, note TEXT, updated_at INTEGER NOT NULL, PRIMARY KEY(prescription_id,provider_id));
@@ -114,7 +115,7 @@ def sweep(c):
     except (sqlite3.Error, ValueError): c.rollback()
 # ---- الموقع الموحد (المرحلة 22) ----
 # السيرفر لا يخزّن موقع المستخدم أبدًا إلا إذا أرفقه صراحةً بطلب توصيل (يراه المندوب بعد قبول الطلب فقط).
-RESOLVE_RADIUS_KM = (("village", 10.0), ("zone", 10.0), ("markaz", 40.0))  # الأعمق أولًا؛ المحافظة لا تُختار تلقائيًا (التطبيق يعمل على مستوى المركز/القرية)
+RESOLVE_RADIUS_KM = (("village", 10.0), ("zone", 10.0), ("markaz", 40.0))  # المناطق الفرعية تُطابق جغرافيًا، لكن فروع مركز الرياض تُحوّل إلى المركز الموحد
 def geo_pair(lat, lng, required=False):
     """يتحقق من زوج إحداثيات ويعيد (lat, lng) أو (None, None) إن لم يُرسَل؛ خطأ 400 لقيمة غير صالحة أو زوج ناقص."""
     if lat in (None, "") and lng in (None, ""):
@@ -130,16 +131,35 @@ def haversine_km(la1, ln1, la2, ln2):
     a = math.sin(dp / 2) ** 2 + math.cos(p1) * math.cos(p2) * math.sin(dl / 2) ** 2
     return 6371.0088 * 2 * math.asin(min(1.0, math.sqrt(a)))
 def resolve_region(c, lat, lng):
-    """أقرب منطقة مفعّلة لها إحداثيات ضمن نصف قطر مستواها (قرية/منطقة 10كم، مركز 40كم). يعيد (صف، مسافة كم) أو (None, None)."""
+    """يرجع (المنطقة، المسافة، الحالة). لا يختار تلقائيًا عند تعادل مرشحين قريبين؛ حينها يطلب اختيارًا يدويًا."""
     rows = c.execute("SELECT id,parent_id,level,name_ar,lat,lng FROM regions WHERE is_active=1 AND lat IS NOT NULL AND lng IS NOT NULL AND level IN ('village','zone','markaz')").fetchall()
     for lv, rad in RESOLVE_RADIUS_KM:
-        best = None
+        matches = []
         for r in rows:
             if r["level"] != lv: continue
             d = haversine_km(lat, lng, r["lat"], r["lng"])
-            if d <= rad and (best is None or d < best[1]): best = (r, d)
-        if best: return best[0], round(best[1], 2)
-    return None, None
+            if d <= rad: matches.append((r, d))
+        if not matches: continue
+        matches.sort(key=lambda x: x[1])
+        nearest, distance = matches[0]
+        # لاقينو يعتمد مركز الرياض كنطاق خدمة موحد: أي نقطة تُطابق قرية/منطقة فرعية
+        # تابعة له تُرجع المركز بدل اسم القرية. بيانات الفروع تظل محفوظة للطلبات القديمة.
+        if lv in ("village", "zone"):
+            rid, seen = nearest["id"], set()
+            while rid and rid not in seen:
+                seen.add(rid)
+                anc = c.execute("SELECT * FROM regions WHERE id=? AND is_active=1", (rid,)).fetchone()
+                if not anc: break
+                if anc["level"] == "markaz" and "slug" in anc.keys() and anc["slug"] == "eg-kfs-riyad":
+                    dist = haversine_km(lat, lng, anc["lat"], anc["lng"]) if anc["lat"] is not None and anc["lng"] is not None else distance
+                    return anc, round(dist, 2), "clear"
+                rid = anc["parent_id"]
+        # إن كان أقرب مرشحين من المستوى نفسه متقاربين جدًا في المسافة، لا نخمن المنطقة.
+        if len(matches) > 1 and matches[0][1] <= 2.0 and matches[1][1] <= 2.0 and (matches[1][1] - matches[0][1]) <= 0.75:
+            return None, round(matches[0][1], 2), 'ambiguous'
+        return nearest, round(distance, 2), 'clear'
+    return None, None, 'unspecified'
+
 def region_path(c, rid):
     out, seen = [], set()
     while rid and rid not in seen:
@@ -211,6 +231,22 @@ def init(admin_phone=None, admin_pw=None):
                 'ALTER TABLE delivery_orders ADD COLUMN offer_fee REAL'):  # المرحلة 27: أجرة يقترحها العميل (اختيارية)
         try: c.execute(ddl)
         except sqlite3.OperationalError: pass
+    # Phase 1 / ج1: safe additive schema migrations. Existing rows remain rx and excluded from pharmacy distribution until explicitly enabled.
+    for ddl in (
+        "ALTER TABLE prescriptions ADD COLUMN kind TEXT NOT NULL DEFAULT 'rx' CHECK(kind IN('rx','item'))",
+        'ALTER TABLE providers ADD COLUMN lat REAL',
+        'ALTER TABLE providers ADD COLUMN lng REAL',
+        'ALTER TABLE providers ADD COLUMN distribution_enabled INTEGER NOT NULL DEFAULT 0 CHECK(distribution_enabled IN(0,1))'
+    ):
+        try: c.execute(ddl)
+        except sqlite3.OperationalError as e:
+            if 'duplicate column name' not in str(e).lower(): raise
+    # Administrative settings are additive and disabled by default; no existing live request is rewritten.
+    for key, value in (("rx_claim_mode", "0"), ("rx_routing_mode", "direct"),
+                       ("rx_direct_provider_id", ""), ("rx_claim_timeout_minutes", "10"),
+                       ("rx_total_timeout_minutes", "60")):
+        c.execute('INSERT OR IGNORE INTO settings(key,value) VALUES(?,?)', (key, value))
+    c.execute('CREATE INDEX IF NOT EXISTS ix_providers_region_distribution ON providers(region_id,status,distribution_enabled)')
     c.execute('CREATE UNIQUE INDEX IF NOT EXISTS ux_order_reqkey ON delivery_orders(customer_id,request_key) WHERE request_key IS NOT NULL')
     market.migrate(c, DB)  # Phase 2: market schema (listing statuses/columns, images, favorites, reports); idempotent
     if not c.execute("SELECT 1 FROM regions").fetchone():
@@ -233,8 +269,9 @@ def init(admin_phone=None, admin_pw=None):
     account.ensure_column(c)  # حذف الحساب (Google Play): users.deleted_at
     notif.install(c)
     exchange.install(c)  # سوق الصيدليات (إضافة بعد الخطوة 7): exchange_deals/images/reports (idempotent)
+    provider_delivery.bind(push_new_order, audit, default_delivery_region, COUNT_SQL["orders"]); provider_delivery.install(c)  # Phase 40: زر «اطلب دليفري» للصيدليات
     products.install(c)  # Phase 2: product_offers + medical sub-categories (idempotent)
-    rx.install(c)  # Phase 3: rx_quote_items (idempotent)
+    rx.install(c)  # RX schema extensions (idempotent, additive migrations)
     try: c.execute("ALTER TABLE listings ADD COLUMN featured_until INTEGER")  # المرحلة 30: تمييز الإعلان حتى تاريخ (NULL = غير مميز). بعد market.migrate لأنه قد يعيد بناء الجدول
     except sqlite3.OperationalError: pass
     ensure_fts(c)  # المرحلة 30: فهرس بحث trigram للإعلانات (اختياري)
@@ -489,6 +526,21 @@ def _push_to_users(c, uids, ttl, native=True, kind="order"):
             elif 200 <= st < 300: n += 1
     if native: n += fcm.send(c, uids, ttl, kind)
     return n
+def medical_push(uid, kind="rx.update"):
+    """Wake the user's devices for an unread medical notification. Push payload is generic and contains no request details."""
+    def run():
+        try:
+            time.sleep(0.25)  # allow the transaction that inserted the notification to commit before devices re-check counts
+            c = db()
+            try:
+                if c.execute("SELECT 1 FROM push_subs WHERE user_id=?", (uid,)).fetchone() or fcm.has_tokens(c, uid):
+                    _push_to_users(c, [uid], 3600, kind="medical")
+            finally: c.close()
+        except Exception as e: print("medical push failed:", e, file=sys.stderr)
+    threading.Thread(target=run, daemon=True).start()
+rx.push_hook = medical_push
+
+
 def chat_push(uid):
     """Phase 4: wakes the recipient's devices for a new chat message. Data-less like the courier push: sw.js asks /api/push/state for the unread COUNT. Best effort, background thread."""
     def run():
@@ -666,6 +718,7 @@ class H(BaseHTTPRequestHandler):
             if notif.handle(self, c, u, method, path, q): return
             if gsearch.handle(self, c, u, method, path, q): return
             if products.handle(self, c, u, method, path, q): return
+            if provider_delivery.handle(self, c, u, method, path, q): return
             if exchange.handle(self, c, u, method, path, q): return
             if rx.handle(self, c, u, method, path, q): return
             if chat.handle(self, c, u, method, path, q): return
@@ -781,8 +834,8 @@ class H(BaseHTTPRequestHandler):
                 c.execute("UPDATE users SET region_id=? WHERE id=?", (rid, u["id"])); c.commit(); return self.send(200, {"ok": True})
             if method == "POST" and path == "/api/location/resolve":  # بلا تسجيل دخول (التطبيق يطلب الموقع عند الفتح)؛ لا يُخزَّن شيء ولا يُسجَّل في audit_log
                 d = self.body(); la, ln = geo_pair(d.get("lat"), d.get("lng"), required=True)
-                r, dist = resolve_region(c, la, ln)
-                return self.send(200, {"region": ({"id": r["id"], "name_ar": r["name_ar"], "level": r["level"], "path": region_path(c, r["id"])} if r else None), "distance_km": dist})
+                r, dist, state = resolve_region(c, la, ln)
+                return self.send(200, {"region": ({"id": r["id"], "name_ar": r["name_ar"], "level": r["level"], "path": region_path(c, r["id"])} if r else None), "distance_km": dist, "state": state})
             if method == "POST" and re.fullmatch(r"/api/admin/regions/\d+/coords", path):
                 self.need(u, "admin"); rid = int(path.split("/")[4]); d = self.body(); la, ln = geo_pair(d.get("lat"), d.get("lng"))  # null/null = مسح الإحداثيات
                 if not c.execute("SELECT 1 FROM regions WHERE id=?", (rid,)).fetchone(): raise E(404, "غير موجود")
@@ -792,6 +845,24 @@ class H(BaseHTTPRequestHandler):
                 try: cur = c.execute("INSERT INTO regions(parent_id,level,slug,name_ar,is_active,lat,lng) VALUES(?,?,?,?,?,?,?)", (d.get("parent_id"), d.get("level"), d.get("slug"), d.get("name_ar"), int(bool(d.get("is_active"))), la, ln))
                 except sqlite3.Error: raise E(400, "بيانات المنطقة غير صالحة")
                 audit(c, u["id"], "region.create", str(cur.lastrowid), d); c.commit(); return self.send(201, {"id": cur.lastrowid})
+            m = re.fullmatch(r"/api/admin/regions/(\d+)", path)
+            if method == "POST" and m:
+                self.need(u, "admin"); rid = int(m[1]); d = self.body()
+                old = c.execute('SELECT * FROM regions WHERE id=?', (rid,)).fetchone()
+                if not old: raise E(404, "المنطقة غير موجودة")
+                name = str(d.get('name_ar', old['name_ar'])).strip()
+                slug = str(d.get('slug', old['slug'])).strip()
+                level = str(d.get('level', old['level']))
+                parent = d.get('parent_id', old['parent_id'])
+                if not name or not slug or level not in ('country','governorate','markaz','village','zone'): raise E(400, "بيانات المنطقة غير صالحة")
+                if parent is not None:
+                    pr = c.execute('SELECT level FROM regions WHERE id=?', (parent,)).fetchone()
+                    if not pr or parent == rid: raise E(400, "المنطقة الأب غير صالحة")
+                    if level == 'governorate' and pr['level'] != 'country' or level == 'markaz' and pr['level'] != 'governorate': raise E(400, "مستوى المنطقة لا يتوافق مع المنطقة الأب")
+                    if c.execute('WITH RECURSIVE tree(id) AS (SELECT ? UNION ALL SELECT r.id FROM regions r JOIN tree t ON r.parent_id=t.id) SELECT 1 FROM tree WHERE id=?', (rid, parent)).fetchone(): raise E(400, "لا يمكن نقل المنطقة إلى أحد فروعها")
+                try: c.execute('UPDATE regions SET name_ar=?,slug=?,level=?,parent_id=? WHERE id=?', (name, slug, level, parent, rid))
+                except sqlite3.IntegrityError: raise E(409, "المعرّف مستخدم بالفعل")
+                audit(c, u['id'], 'region.update', str(rid), {'name_ar':name,'slug':slug,'level':level,'parent_id':parent}); c.commit(); return self.send(200, {'ok':True})
             if method == "POST" and re.fullmatch(r"/api/admin/regions/\d+/active", path):
                 self.need(u, "admin"); rid = int(path.split("/")[4]); a = int(bool(self.body().get("is_active")))
                 c.execute("UPDATE regions SET is_active=? WHERE id=?", (a, rid)); audit(c, u["id"], "region.active", str(rid), {"is_active": a}); c.commit(); return self.send(200, {"ok": True})
@@ -1176,8 +1247,9 @@ class H(BaseHTTPRequestHandler):
                 c.commit(); return self.send(200, {"online": bool(on) if on is not None else bool(cr["is_available"])})
             if method == "POST" and path == "/api/push/state":  # public on purpose: sw.js cannot read the login token. Keyed by the device's own push endpoint; answers with a COUNT only
                 ep = str(self.body().get("endpoint", "")).strip(); r = c.execute("SELECT user_id FROM push_subs WHERE endpoint=?", (ep,)).fetchone() if 0 < len(ep) <= 600 else None
+                medical = c.execute("SELECT COUNT(*) FROM notifications WHERE user_id=? AND read_at IS NULL AND kind LIKE 'rx.%'", (r["user_id"],)).fetchone()[0] if r else 0
                 return self.send(200, {"pending": push_pending(c, r["user_id"]) if r else 0, "chat": chat.unread_total(c, r["user_id"]) if r else 0,
-                                       "courier": bool(r and c.execute("SELECT 1 FROM couriers WHERE user_id=? AND status='approved'", (r["user_id"],)).fetchone())})  # counts/flags only, never data
+                                       "medical": medical, "courier": bool(r and c.execute("SELECT 1 FROM couriers WHERE user_id=? AND status='approved'", (r["user_id"],)).fetchone())})  # counts/flags only, never data
             if method == "GET" and path == "/api/push/key":  # Phase 4: any logged-in user (chat wake-ups); same VAPID key as the courier route
                 self.need(u); return self.send(200, {"key": vapid_keys(c)[1]})
             if method == "POST" and path == "/api/push/subscribe":
@@ -1220,8 +1292,10 @@ class H(BaseHTTPRequestHandler):
                 for o in c.execute("SELECT o.id,o.commission FROM delivery_orders o WHERE o.status='searching' AND o.customer_id!=? AND (o.region_id IN " + COVER + " OR o.region_id IN " + COVER_REV + ") AND " + fresh + " AND o.id NOT IN (SELECT order_id FROM order_offers WHERE courier_id=?)", (u["id"], cr["region_id"], cr["region_id"], now - win, u["id"])).fetchall():
                     if free >= o["commission"]: c.execute("INSERT OR IGNORE INTO order_offers(order_id,courier_id,status,offered_at) VALUES(?,?,'offered',?)", (o["id"], u["id"], now))
                 c.commit()
-                rows = [dict(r) for r in c.execute("SELECT o.id,o.region_id,rg.name_ar region_name,o.offer_fee,o.created_at,f.offered_at+? - ? expires_in,0 taken FROM order_offers f JOIN delivery_orders o ON o.id=f.order_id JOIN regions rg ON rg.id=o.region_id WHERE f.courier_id=? AND f.status='offered' AND o.status='searching' ORDER BY o.id", (ttl, now, u["id"]))]
+                rows = [dict(r) for r in c.execute("SELECT o.id,o.origin_type,o.region_id,rg.name_ar region_name,o.offer_fee,o.created_at,f.offered_at+? - ? expires_in,0 taken FROM order_offers f JOIN delivery_orders o ON o.id=f.order_id JOIN regions rg ON rg.id=o.region_id WHERE f.courier_id=? AND f.status='offered' AND o.status='searching' ORDER BY o.id", (ttl, now, u["id"]))]
                 rows += [dict(r) for r in c.execute("SELECT o.id,o.region_id,rg.name_ar region_name,NULL offer_fee,o.created_at,0 expires_in,1 taken FROM order_offers f JOIN delivery_orders o ON o.id=f.order_id JOIN regions rg ON rg.id=o.region_id WHERE f.courier_id=? AND f.status='lost' AND f.responded_at>?", (u["id"], now - 60))]
+                for r in rows:
+                    if r.get("origin_type") is None: r.pop("origin_type", None)
                 return self.send(200, rows)
             m = re.fullmatch(r"/api/courier/orders/(\d+)/accept", path)
             if method == "POST" and m:
@@ -1231,10 +1305,12 @@ class H(BaseHTTPRequestHandler):
                     if not cr: raise E(403, "حساب المندوب غير معتمد")
                     if not is_online(c, cr): raise E(403, "أنت غير متصل حاليًا")
                     bal, free = wallet_free(c, u["id"])
-                    need_ = c.execute("SELECT commission,customer_id,region_id,comm_type,comm_value,offer_fee FROM delivery_orders WHERE id=?", (oid,)).fetchone()
+                    need_ = c.execute("SELECT commission,customer_id,region_id,comm_type,comm_value,offer_fee,origin_type FROM delivery_orders WHERE id=?", (oid,)).fetchone()
                     if not need_: raise E(404, "غير موجود")
                     dflt = region_fee(c, need_["region_id"]); cm_ = commission_for(c, dflt["fee"], need_["comm_type"], need_["comm_value"]) if dflt else need_["commission"]
                     if need_["offer_fee"] is not None: dflt = {"fee": need_["offer_fee"]}; cm_ = commission_for(c, need_["offer_fee"], need_["comm_type"], need_["comm_value"])  # المرحلة 27: السعر المرجعي هو سعر العميل لا الافتراضي  # الأجرة الافتراضية الحالية للمنطقة (الإدارة قد تكون عدّلتها بعد إنشاء الطلب)
+                    pk_ = need_["origin_type"] == provider_delivery.KIND
+                    if pk_: dflt = None; cm_ = need_["commission"]
                     if need_["customer_id"] == u["id"]: raise E(403, "لا يمكنك قبول طلب أنشأته بنفسك")
                     if free < cm_: raise E(402, "رصيدك غير كافٍ لقبول هذا الطلب")
                     mine = c.execute("SELECT status FROM order_offers WHERE order_id=? AND courier_id=?", (oid, u["id"])).fetchone()
@@ -1245,7 +1321,7 @@ class H(BaseHTTPRequestHandler):
                     c.execute("INSERT INTO order_offers(order_id,courier_id,status,offered_at,responded_at) VALUES(?,?,'accepted',?,?) ON CONFLICT(order_id,courier_id) DO UPDATE SET status='accepted',responded_at=excluded.responded_at", (oid, u["id"], now, now))
                     c.execute("UPDATE order_offers SET status='lost',responded_at=? WHERE order_id=? AND courier_id!=? AND status IN('offered','expired')", (now, oid, u["id"]))
                     if dflt: c.execute("UPDATE delivery_orders SET fee=?,commission=? WHERE id=?", (dflt["fee"], cm_, oid))
-                    direct = need_["offer_fee"] is not None and not counter  # قبول بسعر العميل: لا حاجة لموافقة ثانية (هو من حدده)
+                    direct = pk_ or (need_["offer_fee"] is not None and not counter)  # طلب الصيدلية يُقبل مباشرة بلا تفاوض أجرة
                     c.execute("UPDATE delivery_orders SET fare_status=? WHERE id=?", ("approved" if direct else "draft", oid))  # draft: المندوب يرى الأجرة المرجعية ويعدّلها ثم يرسلها للعميل
                     if direct: audit(c, u["id"], "order.fare_accepted_offer", str(oid), {"fee": need_["offer_fee"]})
                     ev(oid, "searching", "assigned"); c.commit(); push_stop_order(oid); return self.send(200, {"ok": True, "fee": dflt["fee"] if dflt else None, "fare_status": "approved" if direct else "draft"})
@@ -1272,8 +1348,9 @@ class H(BaseHTTPRequestHandler):
                 if not c.execute("UPDATE delivery_orders SET search_started_at=?,updated_at=? WHERE id=? AND customer_id=? AND status='searching'", (now, now, oid, u["id"])).rowcount: raise E(409, "لا يمكن إعادة البحث لهذا الطلب")
                 c.execute("DELETE FROM order_offers WHERE order_id=?", (oid,)); audit(c, u["id"], "order.retry_search", str(oid)); c.commit(); push_new_order(oid); return self.send(200, {"status": "searching"})
             if method == "GET" and path == "/api/courier/orders":
-                courier(); rows = [dict(r) for r in c.execute("SELECT o.region_id,o.fare_status,o.offer_fee,o.id,o.pickup_text,o.dropoff_text,o.details,o.fee,o.status,CASE WHEN o.status IN " + ACTIVE + " THEN cu.name END customer_name,CASE WHEN o.status IN " + ACTIVE + " THEN cu.phone END customer_phone,CASE WHEN o.status IN " + ACTIVE + " THEN o.dropoff_lat END dropoff_lat,CASE WHEN o.status IN " + ACTIVE + " THEN o.dropoff_lng END dropoff_lng FROM delivery_orders o JOIN users cu ON cu.id=o.customer_id WHERE o.courier_id=? ORDER BY o.id DESC", (u["id"],))]
+                courier(); rows = [dict(r) for r in c.execute("SELECT o.origin_type,o.region_id,o.fare_status,o.offer_fee,o.id,o.pickup_text,o.dropoff_text,o.details,o.fee,o.status,CASE WHEN o.status IN " + ACTIVE + " THEN cu.name END customer_name,CASE WHEN o.status IN " + ACTIVE + " THEN cu.phone END customer_phone,CASE WHEN o.status IN " + ACTIVE + " THEN o.dropoff_lat END dropoff_lat,CASE WHEN o.status IN " + ACTIVE + " THEN o.dropoff_lng END dropoff_lng FROM delivery_orders o JOIN users cu ON cu.id=o.customer_id WHERE o.courier_id=? ORDER BY o.id DESC", (u["id"],))]
                 for r in rows:
+                    if r.get("origin_type") is None: r.pop("origin_type", None)
                     f = region_fee(c, r.pop("region_id"))
                     if r["fare_status"] != "approved": r["customer_name"] = r["customer_phone"] = r["dropoff_lat"] = r["dropoff_lng"] = None  # بيانات العميل لا تُكشف قبل موافقته على الأجرة
                 return self.send(200, rows)
@@ -1295,19 +1372,19 @@ class H(BaseHTTPRequestHandler):
                 except E: c.rollback() if c.in_transaction else None; raise
             m = re.fullmatch(r"/api/courier/orders/(\d+)/(status|release)", path)
             if method == "POST" and m:
-                courier(); oid = int(m[1]); o = c.execute("SELECT status,fare_status FROM delivery_orders WHERE id=? AND courier_id=?", (oid, u["id"])).fetchone()
+                courier(); oid = int(m[1]); o = c.execute("SELECT status,fare_status,origin_type FROM delivery_orders WHERE id=? AND courier_id=?", (oid, u["id"])).fetchone()
                 if not o: raise E(404, "غير موجود")
                 if m[2] == "release":
                     if o["status"] not in ("assigned", "heading_pickup"): raise E(409, "لا يمكن التخلي عن الطلب بعد الاستلام")
                     now = int(time.time())
                     if not c.execute("UPDATE delivery_orders SET status='searching',courier_id=NULL,fare_status='none',updated_at=?,search_started_at=? WHERE id=? AND courier_id=? AND status IN('assigned','heading_pickup')", (now, now, oid, u["id"])).rowcount: raise E(409, "تغيّرت حالة الطلب، حدّث الصفحة")  # لا نُحيي طلبًا ألغاه العميل في نفس اللحظة
                     c.execute("DELETE FROM order_offers WHERE order_id=?", (oid,)); ev(oid, o["status"], "searching"); c.commit(); push_new_order(oid); return self.send(200, {"status": "searching"})  # push: وإلا لا يعلم بقية المناديب بالطلب المُعاد
-                to = NEXT.get(o["status"])
+                to = (provider_delivery.NEXT if o["origin_type"] == provider_delivery.KIND else NEXT).get(o["status"])
                 if not to or self.body().get("to") != to: raise E(409, "انتقال غير مسموح")
                 if o["fare_status"] != "approved": raise E(409, "لا يمكن بدء التوصيل قبل موافقة العميل على الأجرة")
                 if not c.execute("UPDATE delivery_orders SET status=?,updated_at=? WHERE id=? AND courier_id=? AND status=?", (to, int(time.time()), oid, u["id"], o["status"])).rowcount: raise E(409, "تغيّرت حالة الطلب، حدّث الصفحة")  # لا نكتب فوق إلغاء/اعتراض حدث بالتوازي
                 ev(oid, o["status"], to)
-                if to == "awaiting_confirmation": charge_commission(c, oid)  # المرحلة 28: تُخصم العمولة أول ما يوصّل المندوب (مرة واحدة: UNIQUE + INSERT OR IGNORE)
+                if to in ("awaiting_confirmation", "completed"): charge_commission(c, oid)  # الطلبات العادية تُحصّل عند التأكيد؛ طلب الصيدلية عند الاستلام
                 c.commit(); return self.send(200, {"status": to})
             if method == "GET" and path == "/api/features":  # أعلام عامة للواجهة (المنتجات مطفية افتراضيًا عند الإطلاق)
                 return self.send(200, {"products": products.enabled(c)})
@@ -1880,6 +1957,8 @@ class H(BaseHTTPRequestHandler):
                 return r
             def respond(table, col, pid_):
                 d = self.body(); st = d.get("status"); price = d.get("price")
+                if table == "prescription_responses" and rx._setting(c, "rx_claim_mode", 0) == 1:
+                    raise E(409, "التوزيع التفصيلي مفعّل؛ استخدم نموذج تسعير الأصناف لتحديد حالة كل صنف وتأكيد التوافر الكامل")
                 if st not in ("available", "unavailable", "needs_confirmation"): raise E(400, "حالة غير صالحة")
                 if st == "available":
                     try: price = float(price)
@@ -1896,7 +1975,69 @@ class H(BaseHTTPRequestHandler):
                 except sqlite3.IntegrityError: raise E(409, "طلبك مقدّم بالفعل")
                 c.commit(); return self.send(201, {"status": "pending"})
             if method == "GET" and path == "/api/admin/providers":
-                self.need(u, "admin", "staff"); return self.send(200, [dict(r) for r in c.execute("SELECT p.*,u.name,u.phone FROM providers p JOIN users u ON u.id=p.user_id WHERE p.status=?", (q.get("status", ["pending"])[0],))])
+                self.need(u, "admin", "staff")
+                st = q.get("status", ["pending"])[0]
+                sql = "SELECT p.*,u.name,u.phone,rg.name_ar region_name,par.name_ar parent_region_name FROM providers p JOIN users u ON u.id=p.user_id JOIN regions rg ON rg.id=p.region_id LEFT JOIN regions par ON par.id=rg.parent_id WHERE (?='all' OR p.status=?) ORDER BY p.name_ar"
+                return self.send(200, [dict(r) for r in c.execute(sql, (st, st))])
+            if path == "/api/admin/rx/routing-settings":
+                self.need(u, "admin")
+                if method == "GET":
+                    settings = {r["key"]: r["value"] for r in c.execute("SELECT key,value FROM settings WHERE key IN ('rx_claim_mode','rx_routing_mode','rx_direct_provider_id','rx_claim_timeout_minutes','rx_total_timeout_minutes','rx_distribution_regions')")}
+                    regions = [dict(r) for r in c.execute("SELECT id,name_ar,parent_id FROM regions WHERE level='markaz' AND is_active=1 ORDER BY name_ar")]
+                    pharmacies = [dict(r) for r in c.execute("SELECT p.user_id id,p.name_ar,p.region_id,p.distribution_enabled,rg.name_ar region_name FROM providers p JOIN regions rg ON rg.id=p.region_id WHERE p.status='approved' ORDER BY p.name_ar")]
+                    try: selected_regions = json.loads(settings.get('rx_distribution_regions','[]'))
+                    except Exception: selected_regions = []
+                    return self.send(200, {"settings":settings,"regions":regions,"pharmacies":pharmacies,"distribution_regions":selected_regions,"distribution_provider_ids":[x['id'] for x in pharmacies if x['distribution_enabled']]})
+                if method == "POST":
+                    d = self.body()
+                    mode = str(d.get('routing_mode','direct'))
+                    if mode not in ('direct','automatic'): raise E(400, 'وضع التوجيه غير صالح')
+                    current_claim_mode = str(cfg(c, 'rx_claim_mode', 0))
+                    raw_claim_mode = d.get('claim_mode', current_claim_mode)
+                    if raw_claim_mode in (True, 1, '1', 'true', 'on'): claim_mode = '1'
+                    elif raw_claim_mode in (False, 0, '0', 'false', 'off'): claim_mode = '0'
+                    else: raise E(400, 'قيمة تفعيل نظام الحجز غير صالحة')
+                    try: direct = int(d.get('direct_provider_id') or 0); claim_timeout = int(d.get('claim_timeout_minutes',10)); total_timeout = int(d.get('total_timeout_minutes',60))
+                    except (TypeError,ValueError): raise E(400, 'إحدى قيم التوجيه غير صالحة')
+                    if not 1 <= claim_timeout <= 60: raise E(400, 'مهلة الحجز يجب أن تكون من 1 إلى 60 دقيقة')
+                    if not 5 <= total_timeout <= 240: raise E(400, 'مدة الانتظار الكلية يجب أن تكون من 5 إلى 240 دقيقة')
+                    if mode == 'direct' and not c.execute("SELECT 1 FROM providers WHERE user_id=? AND status='approved'",(direct,)).fetchone(): raise E(400,'اختر صيدلية مباشرة معتمدة')
+                    regions = d.get('distribution_regions', [])
+                    if not isinstance(regions,list) or len(regions)>200: raise E(400,'قائمة المراكز غير صالحة')
+                    clean=[]
+                    for rid in regions:
+                        try: rid=int(rid)
+                        except (TypeError,ValueError): raise E(400,'معرّف مركز غير صالح')
+                        if not c.execute("SELECT 1 FROM regions WHERE id=? AND level='markaz' AND is_active=1",(rid,)).fetchone(): raise E(400,'كل الاختيارات يجب أن تكون مراكز مفعّلة')
+                        if rid not in clean: clean.append(rid)
+                    if mode == 'automatic' and not clean: raise E(400,'اختر مركزًا واحدًا على الأقل للتوزيع التلقائي')
+                    provider_ids = d.get('distribution_provider_ids', [])
+                    if not isinstance(provider_ids,list) or len(provider_ids)>500: raise E(400,'قائمة الصيدليات المشاركة غير صالحة')
+                    selected_providers=[]
+                    for pid in provider_ids:
+                        try: pid=int(pid)
+                        except (TypeError,ValueError): raise E(400,'معرّف صيدلية غير صالح')
+                        if not c.execute("SELECT 1 FROM providers WHERE user_id=? AND status='approved'",(pid,)).fetchone(): raise E(400,'الصيدليات المشاركة يجب أن تكون معتمدة')
+                        if pid not in selected_providers: selected_providers.append(pid)
+                    values={'rx_claim_mode':claim_mode,'rx_routing_mode':mode,'rx_direct_provider_id':str(direct or ''),'rx_claim_timeout_minutes':str(claim_timeout),'rx_total_timeout_minutes':str(total_timeout),'rx_distribution_regions':json.dumps(clean)}
+                    for k,val in values.items(): c.execute("INSERT INTO settings(key,value) VALUES(?,?) ON CONFLICT(key) DO UPDATE SET value=excluded.value",(k,val))
+                    c.execute("UPDATE providers SET distribution_enabled=CASE WHEN status='approved' AND user_id IN (%s) THEN 1 ELSE 0 END" % (','.join('?'*len(selected_providers)) if selected_providers else 'NULL'), tuple(selected_providers))
+                    audit(c,u['id'],'settings.rx_routing',None,{'mode':mode,'claim_mode':claim_mode,'direct_provider_id':direct or None,'claim_timeout_minutes':claim_timeout,'total_timeout_minutes':total_timeout,'distribution_regions':clean,'distribution_provider_ids':selected_providers})
+                    c.commit(); return self.send(200,{'ok':True,'settings':values})
+                raise E(405,'طريقة غير مدعومة')
+            m = re.fullmatch(r"/api/admin/providers/(\d+)/settings", path)
+            if method == "POST" and m:
+                self.need(u, "admin"); pid = int(m[1]); d = self.body()
+                old = c.execute('SELECT * FROM providers WHERE user_id=?', (pid,)).fetchone()
+                if not old: raise E(404, "الصيدلية غير موجودة")
+                rid = d.get('region_id', old['region_id'])
+                if not c.execute("SELECT 1 FROM regions WHERE id=? AND level IN ('markaz','village','zone')", (rid,)).fetchone(): raise E(400, "اختر مركزًا أو منطقة صالحة")
+                lat, lng = old['lat'], old['lng']
+                if 'lat' in d or 'lng' in d: lat, lng = geo_pair(d.get('lat'), d.get('lng'))
+                enabled = int(bool(d.get('distribution_enabled', old['distribution_enabled'])))
+                if enabled and old['status'] != 'approved': raise E(400, "لا يمكن إشراك صيدلية غير معتمدة في التوزيع")
+                c.execute('UPDATE providers SET region_id=?,lat=?,lng=?,distribution_enabled=? WHERE user_id=?', (rid,lat,lng,enabled,pid))
+                audit(c,u['id'],'provider.settings',str(pid),{'region_id':rid,'distribution_enabled':enabled,'lat':lat,'lng':lng}); c.commit(); return self.send(200, {'ok':True})
             m = re.fullmatch(r"/api/admin/providers/(\d+)/review", path)
             if method == "POST" and m:
                 self.need(u, "admin"); st = self.body().get("status")
@@ -1918,7 +2059,11 @@ class H(BaseHTTPRequestHandler):
                 cur = c.execute("INSERT INTO files(owner_id,path,mime,size,created_at) VALUES(?,?,?,?,?)", (u["id"], name, mime, len(raw), int(time.time()))); c.commit(); return self.send(201, {"id": cur.lastrowid})
             m = re.fullmatch(r"/api/files/(\d+)(/delete)?", path)
             if m:
-                self.need(u); f = c.execute("SELECT * FROM files WHERE id=?", (int(m[1]),)).fetchone()
+                self.need(u)
+                if u["role"] not in ("admin", "staff"):
+                    try: rx.refresh_claims(c); c.commit()
+                    except Exception: pass
+                f = c.execute("SELECT * FROM files WHERE id=?", (int(m[1]),)).fetchone()
                 allowed = f and (f["owner_id"] == u["id"] or u["role"] in ("admin", "staff") or c.execute("SELECT 1 FROM prescription_access a JOIN prescriptions p ON p.id=a.prescription_id JOIN providers v ON v.user_id=a.provider_id WHERE a.provider_id=? AND v.status='approved' AND (p.file_id=? OR ? IN (SELECT file_id FROM rx_images WHERE prescription_id=p.id))", (u["id"], f["id"], f["id"])).fetchone())
                 if not allowed: raise E(404, "غير موجود")
                 if method == "GET" and not m[2]:
@@ -1951,7 +2096,7 @@ class H(BaseHTTPRequestHandler):
                 nm = q.get("q", [""])[0].strip().lower(); rid = q.get("region_id", [0])[0]
                 if len(nm) < 2: raise E(400, "اكتب اسم الدواء")
                 hrs = float(({r["key"]: r["value"] for r in c.execute("SELECT * FROM settings")}).get("stock_fresh_hours", 24)); a = related(toint(rid or 0)) or [0]
-                return self.send(200, [dict(r) for r in c.execute("SELECT s.medicine_name,s.price,s.confirmed_at,p.name_ar pharmacy,p.address FROM provider_stock s JOIN providers p ON p.user_id=s.provider_id WHERE s.name_norm LIKE ? AND s.available=1 AND p.status='approved' AND p.region_id IN (%s) AND s.confirmed_at>? ORDER BY s.price" % ",".join("?" * len(a)), ("%" + nm + "%", *a, int(time.time() - hrs * 3600)))])
+                return self.send(200, [dict(r) for r in c.execute("SELECT s.medicine_name,s.price,s.confirmed_at,p.name_ar pharmacy,p.address FROM provider_stock s JOIN providers p ON p.user_id=s.provider_id WHERE s.name_norm LIKE ? AND s.available=1 AND p.status='approved' AND p.region_id IN (%s) AND s.confirmed_at>? ORDER BY s.confirmed_at DESC,s.medicine_name COLLATE NOCASE" % ",".join("?" * len(a)), ("%" + nm + "%", *a, int(time.time() - hrs * 3600)))])
             if method == "POST" and path == "/api/medical/inquiries":
                 self.need(u); d = self.body(); nm = str(d.get("medicine_name", "")).strip()
                 if len(nm) < 2 or not c.execute("SELECT 1 FROM regions WHERE id=? AND is_active=1", (d.get("region_id"),)).fetchone(): raise E(400, "اسم الدواء ومنطقة مفعّلة مطلوبان")
@@ -1993,9 +2138,15 @@ class H(BaseHTTPRequestHandler):
                     if c.execute("SELECT 1 FROM prescriptions WHERE file_id=? UNION SELECT 1 FROM rx_images WHERE file_id=?", (x, x)).fetchone(): raise E(409, "هذه الصورة مستخدمة في روشتة أخرى")
                 if not c.execute("SELECT 1 FROM regions WHERE id=? AND is_active=1", (d.get("region_id"),)).fetchone(): raise E(400, "المنطقة غير مفعّلة")
                 check_limit(c, "prescriptions", u["id"], "لديك روشتات مفتوحة كثيرة، احذف صورة روشتة منتهية أولًا")
-                cur = c.execute("INSERT INTO prescriptions(customer_id,region_id,file_id,note,created_at) VALUES(?,?,?,?,?)", (u["id"], d["region_id"], fids[0], str(d.get("note", ""))[:300], int(time.time()))); rx.set_images(c, cur.lastrowid, fids); c.commit(); rx.auto_forward(c, cur.lastrowid); notif.prescription_pending(c, cur.lastrowid); return self.send(201, {"id": cur.lastrowid, "status": "pending"})
+                kind = str(d.get("kind", "rx"));
+                if kind not in ("rx", "item"): raise E(400, "نوع الطلب غير صالح")
+                cur = c.execute("INSERT INTO prescriptions(customer_id,region_id,file_id,note,created_at,kind) VALUES(?,?,?,?,?,?)", (u["id"], d["region_id"], fids[0], str(d.get("note", ""))[:300], int(time.time()), kind)); rx.set_images(c, cur.lastrowid, fids); c.commit(); rx.auto_forward(c, cur.lastrowid); notif.prescription_pending(c, cur.lastrowid); return self.send(201, {"id": cur.lastrowid, "status": "pending"})
             if method == "GET" and path == "/api/medical/prescriptions":
-                self.need(u); return self.send(200, [{**dict(r), "responses": resp_rows("prescription_responses", "prescription_id", r["id"]), "stage": rx.stage_of(c, r["id"], r["status"]), "images": rx.images_of(c, r["id"])} for r in c.execute("SELECT id,file_id,note,status,created_at FROM prescriptions WHERE customer_id=? ORDER BY id DESC", (u["id"],)).fetchall()])
+                self.need(u); out=[]
+                for r in c.execute("SELECT id,file_id,note,status,created_at,kind FROM prescriptions WHERE customer_id=? ORDER BY id DESC", (u["id"],)).fetchall():
+                    d={**dict(r), "responses": resp_rows("prescription_responses", "prescription_id", r["id"]), "stage": rx.stage_of(c, r["id"], r["status"]), "images": rx.images_of(c, r["id"])}
+                    d["aggregate_status"]=rx.aggregate_status(c,r["id"]); d["routing_state"]=rx.routing_state(c,r["id"]); out.append(d)
+                return self.send(200, out)
             if method == "GET" and path == "/api/admin/prescriptions":
                 self.need(u, "admin", "staff"); return self.send(200, [{**dict(r), "images": rx.images_of(c, r["id"])} for r in c.execute("SELECT p.id,p.file_id,p.note,p.status,p.region_id,p.created_at,u.name customer FROM prescriptions p JOIN users u ON u.id=p.customer_id WHERE p.status=? ORDER BY p.id", (q.get("status", ["pending"])[0],))])
             m = re.fullmatch(r"/api/admin/prescriptions/(\d+)/forward", path)
@@ -2004,10 +2155,16 @@ class H(BaseHTTPRequestHandler):
                 if not c.execute("SELECT 1 FROM providers WHERE user_id=? AND status='approved'", (pid_,)).fetchone() or not c.execute("SELECT 1 FROM prescriptions WHERE id=? AND file_id IS NOT NULL AND status!='closed'", (pid,)).fetchone(): raise E(400, "صيدلية معتمدة وروشتة متاحة مطلوبتان")
                 c.execute("INSERT OR IGNORE INTO prescription_access VALUES(?,?)", (pid, pid_)); c.execute("UPDATE prescriptions SET status='forwarded' WHERE id=?", (pid,)); audit(c, u["id"], "prescription.forward", str(pid), {"provider": pid_}); c.commit(); return self.send(200, {"ok": True})
             if method == "GET" and path == "/api/provider/prescriptions":
-                prov(); return self.send(200, [{**dict(r), "images": rx.images_of(c, r["id"])} for r in c.execute("SELECT p.id,p.file_id,p.note,p.created_at,x.status my_status,x.price my_price,x.review my_review,x.review_reason my_review_reason FROM prescription_access a JOIN prescriptions p ON p.id=a.prescription_id AND p.status!='closed' AND p.file_id IS NOT NULL LEFT JOIN prescription_responses x ON x.prescription_id=p.id AND x.provider_id=a.provider_id WHERE a.provider_id=? ORDER BY p.id DESC", (u["id"],))])
+                prov(); out=[]
+                for r in c.execute("SELECT p.id,p.file_id,p.note,p.created_at,x.status my_status,x.price my_price,x.review my_review,x.review_reason my_review_reason FROM prescription_access a JOIN prescriptions p ON p.id=a.prescription_id AND p.status!='closed' AND p.file_id IS NOT NULL LEFT JOIN prescription_responses x ON x.prescription_id=p.id AND x.provider_id=a.provider_id WHERE a.provider_id=? ORDER BY p.id DESC", (u["id"],)):
+                    d=dict(r); d["images"]=rx.images_of(c,r["id"]); d["requested_items"]=rx.requested_items(c,r["id"],u["id"]); out.append(d)
+                return self.send(200, out)
             m = re.fullmatch(r"/api/provider/prescriptions/(\d+)/respond", path)
             if method == "POST" and m:
                 prov()
+                if int(({r["key"]:r["value"] for r in c.execute("SELECT key,value FROM settings")}).get("rx_claim_mode", "0")) == 1:
+                    rx.refresh_claims(c); c.commit()
+                    if not c.execute("SELECT 1 FROM rx_claims WHERE prescription_id=? AND provider_id=? AND status='active' AND expires_at>?", (int(m[1]), u["id"], int(time.time()))).fetchone(): raise E(404, "انتهت مهلة الحجز أو لم يعد الطلب مخصصًا لصيدليتك")
                 if not c.execute("SELECT 1 FROM prescription_access a JOIN prescriptions p ON p.id=a.prescription_id WHERE a.prescription_id=? AND a.provider_id=? AND p.status!='closed'", (int(m[1]), u["id"])).fetchone(): raise E(404, "غير موجود")
                 return respond("prescription_responses", "prescription_id", int(m[1]))
             if method == "POST" and path == "/api/medical/delivery":
@@ -2030,6 +2187,7 @@ class H(BaseHTTPRequestHandler):
                 hrs = float(({r["key"]: r["value"] for r in c.execute("SELECT * FROM settings")}).get("stock_fresh_hours", 24))
                 if rr["updated_at"] <= time.time() - hrs * 3600: raise E(409, "رد الصيدلية قديم، اطلب تأكيدًا جديدًا")
                 if st == "prescription" and not c.execute("SELECT 1 FROM prescription_access WHERE prescription_id=? AND provider_id=?", (sid, pid_)).fetchone(): raise E(409, "الصيدلية لم تعد مخوّلة بهذه الروشتة")
+                if st == "prescription" and rx._setting(c, "rx_claim_mode", 0) == 1 and rx.requested_items(c, sid, pid_): raise E(409, "هذه الصيدلية أكدت الأصناف الناقصة فقط؛ لا يمكن إنشاء توصيل للروشتة كاملة من هذا الرد")
                 if c.execute("SELECT 1 FROM medical_delivery_links l JOIN delivery_orders o ON o.id=l.order_id WHERE l.source_type=? AND l.source_id=? AND l.provider_id=? AND o.status!='cancelled'", (st, sid, pid_)).fetchone(): raise E(409, "يوجد طلب توصيل لهذا الرد بالفعل")
                 f = region_fee(c, pv["region_id"])
                 if not f: raise E(400, "الدليفري غير متاح في منطقة الصيدلية")
@@ -2069,8 +2227,62 @@ def push_resume():
     if uids: threading.Thread(target=sweep, daemon=True).start()
     for oid in ids: push_new_order(oid)
     return ids
+def _rx_worker_acquire_lease(c, owner, now=None, lease_seconds=60):
+    """Best-effort SQLite lease: only one server process sweeps a shared DB at a time.
+    If the connection is a lightweight test double without SQL support, retain the old single-worker behavior.
+    """
+    if not hasattr(c, "execute"): return True
+    now = int(now or time.time()); lease_seconds = max(10, int(lease_seconds))
+    try:
+        if not c.in_transaction: c.execute("BEGIN IMMEDIATE")
+        row = c.execute("SELECT value FROM settings WHERE key='rx_claim_worker_lease'").fetchone()
+        if row:
+            try: active_owner, until = row["value"].rsplit("|", 1); until = int(until)
+            except (ValueError, TypeError): active_owner, until = "", 0
+            if until > now and active_owner != owner:
+                c.rollback(); return False
+        c.execute("INSERT INTO settings(key,value) VALUES('rx_claim_worker_lease',?) ON CONFLICT(key) DO UPDATE SET value=excluded.value",
+                  ("%s|%d" % (owner, now + lease_seconds),))
+        c.commit()
+        return True
+    except Exception as e:
+        print("rx claim worker lease failed: %r" % (e,), file=sys.stderr)
+        try: c.rollback()
+        except Exception: pass
+        return False
+
+
+def rx_claim_worker(stop_event=None, interval=None, db_factory=None):
+    """Periodic deadline processor for pharmacy claims. Disabled mode is a no-op.
+    Uses a per-tick connection and a renewable SQLite lease so multiple app processes sharing the same DB do not all sweep.
+    """
+    stop_event = stop_event or threading.Event()
+    interval = max(5, int(interval if interval is not None else os.environ.get("LAQINO_RX_CLAIM_SWEEP_SECONDS", "15")))
+    db_factory = db_factory or db
+    owner = secrets.token_hex(16)
+    while not stop_event.is_set():
+        c = None
+        try:
+            c = db_factory()
+            if _rx_worker_acquire_lease(c, owner, lease_seconds=max(30, interval * 4)):
+                processed = rx.refresh_claims(c)
+                if c.in_transaction: c.commit()
+                if processed:
+                    print("rx claim worker: processed %d expired claim(s)" % processed, file=sys.stderr)
+        except Exception as e:
+            print("rx claim worker failed: %r" % (e,), file=sys.stderr)
+            try:
+                if c: c.rollback()
+            except Exception: pass
+        finally:
+            try:
+                if c: c.close()
+            except Exception: pass
+        if stop_event.wait(interval): break
+
 if __name__ == "__main__":
     init(os.environ.get("LAQINO_ADMIN_PHONE"), os.environ.get("LAQINO_ADMIN_PASSWORD"))
     try: print("push resume: %d searching order(s) re-armed" % len(push_resume()))
     except Exception as e: print("push resume failed:", e, file=sys.stderr)
+    threading.Thread(target=rx_claim_worker, name="rx-claim-deadlines", daemon=True).start()
     ThreadingHTTPServer((os.environ.get("HOST", "0.0.0.0"), int(os.environ.get("PORT", 8000))), H).serve_forever()

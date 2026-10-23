@@ -1,6 +1,6 @@
 # الخطوة 4 في Chromium حقيقي (مقاس موبايل): العميل يرفع 3 صور، الإدارة تحوّل، الصيدلية ترى الصور وتسعّر،
 # الإدارة تعتمد الرد من تبويب الروشتات، ثم يظهر للعميل. يُتخطى بأمان إن لم يتوفر playwright/Chromium.
-import os, sys, json, threading, urllib.request, urllib.error, tempfile, time, sqlite3
+import os, sys, json, threading, urllib.request, urllib.error, tempfile, time, sqlite3, shutil
 os.environ["LAQINO_DB"] = tempfile.mktemp(suffix=".db"); os.environ["LAQINO_UPLOADS"] = tempfile.mkdtemp()
 try:
     from playwright.sync_api import sync_playwright
@@ -29,16 +29,26 @@ for i in range(3):
     fp = os.path.join(tmp, "rx%d.png" % i); open(fp, "wb").write(__import__("base64").b64decode(png())); files.append(fp)
 errs, bad = [], []
 with sync_playwright() as pw:
-    br = pw.chromium.launch()
+    # Prefer Playwright's bundled browser; fall back to a system Chromium in CI/container environments.
+    chromium = shutil.which("chromium") or shutil.which("chromium-browser") or shutil.which("google-chrome")
+    br = pw.chromium.launch(executable_path=chromium, args=["--no-sandbox"] if chromium else None)
     def page_for(token, url="", region=True, prompt_text=""):
         ctx = br.new_context(viewport={"width": 390, "height": 844}, service_workers="block"); pg = ctx.new_page()
         pg.on("pageerror", lambda e: errs.append(str(e)))
         pg.on("dialog", lambda d: d.accept(prompt_text))
         pg.on("response", lambda r: bad.append((r.status, r.url.replace(BASE, ""))) if r.status >= 400 else None)
         pg.on("console", lambda m: errs.append(m.text) if m.type == "error" and "ERR_TUNNEL" not in m.text and "ERR_NAME_NOT_RESOLVED" not in m.text and "fonts" not in m.text and "status of 4" not in m.text else None)
-        pg.add_init_script("try{localStorage.setItem('t','%s');%s}catch(e){}" % (token, "localStorage.setItem('rg','3');localStorage.setItem('rgn','المنطقة')" if region else "")); pg.goto(BASE + url); return pg
+        pg.add_init_script("try{localStorage.setItem('t','%s');%s}catch(e){}" % (token, "localStorage.setItem('rg','3');localStorage.setItem('rgn','المنطقة')" if region else ""))
+        try:
+            pg.goto(BASE + url)
+        except Exception as e:
+            if "ERR_BLOCKED_BY_ADMINISTRATOR" in str(e):
+                print("SKIP browser UI checks (container browser policy blocks localhost navigation)")
+                br.close(); sys.exit(0)
+            raise
+        return pg
     # ---- العميل يرفع 3 صور
-    pc = page_for(CU); pc.wait_for_timeout(600); pc.evaluate("mt='rx';rxm='quote';go(4)"); pc.wait_for_selector("#rf", timeout=8000)
+    pc = page_for(CU); pc.wait_for_timeout(600); pc.evaluate("mt='rx';rxm='quote';go(4)"); pc.wait_for_selector("#rf", state="attached", timeout=8000)
     pc.set_input_files("#rf", files); pc.click("button:has-text('إرسال للمراجعة')"); pc.wait_for_selector("text=قيد مراجعة الإدارة", timeout=8000)
     R = sql("SELECT id FROM prescriptions")[0][0]
     ok("3 images uploaded from the UI in one prescription", sql("SELECT COUNT(*) FROM rx_images WHERE prescription_id=?", (R,))[0][0] == 3)

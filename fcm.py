@@ -11,7 +11,7 @@ import base64, json, os, re, sys, threading, time, urllib.error, urllib.parse, u
 SCOPE = "https://www.googleapis.com/auth/firebase.messaging"
 MAX_PER_USER = 5
 TOKEN_RE = re.compile(r"^[A-Za-z0-9_:\-\.]{20,4096}$")
-TEXTS = {"order": "طلب توصيل جديد في منطقتك", "chat": "عندك رسالة جديدة"}
+TEXTS = {"order": "طلب توصيل جديد في منطقتك", "chat": "عندك رسالة جديدة", "medical": "عندك تحديث بخصوص طلبك الطبي"}
 TITLE = "لاقينو"
 CHANNEL = "laqino_alerts"   # يجب أن تنشئه نسخة الأندرويد (native.js يفعل ذلك)
 
