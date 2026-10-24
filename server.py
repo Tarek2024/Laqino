@@ -336,8 +336,28 @@ def check_admin_password(pw, phone=""):
     if pw.startswith("ضع-") or "كلمة-قوية" in pw or pw.startswith("XXXX"): raise SystemExit("كلمة مرور المدير ما زالت النص التوضيحي من env.example. اكتب كلمة حقيقية.")
 LIMITS = {"orders": 5, "inquiries": 10, "prescriptions": 5, "files": 20}  # per-user caps on open items (server-side abuse guard)
 OPEN_ORDERS = "('searching','assigned','heading_pickup','picked_up','heading_customer','arrived','awaiting_confirmation')"
-COUNT_SQL = {"orders": "SELECT COUNT(*) FROM delivery_orders WHERE customer_id=? AND status IN " + OPEN_ORDERS, "inquiries": "SELECT COUNT(*) FROM medicine_inquiries WHERE customer_id=? AND status='open'",
-    "prescriptions": "SELECT COUNT(*) FROM prescriptions WHERE customer_id=? AND status!='closed'", "files": "SELECT COUNT(*) FROM files WHERE owner_id=? AND id NOT IN (SELECT file_id FROM market_files) AND id NOT IN (SELECT file_id FROM chat_messages WHERE file_id IS NOT NULL) AND id NOT IN (SELECT file_id FROM service_request_images) AND id NOT IN (SELECT file_id FROM prescriptions WHERE file_id IS NOT NULL) AND id NOT IN (SELECT file_id FROM rx_images)"}
+COUNT_SQL = {
+    "orders": "SELECT COUNT(*) FROM delivery_orders WHERE customer_id=? AND status IN " + OPEN_ORDERS,
+    "inquiries": "SELECT COUNT(*) FROM medicine_inquiries WHERE customer_id=? AND status='open'",
+    "prescriptions": "SELECT COUNT(*) FROM prescriptions WHERE customer_id=? AND status!='closed'",
+    # Count only standalone/unattached uploads against the temporary 20-file quota.
+    # Once a file is attached to a feature, that feature's own quota/policy applies.
+    # This deliberately excludes courier verification documents and avatars too;
+    # those were missing here and could permanently exhaust the generic quota.
+    "files": "SELECT COUNT(*) FROM files WHERE owner_id=?"
+        " AND id NOT IN (SELECT file_id FROM market_files)"
+        " AND id NOT IN (SELECT file_id FROM listing_images)"
+        " AND id NOT IN (SELECT file_id FROM chat_messages WHERE file_id IS NOT NULL)"
+        " AND id NOT IN (SELECT file_id FROM service_request_images)"
+        " AND id NOT IN (SELECT file_id FROM prescriptions WHERE file_id IS NOT NULL)"
+        " AND id NOT IN (SELECT file_id FROM rx_images)"
+        " AND id NOT IN (SELECT file_id FROM courier_documents)"
+        " AND id NOT IN (SELECT avatar_file_id FROM couriers WHERE avatar_file_id IS NOT NULL)"
+        " AND id NOT IN (SELECT photo_file_id FROM doctors WHERE photo_file_id IS NOT NULL)"
+        " AND id NOT IN (SELECT photo_file_id FROM labs WHERE photo_file_id IS NOT NULL)"
+        " AND id NOT IN (SELECT file_id FROM product_images)"
+        " AND id NOT IN (SELECT file_id FROM exchange_images)"
+}
 def _exif_orientation(seg):
     """Read only the Orientation tag (1-8) from an APP1 'Exif' payload; None when absent or malformed."""
     try:

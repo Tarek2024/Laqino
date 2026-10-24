@@ -1,8 +1,8 @@
 # HANDOFF — لاقينو (النسخة المدموجة: خطوات 1–7 + سوق الصيدليات + المفضلة/الإبلاغ 8ب)
 
-> **الحالة الحالية: الإصدار `phase-49` — كاش الخدمة `laqino-v85`** (المرجع الوحيد: ملف `VERSION`).
+> **الحالة الحالية: الإصدار `phase-50` — كاش الخدمة `laqino-v85`** (المرجع الوحيد: ملف `VERSION`).
 
-> **الحالة الحالية: الإصدار `phase-49` — كاش الخدمة `laqino-v85`** (المرجع الوحيد: ملف `VERSION`). أي رقم إصدار أو كاش أقدم في هذا الملف سجل تاريخي لمراحل سابقة. عدد تبويبات الإدارة الآن 23. مجلد المشروع: `laqino-15`.
+> **الحالة الحالية: الإصدار `phase-50` — كاش الخدمة `laqino-v85`** (المرجع الوحيد: ملف `VERSION`). أي رقم إصدار أو كاش أقدم في هذا الملف سجل تاريخي لمراحل سابقة. عدد تبويبات الإدارة الآن 23. مجلد المشروع: `laqino-15`.
 
 # HANDOFF — لاقينو (بعد phase-39: الإشعار يفتح صفحة الطلب)
 - **آخر ما أُنجز:** الضغط على إشعار رد الصيدلية يفتح صفحة الطلب، ورابط مباشر `/#req/inquiry|prescription/<id>`. واجهة فقط (`index.html` و`notif.js` و`sw.js`)، بلا تغيير في السيرفر أو الداتا. VERSION = `phase-39`، كاش v68. التفاصيل: `README_UPDATE.md`.
@@ -186,3 +186,9 @@
 - أُضيف (دون استبدال أي شيء من phase-38): صفحات `/privacy` `/terms` `/contact` `/delete-account`، حذف الحساب بإخفاء الهوية (`account.py`، `POST /api/me/delete`، `users.deleted_at`)، شرح الأذونات (`static/perm.js`)، أدوات أندرويد (`android/tools`، Capacitor 8)، تصحيح الدومين إلى `laqino.tech`.
 - **فخ تم حله:** `couriers.avatar_file_id` (م38) يمنع حذف ملف صورة المندوب عند حذف حسابه؛ `account.py` يفك الربط أولًا (`test_phase39_delete_with_avatar.py`).
 - `test_ui_page_harness.js` صار يوفّر `location/history/MutationObserver/URL` (كان سبب فشل 17 اختبار واجهة). كاش v71. التفاصيل: `README_UPDATE.md`.
+
+
+## Handoff phase-50 — generic upload quota
+- `server.py` now excludes feature-linked files from the temporary generic 20-file quota, including courier documents and courier avatars. This fixes old linked files continuing to exhaust the generic quota.
+- New regression test: `test_phase50_upload_quota.py`. Tests run successfully: phase-49 upload checks, phase-50 quota test, prescription integration, chat images, and service-request images.
+- Server-only change; `laqino-v85` remains unchanged. No live production deployment was performed.
