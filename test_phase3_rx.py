@@ -31,6 +31,9 @@ for n, t, reg in (("a", pa, 3), ("b", pb, 3), ("c", pc, 99)):
 call("POST", "/providers/apply", {"name_ar": "صيدلية معلقة", "region_id": 3, "address": "x"}, pd)  # لم تُعتمد
 sql("INSERT OR REPLACE INTO region_fees(region_id,fee) VALUES(3,10)")
 
+_fc = [0]
+def fresh_cust():  # عميل جديد لكل روشتة إضافية: حد الروشتات المفتوحة للعميل الواحد (429) لا علاقة له بالتوزيع
+    _fc[0] += 1; return user("0108000%04d" % _fc[0])
 def new_rx(tok=cust, region=3):
     f = call("POST", "/files", {"data": png()}, tok)[1]["id"]
     s, r = call("POST", "/medical/prescriptions", {"file_id": f, "region_id": region, "note": "n"}, tok); assert s == 201, (s, r); return r["id"]
@@ -41,7 +44,7 @@ ITEMS = [{"name": "باراسيتامول", "qty": 2, "unit_price": 20}, {"name"
 ok("anonymous cannot quote", call("POST", f"/provider/prescriptions/{R1}/quote", {"items": ITEMS})[0] == 401)
 ok("customer (not pharmacy) cannot quote", call("POST", f"/provider/prescriptions/{R1}/quote", {"items": ITEMS}, cust)[0] == 403)
 ok("pharmacy without access gets 404", call("POST", f"/provider/prescriptions/{R1}/quote", {"items": ITEMS}, pa)[0] == 404)
-ok("auto-forward is OFF by default (nothing forwarded on upload)", sql("SELECT COUNT(*) FROM prescription_access WHERE prescription_id=?", (R1,))[0][0] == 0)
+ok("auto distribution is OFF by default (nothing forwarded on upload)", sql("SELECT COUNT(*) FROM prescription_access WHERE prescription_id=?", (R1,))[0][0] == 0)
 
 # ---- تحويل الإدارة لعدة صيدليات
 ok("forward-many is admin/staff only", call("POST", f"/admin/prescriptions/{R1}/forward-many", {"provider_ids": [ids["a"]]}, cust)[0] == 403 and call("POST", f"/admin/prescriptions/{R1}/forward-many", {"provider_ids": [ids["a"]]})[0] == 401)
@@ -111,14 +114,23 @@ sql("UPDATE prescriptions SET created_at=? WHERE id=?", (int(time.time()) - 20 *
 ok("expired prescription refuses quotes (409)", call("POST", f"/provider/prescriptions/{R2}/quote", {"items": ITEMS}, pa)[0] == 409)
 
 # ---- تحويل تلقائي لصيدليات المنطقة
-R3 = new_rx(); ok("auto-forward toggle is admin-only", call("POST", "/admin/rx/auto-forward", {"enabled": True}, cust)[0] == 403 and call("GET", "/admin/rx/auto-forward", None, cust)[0] == 403)
-ok("auto-forward default disabled", call("GET", "/admin/rx/auto-forward", None, at)[1] == {"enabled": False})
+R3 = new_rx(); ok("distribution mode is admin-only", call("POST", "/admin/rx/distribution-mode", {"mode": "auto"}, cust)[0] == 403 and call("GET", "/admin/rx/distribution-mode", None, cust)[0] == 403)
+ok("distribution mode defaults to manual", call("GET", "/admin/rx/distribution-mode", None, at)[1]["mode"] == "manual")
+ok("invalid distribution mode rejected", call("POST", "/admin/rx/distribution-mode", {"mode": "x"}, at)[0] == 400)
 s, r = call("POST", f"/admin/prescriptions/{R3}/forward-many", {"auto": True}, at)
 ok("manual auto=true forwards to approved pharmacies of the region only (a,b; not c in another markaz)", s == 200 and sorted(x[0] for x in sql("SELECT provider_id FROM prescription_access WHERE prescription_id=?", (R3,))) == sorted([ids["a"], ids["b"]]))
-ok("enable auto-forward", call("POST", "/admin/rx/auto-forward", {"enabled": True}, at)[1]["enabled"] is True and call("GET", "/admin/rx/auto-forward", None, at)[1]["enabled"] is True)
-R4 = new_rx(); ok("new upload auto-forwarded to region pharmacies and marked forwarded", sorted(x[0] for x in sql("SELECT provider_id FROM prescription_access WHERE prescription_id=?", (R4,))) == sorted([ids["a"], ids["b"]]) and sql("SELECT status FROM prescriptions WHERE id=?", (R4,))[0][0] == "forwarded")
-R5 = new_rx(region=99); ok("auto-forward respects region (markaz 99 → only c)", [x[0] for x in sql("SELECT provider_id FROM prescription_access WHERE prescription_id=?", (R5,))] == [ids["c"]])
-call("POST", "/admin/rx/auto-forward", {"enabled": False}, at); R6 = new_rx(); ok("disabling stops auto-forward", sql("SELECT COUNT(*) FROM prescription_access WHERE prescription_id=?", (R6,))[0][0] == 0)
+ok("auto mode without enrolled pharmacies forwards nothing (distribution_enabled defaults to 0)", call("POST", "/admin/rx/distribution-mode", {"mode": "auto"}, at)[1]["eligible_pharmacies"] == 0 and sql("SELECT COUNT(*) FROM prescription_access WHERE prescription_id=?", (new_rx(fresh_cust()),))[0][0] == 0)
+call("POST", "/admin/rx/distribution-mode", {"mode": "manual"}, at)
+for n in "abc": assert call("POST", f"/admin/providers/{ids[n]}/settings", {"distribution_enabled": 1}, at)[0] == 200
+ok("enable auto distribution mode", call("POST", "/admin/rx/distribution-mode", {"mode": "auto"}, at)[1]["mode"] == "auto" and call("GET", "/admin/rx/distribution-mode", None, at)[1]["eligible_pharmacies"] == 3)
+R4 = new_rx(fresh_cust()); ok("new upload auto-distributed to region pharmacies and marked forwarded", sorted(x[0] for x in sql("SELECT provider_id FROM prescription_access WHERE prescription_id=?", (R4,))) == sorted([ids["a"], ids["b"]]) and sql("SELECT status FROM prescriptions WHERE id=?", (R4,))[0][0] == "forwarded" and sorted(x[0] for x in sql("SELECT provider_id FROM rx_offers WHERE prescription_id=? AND state='open'", (R4,))) == sorted([ids["a"], ids["b"]]))
+R5 = new_rx(fresh_cust(), region=99); ok("auto distribution respects region (markaz 99 → only c)", [x[0] for x in sql("SELECT provider_id FROM prescription_access WHERE prescription_id=?", (R5,))] == [ids["c"]])
+call("POST", f"/admin/providers/{ids['b']}/settings", {"distribution_enabled": 0}, at); R5b = new_rx(fresh_cust()); ok("auto distribution respects distribution_enabled (b opted out → only a)", [x[0] for x in sql("SELECT provider_id FROM prescription_access WHERE prescription_id=?", (R5b,))] == [ids["a"]])
+call("POST", f"/admin/providers/{ids['b']}/settings", {"distribution_enabled": 1}, at)
+sql("UPDATE providers SET status='pending' WHERE user_id=?", (ids["b"],)); R5c = new_rx(fresh_cust()); ok("auto distribution respects pharmacy approval status (b unapproved → only a)", [x[0] for x in sql("SELECT provider_id FROM prescription_access WHERE prescription_id=?", (R5c,))] == [ids["a"]])
+sql("UPDATE providers SET status='approved' WHERE user_id=?", (ids["b"],))
+call("POST", "/admin/rx/distribution-mode", {"mode": "manual"}, at); R6 = new_rx(fresh_cust()); ok("manual mode stops automatic distribution (stays pending, no access)", sql("SELECT COUNT(*) FROM prescription_access WHERE prescription_id=?", (R6,))[0][0] == 0 and sql("SELECT status FROM prescriptions WHERE id=?", (R6,))[0][0] == "pending")
+ok("switching to manual keeps earlier auto-distributed requests", sql("SELECT COUNT(*) FROM prescription_access WHERE prescription_id=?", (R4,))[0][0] == 2)
 ok("manual auto=true works after toggle is off", call("POST", f"/admin/prescriptions/{R6}/forward-many", {"auto": True}, at)[0] == 200)
 sql("UPDATE providers SET status='suspended'"); R7 = new_rx(other); ok("no approved pharmacies → 409", call("POST", f"/admin/prescriptions/{R7}/forward-many", {"auto": True}, at)[0] == 409)
 sql("UPDATE providers SET status='approved' WHERE user_id IN (?,?,?)", (ids["a"], ids["b"], ids["c"]))
@@ -127,7 +139,7 @@ sql("UPDATE providers SET status='approved' WHERE user_id IN (?,?,?)", (ids["a"]
 rd = lambda p: open(os.path.join(os.path.dirname(os.path.abspath(__file__)), p), encoding="utf8").read()
 ph, ad, ix, sw = rd("static/pharmacy.html"), rd("static/admin.html"), rd("static/index.html"), rd("static/sw.js")
 ok("pharmacy UI: line-item quote form wired to /quote", all(x in ph for x in ("window.qsend", "window.qadd", "window.qinit", "/provider/prescriptions/'+id+'/quote", "p.forEach(qinit)")) and "form('p'" not in ph)
-ok("admin UI: multi-select + region forward + auto toggle", all(x in ad for x in ("forward-many", "window.fmany", "/admin/rx/auto-forward", "تحويل لصيدليات المنطقة")))
+ok("admin UI: multi-select + region forward + auto toggle", all(x in ad for x in ("forward-many", "window.fmany", "/admin/rx/distribution-mode", "تحويل لصيدليات المنطقة")))
 ok("customer UI: comparison + close wired, without cheapest badge", all(x in ix for x in ("const rxq=", "/quotes", "window.rc=", "/close", "rxq(qs[k]")) and "الأرخص" not in ix)
 ok("every UI string is escaped through esc() for pharmacy/customer data", all(x in ix for x in ("esc(x.pharmacy)", "esc(i.name)")) and "esc(it.name" in ph)
 ok("service worker cache version >= v32", (lambda m: bool(m) and int(m.group(1)) >= 32)(__import__("re").search(r'const V = "laqino-v(\d+)"', sw)))

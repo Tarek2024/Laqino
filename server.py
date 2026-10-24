@@ -2176,8 +2176,13 @@ class H(BaseHTTPRequestHandler):
                 c.execute("INSERT OR IGNORE INTO prescription_access VALUES(?,?)", (pid, pid_)); c.execute("UPDATE prescriptions SET status='forwarded' WHERE id=?", (pid,)); audit(c, u["id"], "prescription.forward", str(pid), {"provider": pid_}); c.commit(); return self.send(200, {"ok": True})
             if method == "GET" and path == "/api/provider/prescriptions":
                 prov(); out=[]
-                for r in c.execute("SELECT p.id,p.file_id,p.note,p.created_at,x.status my_status,x.price my_price,x.review my_review,x.review_reason my_review_reason FROM prescription_access a JOIN prescriptions p ON p.id=a.prescription_id AND p.status!='closed' AND p.file_id IS NOT NULL LEFT JOIN prescription_responses x ON x.prescription_id=p.id AND x.provider_id=a.provider_id WHERE a.provider_id=? ORDER BY p.id DESC", (u["id"],)):
-                    d=dict(r); d["images"]=rx.images_of(c,r["id"]); d["requested_items"]=rx.requested_items(c,r["id"],u["id"]); out.append(d)
+                try: rx.refresh_claims(c); c.commit()
+                except Exception: pass
+                for r in c.execute("SELECT p.id,p.file_id,p.note,p.created_at,x.status my_status,x.price my_price,x.review my_review,x.review_reason my_review_reason FROM prescription_access a JOIN prescriptions p ON p.id=a.prescription_id AND p.status!='closed' AND (p.file_id IS NOT NULL OR (p.kind='item' AND EXISTS (SELECT 1 FROM rx_prescription_items ri WHERE ri.prescription_id=p.id))) LEFT JOIN prescription_responses x ON x.prescription_id=p.id AND x.provider_id=a.provider_id WHERE a.provider_id=? ORDER BY p.id DESC", (u["id"],)):
+                    d=dict(r); d["images"]=rx.images_of(c,r["id"]); d["requested_items"]=rx.requested_items(c,r["id"],u["id"])
+                    o=c.execute("SELECT state FROM rx_offers WHERE prescription_id=? AND provider_id=?",(r["id"],u["id"])).fetchone(); d["offer_state"]=o[0] if o else None  # open = معروض على كل صيدليات المنطقة ولم تقبله هذه الصيدلية بعد
+                    cl=c.execute("SELECT expires_at FROM rx_claims WHERE prescription_id=? AND provider_id=? AND status='active' AND expires_at>?",(r["id"],u["id"],int(time.time()))).fetchone(); d["claim_expires_at"]=cl[0] if cl else None
+                    out.append(d)
                 return self.send(200, out)
             m = re.fullmatch(r"/api/provider/prescriptions/(\d+)/respond", path)
             if method == "POST" and m:

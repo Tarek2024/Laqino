@@ -43,12 +43,36 @@ s_, r = call("POST", "/medical/prescriptions", {"file_ids": [f], "region_id": 3}
 for who, uid in (("admin", 1), ("staff", sid)):
     r = nt(uid, "admin.rx_new"); ok(who + " notified of pending prescription", len(r) == 1 and r[0][2] == "admin:rx" and r[0][4] == R and "#%d" % R in r[0][1])
 ok("customer and pharmacies get no admin.rx_new", not any(nt(x, "admin.rx_new") for x in (cid, a, b)))
-# ---- مع التوجيه التلقائي: الصيدلية تُشعَر (trigger الموجود) والإدارة لا تُزعَج
-assert call("POST", "/admin/rx/auto-forward", {"enabled": True}, at)[0] == 200
+# ---- الوضع اليدوي (الافتراضي): لا صيدلية تُشعَر بالروشتة
+ok("distribution mode defaults to manual", call("GET", "/admin/rx/distribution-mode", None, at)[1]["mode"] == "manual")
+ok("manual mode: no pharmacy notified of the pending prescription", not any(x[4] == R for uid in (a, b, c_) for x in nt(uid, "provider.prescription")))
+# ---- الوضع التلقائي الجديد: يلزم تفعيل مشاركة الصيدليات (distribution_enabled) من الإدارة؛ الافتراضي مغلق
+e_tok, e_ = user("01055550007", "صيدلي هـ")
+call("POST", "/providers/apply", {"name_ar": "صيدلية هـ", "region_id": 3, "address": "x"}, e_tok); assert call("POST", "/admin/providers/%d/review" % e_, {"status": "approved"}, at)[0] == 200
+ok("pharmacies are not enrolled in distribution by default", sql("SELECT COUNT(*) FROM providers WHERE distribution_enabled=1")[0][0] == 0)
+for uid in (a, c_): assert call("POST", "/admin/providers/%d/settings" % uid, {"distribution_enabled": 1}, at)[0] == 200   # c_ مشاركة لكن في منطقة غير متداخلة؛ e_ تبقى غير مشاركة
+ok("admin settings API refuses enrolling a pharmacy whose region is not a markaz/zone", call("POST", "/admin/providers/%d/settings" % b, {"distribution_enabled": 1}, at)[0] == 400)
+sql("UPDATE providers SET distribution_enabled=1 WHERE user_id=?", (b,))   # b مسجّلة على مستوى المحافظة (منطقة أب) لاختبار تداخل المناطق؛ لا يقبلها واجهة الإعدادات عمدًا
+ok("pending pharmacy cannot be enrolled in distribution", call("POST", "/admin/providers/%d/settings" % d_, {"distribution_enabled": 1}, at)[0] == 400)
+ok("non-admin cannot switch distribution mode", call("POST", "/admin/rx/distribution-mode", {"mode": "auto"}, staff)[0] == 403)
+s_, r = call("POST", "/admin/rx/distribution-mode", {"mode": "auto"}, at); ok("switch to auto mode", s_ == 200 and r["mode"] == "auto")
 f2 = call("POST", "/files", {"data": png()}, cust)[1]["id"]
 s_, r = call("POST", "/medical/prescriptions", {"file_ids": [f2], "region_id": 3}, cust); R2 = r["id"]
-ok("auto-forward: pharmacies notified of the prescription", any(x[4] == R2 for x in nt(a, "provider.prescription")))
-ok("auto-forward: admin NOT notified (nothing to forward)", not any(x[4] == R2 for x in nt(1, "admin.rx_new")))
+ok("auto mode: prescription becomes forwarded", sql("SELECT status FROM prescriptions WHERE id=?", (R2,))[0][0] == "forwarded")
+ok("auto mode: access rows only for eligible pharmacies (a, b)", sorted(x[0] for x in sql("SELECT provider_id FROM prescription_access WHERE prescription_id=?", (R2,))) == sorted([a, b]))
+ok("auto mode: open rx_offers for the same pharmacies", sorted(x[0] for x in sql("SELECT provider_id FROM rx_offers WHERE prescription_id=? AND state='open'", (R2,))) == sorted([a, b]))
+ok("auto-forward: pharmacies notified of the prescription (once each)", all(len([x for x in nt(uid, "provider.prescription") if x[4] == R2]) == 1 for uid in (a, b)))
+ok("auto mode: unrelated-region, non-participating and pending pharmacies not notified", not any(x[4] == R2 for uid in (c_, e_, d_) for x in nt(uid, "provider.prescription")))
+ok("auto mode: no access rows for them either", sql("SELECT COUNT(*) FROM prescription_access WHERE prescription_id=? AND provider_id IN (?,?,?)", (R2, c_, e_, d_))[0][0] == 0)
+ok("auto-forward: admin and staff NOT notified (nothing to forward)", not any(x[4] == R2 for uid in (1, sid) for x in nt(uid, "admin.rx_new")))
+ok("auto mode: customer gets neither provider.prescription nor admin.rx_new", not any(x[4] == R2 for k in ("provider.prescription", "admin.rx_new") for x in nt(cid, k)))
+# ---- الرجوع لليدوي: روشتة جديدة تعود للإدارة ولا تُشعَر الصيدليات
+assert call("POST", "/admin/rx/distribution-mode", {"mode": "manual"}, at)[0] == 200
+f3 = call("POST", "/files", {"data": png()}, cust)[1]["id"]
+s_, r = call("POST", "/medical/prescriptions", {"file_ids": [f3], "region_id": 3}, cust); R3 = r["id"]
+ok("back to manual: prescription stays pending and admin/staff are notified", sql("SELECT status FROM prescriptions WHERE id=?", (R3,))[0][0] == "pending" and all(any(x[4] == R3 for x in nt(uid, "admin.rx_new")) for uid in (1, sid)))
+ok("back to manual: no pharmacy notified and no access rows", not any(x[4] == R3 for uid in (a, b) for x in nt(uid, "provider.prescription")) and sql("SELECT COUNT(*) FROM prescription_access WHERE prescription_id=?", (R3,))[0][0] == 0)
+ok("switching back keeps the earlier prescription, offers and access", sql("SELECT status FROM prescriptions WHERE id=?", (R2,))[0][0] == "forwarded" and sql("SELECT COUNT(*) FROM rx_offers WHERE prescription_id=?", (R2,))[0][0] == 2)
 # ---- اعتراض على طلب توصيل: الإدارة + الصيدلية صاحبة الطلب الطبي
 now = int(time.time())
 def order(link_provider=None):

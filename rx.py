@@ -15,7 +15,7 @@
 #   • من استلم ومن فتح ومن رد: جدول rx_seen + GET /api/admin/rx/tracking (إدارة) وحقل pharmacies في /quotes (عميل، أسماء بلا هواتف).
 #   • مرحلة الطلب stage: review → at_pharmacies → quoted → closed (تُحسب ولا تُخزَّن، فلا تعارض مع CHECK على prescriptions.status).
 #   إدارة: GET /api/admin/rx/responses?review=pending|rejected|approved ، POST /api/admin/rx/responses/<rx>/<provider>/review {decision:approve|reject, reason}
-import re, json, time
+import re, json, time, sqlite3
 import gsearch
 
 MAX_ITEMS, MAX_QTY, MAX_UNIT, MAX_TOTAL, MAX_AUTO, MAX_MANY = 30, 99, 100_000, 1_000_000, 8, 10
@@ -39,6 +39,11 @@ CREATE TABLE IF NOT EXISTS rx_claims(id INTEGER PRIMARY KEY, prescription_id INT
 CREATE UNIQUE INDEX IF NOT EXISTS ux_rx_claim_active ON rx_claims(prescription_id) WHERE status='active';
 CREATE INDEX IF NOT EXISTS ix_rx_claim_provider ON rx_claims(provider_id,status,expires_at);
 CREATE TABLE IF NOT EXISTS rx_claim_attempts(prescription_id INTEGER NOT NULL REFERENCES prescriptions(id), provider_id INTEGER NOT NULL REFERENCES providers(user_id), attempted_at INTEGER NOT NULL, outcome TEXT NOT NULL, PRIMARY KEY(prescription_id,provider_id));
+CREATE TABLE IF NOT EXISTS rx_search_links(parent_prescription_id INTEGER NOT NULL REFERENCES prescriptions(id), child_prescription_id INTEGER NOT NULL UNIQUE REFERENCES prescriptions(id), search_kind TEXT NOT NULL CHECK(search_kind IN ('typed_items','item_photo')), created_at INTEGER NOT NULL, PRIMARY KEY(parent_prescription_id,child_prescription_id));
+CREATE INDEX IF NOT EXISTS ix_rx_search_parent ON rx_search_links(parent_prescription_id,created_at);
+CREATE TABLE IF NOT EXISTS rx_offers(prescription_id INTEGER NOT NULL REFERENCES prescriptions(id), provider_id INTEGER NOT NULL REFERENCES providers(user_id), offered_at INTEGER NOT NULL, state TEXT NOT NULL CHECK(state IN('open','accepted','taken','declined','expired')), PRIMARY KEY(prescription_id,provider_id));
+CREATE INDEX IF NOT EXISTS ix_rx_offers_open ON rx_offers(state,prescription_id);
+CREATE TABLE IF NOT EXISTS rx_partial_accepts(prescription_id INTEGER PRIMARY KEY REFERENCES prescriptions(id), provider_id INTEGER NOT NULL REFERENCES providers(user_id), accepted_at INTEGER NOT NULL);
 """
 
 
@@ -153,6 +158,30 @@ def _setting(c, key, default):
     except (TypeError, ValueError): return float(default)
 
 
+def _setting_str(c, key, default=""):
+    r = c.execute("SELECT value FROM settings WHERE key=?", (key,)).fetchone()
+    return str(r[0]) if r and r[0] is not None else default
+
+
+def distribution_mode(c):
+    """الوضع المحفوظ في قاعدة البيانات: auto (بث لكل الصيدليات المؤهلة + حجز عند القبول) أو manual (الإدارة تحوّل). الافتراضي manual."""
+    return "auto" if _setting_str(c, "rx_distribution_mode", "manual") == "auto" else "manual"
+
+
+def _broadcast_on(c):
+    """البث المتزامن يعمل فقط في الوضع التلقائي مع تفعيل نظام الحجز؛ غير ذلك يبقى السلوك السابق كما هو."""
+    return distribution_mode(c) == "auto" and _setting(c, "rx_claim_mode", 0) == 1
+
+
+def _claim_mode_for_request(c, rx_id=None):
+    """حجز الصيدلية يكون مفعّلًا صراحةً أو للروشتات التي بدأت بالفعل عبر مسار الحجز."""
+    if _setting(c, "rx_claim_mode", 0) == 1:
+        return True
+    if rx_id is None:
+        return False
+    return bool(c.execute("SELECT 1 FROM rx_claims WHERE prescription_id=? LIMIT 1", (rx_id,)).fetchone())
+
+
 def _clean_items(raw):
     """يتحقق من بنود التسعيرة؛ يقبل item_status الجديد وavailable القديم للتوافق."""
     if not isinstance(raw, list) or not raw: raise ValueError("أضف بندًا واحدًا على الأقل")
@@ -217,25 +246,34 @@ def _expected_items(c, rx_id):
     return [dict(r) for r in c.execute("SELECT line_no,name,qty FROM rx_prescription_items WHERE prescription_id=? ORDER BY line_no", (rx_id,)).fetchall()]
 
 
+def _coverage_prescription_ids(c, rx_id):
+    """تجميع عروض البحث الفرعي مع الأصل، مع إبقاء كل رد مرتبطًا بطلبه الأصلي."""
+    ids = [int(rx_id)]
+    ids.extend(int(r[0]) for r in c.execute("SELECT child_prescription_id FROM rx_search_links WHERE parent_prescription_id=? ORDER BY created_at,child_prescription_id", (rx_id,)).fetchall())
+    return list(dict.fromkeys(ids))
+
+
 def aggregate_status(c, rx_id):
-    """التوافر الكلي حسب الأصناف المتوقعة؛ لا يُحتسب أي رد غير معتمد كتوافر مؤكد."""
+    """التوافر الكلي حسب الأصناف المتوقعة؛ لا يُحتسب أي رد غير معتمد كتوافر مؤكد. عروض الأبناء تغطي النواقص في الأصل."""
     expected = _expected_items(c, rx_id)
-    approved = c.execute("SELECT provider_id,status FROM prescription_responses WHERE prescription_id=? AND review='approved' ORDER BY updated_at,provider_id", (rx_id,)).fetchall()
+    coverage_ids = _coverage_prescription_ids(c, rx_id)
+    marks = ",".join("?" * len(coverage_ids))
+    approved = c.execute("SELECT prescription_id,provider_id,status FROM prescription_responses WHERE prescription_id IN (%s) AND review='approved' ORDER BY updated_at,provider_id" % marks, tuple(coverage_ids)).fetchall()
     if expected:
         from collections import Counter
         need = Counter((_norm_item(x["name"]), int(x["qty"])) for x in expected)
         covered = Counter()
         for r in approved:
-            rows = c.execute("SELECT i.name,i.qty,COALESCE(s.item_status,CASE WHEN i.available=1 THEN 'available' ELSE 'unavailable' END) item_status FROM rx_quote_items i LEFT JOIN rx_quote_item_status s USING(prescription_id,provider_id,line_no) WHERE i.prescription_id=? AND i.provider_id=? ORDER BY i.line_no", (rx_id, r["provider_id"])).fetchall()
+            rows = c.execute("SELECT i.name,i.qty,COALESCE(s.item_status,CASE WHEN i.available=1 THEN 'available' ELSE 'unavailable' END) item_status FROM rx_quote_items i LEFT JOIN rx_quote_item_status s USING(prescription_id,provider_id,line_no) WHERE i.prescription_id=? AND i.provider_id=? ORDER BY i.line_no", (r["prescription_id"], r["provider_id"])).fetchall()
             per = Counter((_norm_item(x["name"]), int(x["qty"])) for x in rows if x["item_status"] == "available")
             for k, n in per.items(): covered[k] = max(covered[k], n)
         if all(covered[k] >= n for k, n in need.items()): return "complete"
         return "partial" if any(covered.values()) else ("unavailable" if approved else "review")
     if any(r["status"] == "available" for r in approved): return "complete"
     if approved:
-        has_available = c.execute("SELECT 1 FROM rx_quote_items i LEFT JOIN rx_quote_item_status s USING(prescription_id,provider_id,line_no) JOIN prescription_responses x ON x.prescription_id=i.prescription_id AND x.provider_id=i.provider_id WHERE i.prescription_id=? AND x.review='approved' AND COALESCE(s.item_status,CASE WHEN i.available=1 THEN 'available' ELSE 'unavailable' END)='available' LIMIT 1", (rx_id,)).fetchone()
+        has_available = c.execute("SELECT 1 FROM rx_quote_items i LEFT JOIN rx_quote_item_status s USING(prescription_id,provider_id,line_no) JOIN prescription_responses x ON x.prescription_id=i.prescription_id AND x.provider_id=i.provider_id WHERE i.prescription_id IN (%s) AND x.review='approved' AND COALESCE(s.item_status,CASE WHEN i.available=1 THEN 'available' ELSE 'unavailable' END)='available' LIMIT 1" % marks, tuple(coverage_ids)).fetchone()
         return "partial" if has_available else "unavailable"
-    pending = c.execute("SELECT 1 FROM prescription_responses WHERE prescription_id=? AND review='pending' LIMIT 1", (rx_id,)).fetchone()
+    pending = c.execute("SELECT 1 FROM prescription_responses WHERE prescription_id IN (%s) AND review='pending' LIMIT 1" % marks, tuple(coverage_ids)).fetchone()
     return "review" if pending else "unknown"
 
 
@@ -250,8 +288,10 @@ def _remaining_items(c, rx_id, provider_id=None):
     from collections import Counter
     need = Counter((_norm_item(x["name"]), int(x["qty"])) for x in expected)
     covered = Counter()
-    for r in c.execute("SELECT provider_id FROM prescription_responses WHERE prescription_id=? AND review='approved'", (rx_id,)).fetchall():
-        rows = c.execute("SELECT i.name,i.qty,COALESCE(s.item_status,CASE WHEN i.available=1 THEN 'available' ELSE 'unavailable' END) item_status FROM rx_quote_items i LEFT JOIN rx_quote_item_status s USING(prescription_id,provider_id,line_no) WHERE i.prescription_id=? AND i.provider_id=? ORDER BY i.line_no", (rx_id, r["provider_id"])).fetchall()
+    coverage_ids = _coverage_prescription_ids(c, rx_id)
+    marks = ",".join("?" * len(coverage_ids))
+    for r in c.execute("SELECT prescription_id,provider_id FROM prescription_responses WHERE prescription_id IN (%s) AND review='approved'" % marks, tuple(coverage_ids)).fetchall():
+        rows = c.execute("SELECT i.name,i.qty,COALESCE(s.item_status,CASE WHEN i.available=1 THEN 'available' ELSE 'unavailable' END) item_status FROM rx_quote_items i LEFT JOIN rx_quote_item_status s USING(prescription_id,provider_id,line_no) WHERE i.prescription_id=? AND i.provider_id=? ORDER BY i.line_no", (r["prescription_id"], r["provider_id"])).fetchall()
         per = Counter((_norm_item(x["name"]), int(x["qty"])) for x in rows if x["item_status"] == "available")
         for k, n in per.items(): covered[k] = max(covered[k], n)
     missing, used = [], Counter()
@@ -272,14 +312,32 @@ def forward(c, rx_id, provider_ids):
     return n
 
 
-def _region_pharmacies(c, region_id, limit=MAX_AUTO):
+def _region_pharmacies(c, region_id, limit=None):
     rel = gsearch._related(c, region_id)
-    return [r[0] for r in c.execute("SELECT user_id FROM providers WHERE status='approved' AND region_id IN (%s) ORDER BY user_id LIMIT ?" % ",".join("?" * len(rel)), (*rel, limit))]
+    if not rel: return []
+    sql = "SELECT user_id FROM providers WHERE status='approved' AND region_id IN (%s) ORDER BY user_id" % ",".join("?" * len(rel))
+    args = tuple(rel)
+    if limit is not None:
+        sql += " LIMIT ?"; args += (int(limit),)
+    return [r[0] for r in c.execute(sql, args)]
 
 
 def _claim_candidates(c, rx_id):
-    row = c.execute("SELECT region_id FROM prescriptions WHERE id=? AND file_id IS NOT NULL AND status!='closed'", (rx_id,)).fetchone()
+    row = c.execute("SELECT region_id FROM prescriptions WHERE id=? AND status!='closed' AND (file_id IS NOT NULL OR (kind='item' AND EXISTS (SELECT 1 FROM rx_prescription_items i WHERE i.prescription_id=prescriptions.id)))", (rx_id,)).fetchone()
     if not row: return []
+    if _broadcast_on(c):
+        # الوضع التلقائي: كل الصيدليات المعتمدة والمشاركة في منطقة العميل (وما يتداخل معها) بلا سقف عددي.
+        rel = gsearch._related(c, row['region_id'])
+        if not rel: return []
+        return [r[0] for r in c.execute("SELECT user_id FROM providers WHERE status='approved' AND distribution_enabled=1 AND region_id IN (%s) ORDER BY user_id" % ",".join("?" * len(rel)), tuple(rel))]
+    # مفتاح التحويل التلقائي العام يوجّه الروشتات الجديدة لصيدليات المنطقة المشاركة،
+    # بصرف النظر عن وضع التوجيه اليدوي القديم. كل طلب يظل محجوزًا لصيدلية واحدة فقط.
+    has_claim_history = bool(c.execute("SELECT 1 FROM rx_claims WHERE prescription_id=? LIMIT 1", (rx_id,)).fetchone())
+    if _setting(c, "rx_claim_mode", 0) != 1 and (_setting(c, "rx_auto_forward", 0) == 1 or has_claim_history):
+        rel = gsearch._related(c, row['region_id'])
+        if not rel: return []
+        sql = "SELECT user_id FROM providers WHERE status='approved' AND distribution_enabled=1 AND region_id IN (%s) ORDER BY user_id" % ",".join("?" * len(rel))
+        return [r[0] for r in c.execute(sql, tuple(rel))]
     mode_row = c.execute("SELECT value FROM settings WHERE key='rx_routing_mode'").fetchone()
     mode = mode_row[0] if mode_row else 'direct'
     if mode == 'direct':
@@ -293,8 +351,9 @@ def _claim_candidates(c, rx_id):
     if not selected or not any(row['region_id'] in gsearch._related(c, x) for x in selected): return []
     rel = gsearch._related(c, row['region_id'])
     if not rel: return []
-    sql = "SELECT user_id FROM providers WHERE status='approved' AND distribution_enabled=1 AND region_id IN (%s) ORDER BY user_id LIMIT ?" % ",".join("?"*len(rel))
-    return [r[0] for r in c.execute(sql, (*rel, MAX_AUTO))]
+    # لا نختصر البحث لأول 8 صيدليات؛ نمرّ على كل الصيدليات المشاركة المؤهلة بالتتابع.
+    sql = "SELECT user_id FROM providers WHERE status='approved' AND distribution_enabled=1 AND region_id IN (%s) ORDER BY user_id" % ",".join("?"*len(rel))
+    return [r[0] for r in c.execute(sql, tuple(rel))]
 
 
 def _claim_next(c, rx_id, now=None, requested_items=None):
@@ -302,10 +361,15 @@ def _claim_next(c, rx_id, now=None, requested_items=None):
     now = int(now or time.time())
     if not c.in_transaction: c.execute('BEGIN IMMEDIATE')
     total_minutes = int(_setting(c, 'rx_total_timeout_minutes', 60))
+    # Typed missing-item searches have no mandatory prescription image; their explicit item list is the search scope.
+    kind_row = c.execute("SELECT kind FROM prescriptions WHERE id=?", (rx_id,)).fetchone()
+    if requested_items is None and kind_row and kind_row["kind"] == "item":
+        requested_items = _expected_items(c, rx_id)
     created = c.execute("SELECT created_at FROM prescriptions WHERE id=? AND status!='closed'", (rx_id,)).fetchone()
     if not created: return None
     if now - int(created['created_at']) >= total_minutes * 60:
         c.execute("UPDATE rx_claims SET status='expired',released_at=? WHERE prescription_id=? AND status='active'", (now, rx_id))
+        c.execute("UPDATE rx_offers SET state='expired' WHERE prescription_id=? AND state='open'", (rx_id,))
         c.execute("DELETE FROM prescription_access WHERE prescription_id=? AND provider_id NOT IN (SELECT d.provider_id FROM medical_delivery_links d JOIN delivery_orders o ON o.id=d.order_id WHERE d.source_type='prescription' AND d.source_id=? AND o.status!='cancelled')", (rx_id, rx_id))
         return None
     active = c.execute("SELECT provider_id,expires_at FROM rx_claims WHERE prescription_id=? AND status='active'", (rx_id,)).fetchone()
@@ -333,7 +397,9 @@ def _claim_next(c, rx_id, now=None, requested_items=None):
     c.execute("DELETE FROM prescription_access WHERE prescription_id=? AND provider_id NOT IN (SELECT d.provider_id FROM medical_delivery_links d JOIN delivery_orders o ON o.id=d.order_id WHERE d.source_type='prescription' AND d.source_id=? AND o.status!='cancelled')", (rx_id, rx_id))
     if requested_items is not None and len(requested_items) == 0:
         return None
-    for pid in _claim_candidates(c, rx_id):
+    if _broadcast_on(c):
+        if _offer_all(c, rx_id, now, requested_items): return True
+    for pid in ([] if _broadcast_on(c) else _claim_candidates(c, rx_id)):
         if c.execute("SELECT 1 FROM rx_claim_attempts WHERE prescription_id=? AND provider_id=?", (rx_id, pid)).fetchone(): continue
         timeout = int(_setting(c, 'rx_claim_timeout_minutes', 10))
         try:
@@ -353,6 +419,133 @@ def _claim_next(c, rx_id, now=None, requested_items=None):
     if approved: c.execute("UPDATE prescriptions SET status='forwarded' WHERE id=? AND status='pending'", (rx_id,))
     else: c.execute("UPDATE prescriptions SET status='pending' WHERE id=? AND status='forwarded'", (rx_id,))
     return None
+
+
+class OfferError(Exception):
+    def __init__(self, code, msg): super().__init__(msg); self.code, self.msg = code, msg
+
+
+def _keep_delivery_access_sql():
+    return "SELECT d.provider_id FROM medical_delivery_links d JOIN delivery_orders o ON o.id=d.order_id WHERE d.source_type='prescription' AND d.source_id=? AND o.status!='cancelled'"
+
+
+def _offer_all(c, rx_id, now, requested_items=None):
+    """يعرض الطلب في وقت واحد على كل الصيدليات المؤهلة التي لم تجرّبه بعد. لا حجز هنا: أول صيدلية تقبل (accept_offer) تحصل عليه.
+    يرجع True إن بقي عرض مفتوح لصيدلية واحدة على الأقل. إعادة الاستدعاء آمنة ولا تكرر الإشعارات."""
+    cands = [pid for pid in _claim_candidates(c, rx_id) if not c.execute("SELECT 1 FROM rx_claim_attempts WHERE prescription_id=? AND provider_id=?", (rx_id, pid)).fetchone()]
+    if not cands: return False
+    fresh = []
+    for pid in cands:
+        cur = c.execute("INSERT INTO rx_offers(prescription_id,provider_id,offered_at,state) VALUES(?,?,?,'open') ON CONFLICT(prescription_id,provider_id) DO UPDATE SET state='open',offered_at=excluded.offered_at WHERE rx_offers.state IN('taken','expired')", (rx_id, pid, now))
+        if cur.rowcount: fresh.append(pid)
+        c.execute("INSERT OR IGNORE INTO prescription_access VALUES(?,?)", (rx_id, pid))
+        if requested_items is not None: _set_requested_items(c, rx_id, pid, requested_items, now)
+    c.execute("UPDATE prescriptions SET status='forwarded' WHERE id=? AND status='pending'", (rx_id,))
+    if fresh:
+        try: c.execute("INSERT INTO audit_log(actor_id,action,target,detail,at) VALUES(NULL,'rx.offer',?,?,?)", (str(rx_id), json.dumps({'provider_ids': fresh, 'requested_items_only': requested_items is not None}), now))
+        except Exception: pass
+        for pid in fresh: _notify(c, pid, "rx.offer", "طلب روشتة جديد في منطقتك", "أول صيدلية تقبل الطلب تحصل على حجز مؤقت — روشتة #%d" % rx_id, "pharmacy", rx_id)
+    return True
+
+
+def accept_offer(c, rx_id, provider_id, now=None):
+    """قبول ذري: أول صيدلية تنجح تحصل على الحجز المؤقت وتختفي الروشتة عن باقي الصيدليات. الفهرس الفريد ux_rx_claim_active يمنع حجزين نشطين.
+    يرفع OfferError عند الفشل. لا commit (يتولاه المستدعي)."""
+    now = int(now or time.time())
+    if not c.in_transaction: c.execute('BEGIN IMMEDIATE')
+    p = c.execute("SELECT status,created_at FROM prescriptions WHERE id=?", (rx_id,)).fetchone()
+    if not p or p['status'] == 'closed': raise OfferError(404, "غير موجود")
+    if now - int(p['created_at']) >= max(1, int(_setting(c, 'rx_total_timeout_minutes', 60))) * 60: raise OfferError(409, "انتهت مهلة البحث لهذا الطلب")
+    offer = c.execute("SELECT state FROM rx_offers WHERE prescription_id=? AND provider_id=?", (rx_id, provider_id)).fetchone()
+    if not offer: raise OfferError(404, "لم يُعرض هذا الطلب على صيدليتك")
+    active = c.execute("SELECT provider_id,expires_at FROM rx_claims WHERE prescription_id=? AND status='active'", (rx_id,)).fetchone()
+    if active and int(active['expires_at']) > now:
+        if int(active['provider_id']) == int(provider_id): return {"expires_at": int(active['expires_at']), "already": True}
+        raise OfferError(409, "سبقتك صيدلية أخرى إلى هذا الطلب")
+    if offer['state'] != 'open': raise OfferError(409, "لم يعد هذا العرض متاحًا لصيدليتك")
+    if c.execute("SELECT 1 FROM rx_claim_attempts WHERE prescription_id=? AND provider_id=?", (rx_id, provider_id)).fetchone(): raise OfferError(409, "سبق لصيدليتك التعامل مع هذا الطلب")
+    c.execute("UPDATE rx_claims SET status='expired',released_at=? WHERE prescription_id=? AND status='active' AND expires_at<=?", (now, rx_id, now))
+    timeout = int(_setting(c, 'rx_claim_timeout_minutes', 10))
+    try: c.execute("INSERT INTO rx_claims(prescription_id,provider_id,claimed_at,expires_at,status) VALUES(?,?,?,?, 'active')", (rx_id, provider_id, now, now + timeout * 60))
+    except sqlite3.IntegrityError: raise OfferError(409, "سبقتك صيدلية أخرى إلى هذا الطلب")
+    c.execute("INSERT OR IGNORE INTO rx_claim_attempts VALUES(?,?,?,'claimed')", (rx_id, provider_id, now))
+    c.execute("UPDATE rx_offers SET state='accepted' WHERE prescription_id=? AND provider_id=?", (rx_id, provider_id))
+    c.execute("DELETE FROM prescription_access WHERE prescription_id=? AND provider_id IN (SELECT provider_id FROM rx_offers WHERE prescription_id=? AND state='open') AND provider_id NOT IN (" + _keep_delivery_access_sql() + ")", (rx_id, rx_id, rx_id))
+    c.execute("UPDATE rx_offers SET state='taken' WHERE prescription_id=? AND state='open'", (rx_id,))
+    try: c.execute("INSERT INTO audit_log(actor_id,action,target,detail,at) VALUES(?,'rx.claim',?,?,?)", (provider_id, str(rx_id), json.dumps({'provider_id': provider_id, 'claimed_at': now, 'expires_at': now + timeout * 60, 'via': 'accept'}), now))
+    except Exception: pass
+    return {"expires_at": now + timeout * 60, "already": False}
+
+
+def decline_offer(c, rx_id, provider_id, now=None):
+    """اعتذار الصيدلية عن عرض مفتوح: يُسجَّل كمحاولة منتهية فلا يُعاد عرضه عليها، وتنتهي دورة البحث عند اكتمال كل الصيدليات."""
+    now = int(now or time.time())
+    if not c.in_transaction: c.execute('BEGIN IMMEDIATE')
+    offer = c.execute("SELECT state FROM rx_offers WHERE prescription_id=? AND provider_id=?", (rx_id, provider_id)).fetchone()
+    if not offer: raise OfferError(404, "لم يُعرض هذا الطلب على صيدليتك")
+    if offer['state'] != 'open': raise OfferError(409, "لم يعد هذا العرض مفتوحًا")
+    c.execute("UPDATE rx_offers SET state='declined' WHERE prescription_id=? AND provider_id=?", (rx_id, provider_id))
+    c.execute("INSERT OR IGNORE INTO rx_claim_attempts VALUES(?,?,?,'declined')", (rx_id, provider_id, now))
+    c.execute("DELETE FROM prescription_access WHERE prescription_id=? AND provider_id=? AND provider_id NOT IN (" + _keep_delivery_access_sql() + ")", (rx_id, provider_id, rx_id))
+    try: c.execute("INSERT INTO audit_log(actor_id,action,target,detail,at) VALUES(?,'rx.offer_declined',?,?,?)", (provider_id, str(rx_id), None, now))
+    except Exception: pass
+    maybe_notify_search_end(c, rx_id, now)
+
+
+def _past_deadline(c, rx_id, now):
+    p = c.execute("SELECT created_at FROM prescriptions WHERE id=?", (rx_id,)).fetchone()
+    return bool(p) and now >= int(p['created_at']) + max(1, int(_setting(c, 'rx_total_timeout_minutes', 60))) * 60
+
+
+def _partial_view(d):
+    items = d.get("items", [])
+    return {"provider_id": d["provider_id"], "pharmacy": d["pharmacy"], "price": d["price"], "updated_at": d["updated_at"],
+            "confirmed": [{"name": i["name"], "qty": i["qty"], "unit_price": i["unit_price"]} for i in items if i["item_status"] == "available"],
+            "unavailable": [{"name": i["name"], "qty": i["qty"]} for i in items if i["item_status"] == "unavailable"],
+            "undecided": [{"name": i["name"], "qty": i["qty"]} for i in items if i["item_status"] == "needs_confirmation"],
+            "confirmed_count": sum(1 for i in items if i["item_status"] == "available")}
+
+
+def best_partial(c, rx_id):
+    """أفضل عرض جزئي معتمد: أكثر أصناف مؤكدة (المجهولة/تحتاج مراجعة لا تُحتسب) ← أقل أصناف غير محسومة (اكتمال بيانات العرض) ← الأسبق ردًا ← رقم الصيدلية. ثابت وقابل للتكرار."""
+    cands = [d for d in quotes_for(c, rx_id) if d["partial"]]
+    if not cands: return None
+    key = lambda d: (-sum(1 for i in d["items"] if i["item_status"] == "available"), sum(1 for i in d["items"] if i["item_status"] == "needs_confirmation"), d["updated_at"], d["provider_id"])
+    return _partial_view(min(cands, key=key))
+
+
+def search_state(c, rx_id, now=None):
+    """حالة البحث للعميل. الانتهاء لا يُستنتج من الوقت وحده: لا حجز نشط، لا عروض مفتوحة، لا صيدليات لم تُجرّب، ولا رد بانتظار الإدارة.
+    المهلة الكلية سقف أمان فقط (تُغلق العروض المفتوحة عند بلوغها)."""
+    now = int(now or time.time())
+    if not _claim_mode_for_request(c, rx_id): return "not_enabled"
+    if aggregate_status(c, rx_id) == "complete": return "complete"
+    over = _past_deadline(c, rx_id, now)
+    if c.execute("SELECT 1 FROM rx_claims WHERE prescription_id=? AND status='active' AND expires_at>?", (rx_id, now)).fetchone(): return "searching"
+    if not over:
+        if c.execute("SELECT 1 FROM rx_offers WHERE prescription_id=? AND state='open' LIMIT 1", (rx_id,)).fetchone(): return "searching"
+        if any(not c.execute("SELECT 1 FROM rx_claim_attempts WHERE prescription_id=? AND provider_id=?", (rx_id, pid)).fetchone() for pid in _claim_candidates(c, rx_id)): return "searching"
+    if c.execute("SELECT 1 FROM prescription_responses WHERE prescription_id=? AND review='pending' LIMIT 1", (rx_id,)).fetchone(): return "awaiting_partial_approval"
+    if best_partial(c, rx_id):
+        return "partial_accepted" if c.execute("SELECT 1 FROM rx_partial_accepts WHERE prescription_id=?", (rx_id,)).fetchone() else "ended_partial"
+    return "ended_none"
+
+
+def maybe_notify_search_end(c, rx_id, now=None):
+    now = int(now or time.time())
+    st = search_state(c, rx_id, now)
+    if st in ("ended_partial", "ended_none"): _end_notice(c, rx_id, now, deadline=_past_deadline(c, rx_id, now))
+    return st
+
+
+def _end_notice(c, rid, now, deadline=False, fallback=None):
+    """إشعار واحد للعميل عند نهاية البحث: عند وجود عرض جزئي صالح يُخبره بظهور أفضل عرض، وإلا الإشعارات السابقة كما كانت."""
+    if best_partial(c, rid):
+        return _claim_terminal_notification(c, rid, 'rx.search_ended', 'انتهى البحث وظهر أفضل عرض جزئي', 'لم تتوفر الروشتة كاملة. راجع أفضل عرض جزئي متاح واختر قبوله أو متابعة البحث عن الأصناف الناقصة.', now)
+    if fallback: return _claim_terminal_notification(c, rid, *fallback, now)
+    if deadline: return _claim_terminal_notification(c, rid, 'rx.claim_timeout', 'انتهت مهلة البحث عن طلبك', 'انتهت مهلة البحث عن الأصناف المتبقية. راجع الردود المتاحة في طلبك.', now)
+    return _claim_terminal_notification(c, rid, 'rx.no_pharmacy', 'تعذّر استكمال الأصناف', 'لم يتبقَّ صيدليات مشاركة مؤهلة للبحث عن الأصناف غير المتوفرة. الردود السابقة محفوظة ويمكنك مراجعتها.', now)
+
 
 
 def complete_claim_on_full_approval(c, rx_id, provider_id, now=None):
@@ -386,7 +579,7 @@ def _claim_terminal_notification(c, rx_id, kind, title, body, now):
 def advance_claim_after_review(c, rx_id, provider_id, response_status, now=None, decision="approved"):
     """بعد اعتماد/رفض رد: أوقف البحث إذا اكتملت التغطية، وإلا وزّع الأصناف غير المؤكدة فقط."""
     now = int(now or time.time())
-    if _setting(c, 'rx_claim_mode', 0) != 1: return None
+    if not _claim_mode_for_request(c, rx_id): return None
     p = c.execute("SELECT status,created_at FROM prescriptions WHERE id=?", (rx_id,)).fetchone()
     if not p or p['status'] == 'closed': return None
     if aggregate_status(c, rx_id) == 'complete':
@@ -416,14 +609,14 @@ def advance_claim_after_review(c, rx_id, provider_id, response_status, now=None,
     candidates = _claim_candidates(c, rx_id)
     untried = [pid for pid in candidates if not c.execute("SELECT 1 FROM rx_claim_attempts WHERE prescription_id=? AND provider_id=?", (rx_id, pid)).fetchone()]
     if not untried and now < int(p['created_at']) + int(_setting(c, 'rx_total_timeout_minutes', 60))*60:
-        _claim_terminal_notification(c, rx_id, 'rx.no_pharmacy', 'تعذّر استكمال الأصناف', 'لم يتبقَّ صيدليات مشاركة مؤهلة للبحث عن الأصناف غير المتوفرة. الردود السابقة محفوظة ويمكنك مراجعتها.', now)
+        _end_notice(c, rx_id, now)
         return 'exhausted'
     return 'searching'
 
 
 def routing_state(c, rx_id, now=None):
     now = int(now or time.time())
-    if _setting(c, 'rx_claim_mode', 0) != 1: return 'legacy'
+    if not _claim_mode_for_request(c, rx_id): return 'legacy'
     overall = aggregate_status(c, rx_id)
     if overall == 'complete': return 'complete'
     if c.execute("SELECT 1 FROM rx_claims WHERE prescription_id=? AND status='active' AND expires_at>?", (rx_id, now)).fetchone(): return 'searching'
@@ -436,7 +629,8 @@ def routing_state(c, rx_id, now=None):
 def refresh_claims(c, now=None):
     # Safe to call from request handlers and the periodic background worker.
     # Include total-deadline expiry even if a claim timeout was configured longer.
-    if _setting(c, 'rx_claim_mode', 0) != 1: return 0
+    if _setting(c, 'rx_claim_mode', 0) != 1 and not _setting(c, 'rx_auto_forward', 0) == 1:
+        if not c.execute("SELECT 1 FROM rx_claims WHERE status='active' LIMIT 1").fetchone() and not c.execute("SELECT 1 FROM rx_offers WHERE state='open' LIMIT 1").fetchone(): return 0
     now = int(now or time.time())
     total_minutes = max(1, int(_setting(c, 'rx_total_timeout_minutes', 60)))
     ids = [r[0] for r in c.execute(
@@ -444,6 +638,9 @@ def refresh_claims(c, now=None):
         "JOIN prescriptions p ON p.id=cl.prescription_id "
         "WHERE cl.status='active' AND (cl.expires_at<=? OR p.created_at<=?)",
         (now, now-total_minutes*60)).fetchall()]
+    # عروض البث المفتوحة التي بلغت سقف الأمان بلا قبول: تُغلق ويُبلَّغ العميل.
+    for (rid,) in c.execute("SELECT DISTINCT o.prescription_id FROM rx_offers o JOIN prescriptions p ON p.id=o.prescription_id WHERE o.state='open' AND p.status!='closed' AND p.created_at<=?", (now-total_minutes*60,)).fetchall():
+        if rid not in ids: ids.append(rid)
     for rid in ids:
         _claim_next(c, rid, now)
         active = c.execute("SELECT 1 FROM rx_claims WHERE prescription_id=? AND status='active' AND expires_at>?", (rid, now)).fetchone()
@@ -456,47 +653,46 @@ def refresh_claims(c, now=None):
         if overall == 'complete':
             continue
         if now >= int(p['created_at']) + total_minutes * 60:
-            _claim_terminal_notification(c, rid, 'rx.claim_timeout', 'انتهت مهلة البحث عن طلبك',
-                                         'انتهت مهلة البحث عن الأصناف المتبقية. راجع الردود المتاحة في طلبك.', now)
+            _end_notice(c, rid, now, deadline=True)
         else:
             # لا نعلن تعذّر الاستكمال بينما رد بانتظار اعتماد الإدارة.
             pending_review = c.execute("SELECT 1 FROM prescription_responses WHERE prescription_id=? AND review='pending' LIMIT 1", (rid,)).fetchone()
             candidates = _claim_candidates(c, rid)
             untried = [pid for pid in candidates if not c.execute(
                 "SELECT 1 FROM rx_claim_attempts WHERE prescription_id=? AND provider_id=?", (rid, pid)).fetchone()]
-            if not pending_review and not untried:
-                _claim_terminal_notification(c, rid, 'rx.no_pharmacy', 'تعذّر استكمال الأصناف',
-                                             'لم يتبقَّ صيدليات مشاركة مؤهلة للبحث عن الأصناف غير المتوفرة. الردود السابقة محفوظة ويمكنك مراجعتها.', now)
+            open_offer = c.execute("SELECT 1 FROM rx_offers WHERE prescription_id=? AND state='open' LIMIT 1", (rid,)).fetchone()
+            if not pending_review and not untried and not open_offer:
+                _end_notice(c, rid, now)
     if ids: c.commit()
     return len(ids)
 
 
 def auto_forward(c, rx_id):
-    """توزيع الطلب الجديد. المسار الجديد يظل معطّلًا حتى تفعّل الإدارة rx_claim_mode؛ إعداداته لا تمس الطلبات القائمة."""
+    """التوزيع الآلي يظل مغلقًا افتراضيًا. عند تفعيله تُمنح صيدلية واحدة الحجز لمدة 10 دقائق؛
+    إذا لم ترد، يعيد العامل توزيع الطلب على الصيدلية التالية دون حذف الردود السابقة.
+    إعداد rx_claim_mode=1 يظل كافيًا لتشغيل مسار الحجز القديم حتى إن كان المفتاح العام مغلقًا.
+    """
     try:
-        r = c.execute("SELECT region_id FROM prescriptions WHERE id=? AND file_id IS NOT NULL AND status='pending'", (rx_id,)).fetchone()
+        r = c.execute("SELECT region_id FROM prescriptions WHERE id=? AND status='pending' AND (file_id IS NOT NULL OR (kind='item' AND EXISTS (SELECT 1 FROM rx_prescription_items i WHERE i.prescription_id=prescriptions.id)))", (rx_id,)).fetchone()
         if not r: return 0
-        if _setting(c, "rx_claim_mode", 0) == 1:
-            # Reserve to one pharmacy only; timeout reassignment is handled by the worker.
-            if not c.in_transaction: c.execute('BEGIN IMMEDIATE')
-            _claim_next(c, rx_id)
-            active = c.execute("SELECT 1 FROM rx_claims WHERE prescription_id=? AND status='active' AND expires_at>?", (rx_id, int(time.time()))).fetchone()
-            if not active:
-                row = c.execute("SELECT created_at FROM prescriptions WHERE id=?", (rx_id,)).fetchone()
-                total_minutes = max(1, int(_setting(c, 'rx_total_timeout_minutes', 60)))
-                if row and int(time.time()) < int(row['created_at']) + total_minutes * 60:
-                    pending_review = c.execute("SELECT 1 FROM prescription_responses WHERE prescription_id=? AND review='pending' LIMIT 1", (rx_id,)).fetchone()
-                    candidates = _claim_candidates(c, rx_id)
-                    untried = [pid for pid in candidates if not c.execute("SELECT 1 FROM rx_claim_attempts WHERE prescription_id=? AND provider_id=?", (rx_id, pid)).fetchone()]
-                    if aggregate_status(c, rx_id) != 'complete' and not pending_review and not untried:
-                        _claim_terminal_notification(c, rx_id, 'rx.no_pharmacy', 'تعذّر استكمال الأصناف',
-                                                     'لم نعثر على صيدلية مشاركة متاحة لاستكمال الأصناف غير المؤكدة. يمكنك مراجعة الردود السابقة أو المحاولة لاحقًا.', int(time.time()))
-            c.commit()
-            return 1 if active else 0
-        # السلوك القديم لا يتغير ما دام مفتاح المسار الجديد مغلقًا.
-        if _setting(c, "rx_auto_forward", 0) != 1: return 0
-        n = forward(c, rx_id, _region_pharmacies(c, r["region_id"])); c.commit(); return n
-    except Exception: return 0
+        if _setting(c, "rx_claim_mode", 0) != 1 and _setting(c, "rx_auto_forward", 0) != 1:
+            return 0
+        if not c.in_transaction: c.execute('BEGIN IMMEDIATE')
+        assigned = _claim_next(c, rx_id)
+        if not assigned:
+            active = c.execute("SELECT 1 FROM rx_claims WHERE prescription_id=? AND status='active' AND expires_at>?", (rx_id, int(time.time()))).fetchone() or c.execute("SELECT 1 FROM rx_offers WHERE prescription_id=? AND state='open' LIMIT 1", (rx_id,)).fetchone()
+            pending_review = c.execute("SELECT 1 FROM prescription_responses WHERE prescription_id=? AND review='pending' LIMIT 1", (rx_id,)).fetchone()
+            candidates = _claim_candidates(c, rx_id)
+            untried = [pid for pid in candidates if not c.execute("SELECT 1 FROM rx_claim_attempts WHERE prescription_id=? AND provider_id=?", (rx_id, pid)).fetchone()]
+            if not active and not pending_review and not untried:
+                _end_notice(c, rx_id, int(time.time()), fallback=('rx.no_pharmacy', 'تعذّر استكمال الأصناف',
+                            'لم نعثر على صيدلية مشاركة مؤهلة حاليًا. الردود السابقة محفوظة ويمكنك مراجعتها أو المحاولة لاحقًا.'))
+        c.commit()
+        return 1 if assigned else 0
+    except Exception:
+        try: c.rollback()
+        except Exception: pass
+        return 0
 
 
 def quotes_for(c, rx_id, approved_only=True):
@@ -531,18 +727,33 @@ def handle(h, c, u, method, path, q):
     now = int(time.time())
 
     # ---------- صيدلية ----------
-    if path.startswith("/api/provider/prescriptions/") and _setting(c, "rx_claim_mode", 0) == 1:
+    if path.startswith("/api/provider/prescriptions/") and (_setting(c, "rx_claim_mode", 0) == 1 or _setting(c, "rx_auto_forward", 0) == 1):
         refresh_claims(c, now); c.commit()
+    m = re.fullmatch(r"/api/provider/prescriptions/(\d+)/(accept|decline)", path)
+    if m and method == "POST":
+        if not u: return err(401, "سجّل الدخول أولًا")
+        if not c.execute("SELECT 1 FROM providers WHERE user_id=? AND status='approved'", (u["id"],)).fetchone(): return err(403, "حساب الصيدلية غير معتمد")
+        rid = int(m[1])
+        try:
+            if m[2] == "accept":
+                r = accept_offer(c, rid, u["id"], now); c.commit()
+                h.send(200, {"ok": True, "expires_at": r["expires_at"], "claim_minutes": int(_setting(c, 'rx_claim_timeout_minutes', 10)), "requested_items": requested_items(c, rid, u["id"])}); return True
+            decline_offer(c, rid, u["id"], now); c.commit()
+            h.send(200, {"ok": True}); return True
+        except OfferError as e:
+            try: c.rollback()
+            except Exception: pass
+            return err(e.code, e.msg)
     m = re.fullmatch(r"/api/provider/prescriptions/(\d+)/quote", path)
     if m:
         if not u: return err(401, "سجّل الدخول أولًا")
         if not c.execute("SELECT 1 FROM providers WHERE user_id=? AND status='approved'", (u["id"],)).fetchone(): return err(403, "حساب الصيدلية غير معتمد")
         rid = int(m[1])
         rx = c.execute("SELECT p.id,p.status,p.created_at,p.file_id FROM prescription_access a JOIN prescriptions p ON p.id=a.prescription_id WHERE a.prescription_id=? AND a.provider_id=?", (rid, u["id"])).fetchone()
-        if _setting(c, "rx_claim_mode", 0) == 1:
+        if _claim_mode_for_request(c, rid):
             claim = c.execute("SELECT 1 FROM rx_claims WHERE prescription_id=? AND provider_id=? AND status='active' AND expires_at>?", (rid, u["id"], now)).fetchone()
             if not claim: return err(404, "انتهت مهلة حجز الطلب أو لم يعد مخصصًا لصيدليتك")
-        if not rx or rx["status"] == "closed" or rx["file_id"] is None: return err(404, "غير موجود")
+        if not rx or rx["status"] == "closed" or (rx["file_id"] is None and not c.execute("SELECT 1 FROM rx_prescription_items WHERE prescription_id=? LIMIT 1", (rid,)).fetchone()): return err(404, "غير موجود")
         if method == "GET":
             its = [dict(i) for i in c.execute("SELECT i.name,i.qty,i.unit_price,i.available,COALESCE(s.item_status,CASE WHEN i.available=1 THEN 'available' ELSE 'unavailable' END) item_status FROM rx_quote_items i LEFT JOIN rx_quote_item_status s USING(prescription_id,provider_id,line_no) WHERE i.prescription_id=? AND i.provider_id=? ORDER BY i.line_no", (rid, u["id"]))]
             r = c.execute("SELECT status,price,note,updated_at,review,review_reason FROM prescription_responses WHERE prescription_id=? AND provider_id=?", (rid, u["id"])).fetchone()
@@ -556,7 +767,7 @@ def handle(h, c, u, method, path, q):
             except ValueError as e: return err(400, str(e))
             if total > MAX_TOTAL: return err(400, "الإجمالي كبير جدًا")
             st = _status_for(items); note = str(d.get("note") or "")[:300]
-            claim_mode = _setting(c, "rx_claim_mode", 0) == 1
+            claim_mode = _claim_mode_for_request(c, rid)
             scope = requested_items(c, rid, u["id"]) if claim_mode else []
             if scope:
                 from collections import Counter
@@ -580,6 +791,87 @@ def handle(h, c, u, method, path, q):
             c.commit(); h.send(200, {"ok": True, "status": st, "total": total, "review": "pending"}); return True
         return err(404, "غير موجود")
 
+    # ---------- عميل: بحث فرعي مستقل عن الأصناف الناقصة ----------
+    m_child = re.fullmatch(r"/api/medical/prescriptions/(\d+)/missing-search", path)
+    if m_child and method == "POST":
+        if not u: return err(401, "سجّل الدخول أولًا")
+        parent_id = int(m_child[1])
+        parent = c.execute("SELECT id,region_id,status,created_at FROM prescriptions WHERE id=? AND customer_id=?", (parent_id, u["id"])).fetchone()
+        if not parent: return err(404, "غير موجود")
+        if parent["status"] == "closed": return err(409, "الطلب الأصلي مغلق")
+        if not _claim_mode_for_request(c, parent_id): return err(409, "ميزة البحث التلقائي عن النواقص غير مفعّلة")
+        # البحث الفرعي مسموح بعد انتهاء بحث الأصل (حتى لو بلغ سقف الأمان)؛ للطلب الفرعي مهلته الكلية الخاصة.
+        remaining = _remaining_items(c, parent_id)
+        if not remaining: return err(409, "لا توجد أصناف ناقصة مؤكدة للبحث عنها")
+        body = h.body()
+        requested = body.get("items")
+        if not isinstance(requested, list) or not requested: return err(400, "اكتب أسماء الأصناف الناقصة وكمياتها قبل بدء البحث؛ لا يتم تخمين أسماء الأدوية من الصور")
+        try: cleaned, _ = _clean_items([dict(x, item_status="unavailable") if isinstance(x, dict) and "item_status" not in x and "status" not in x and "available" not in x else x for x in requested])
+        except (ValueError, TypeError): return err(400, "قائمة الأصناف غير صالحة")
+        from collections import Counter
+        allowed = Counter((_norm_item(x["name"]), int(x["qty"])) for x in remaining)
+        asked = Counter((_norm_item(x["name"]), int(x["qty"])) for x in cleaned)
+        if asked != allowed: return err(400, "البحث الجديد يجب أن يقتصر على كل الأصناف الناقصة فقط، دون الأصناف المتوفرة أو تغيير كمياتها")
+        raw_ids = body.get("file_ids") or []
+        if not isinstance(raw_ids, list) or len(raw_ids) > 1: return err(400, "يمكن إرفاق صورة واحدة واضحة للصنف الناقص")
+        fids = []
+        for x in raw_ids:
+            try: fid = int(x) if not isinstance(x, bool) else None
+            except (TypeError, ValueError): fid = None
+            if fid is None or fid in fids: return err(400, "الصورة غير صالحة")
+            if not c.execute("SELECT 1 FROM files WHERE id=? AND owner_id=?", (fid, u["id"])).fetchone(): return err(400, "ارفع الصورة من حسابك أولًا")
+            if c.execute("SELECT 1 FROM courier_documents WHERE file_id=?", (fid,)).fetchone(): return err(400, "هذه الصورة ليست صورة دواء")
+            if c.execute("SELECT 1 FROM prescriptions WHERE file_id=? UNION SELECT 1 FROM rx_images WHERE file_id=?", (fid, fid)).fetchone(): return err(409, "الصورة مستخدمة بالفعل؛ ارفع صورة منفصلة للصنف")
+            fids.append(fid)
+        check = c.execute("SELECT 1 FROM rx_search_links WHERE parent_prescription_id=? LIMIT 1", (parent_id,)).fetchone()
+        # Allow multiple historical child searches, but don't create duplicate active searches for the same parent.
+        if c.execute("SELECT 1 FROM rx_search_links l WHERE l.parent_prescription_id=? AND (EXISTS (SELECT 1 FROM rx_claims cl WHERE cl.prescription_id=l.child_prescription_id AND cl.status='active' AND cl.expires_at>?) OR EXISTS (SELECT 1 FROM prescription_responses pr WHERE pr.prescription_id=l.child_prescription_id AND pr.review='pending'))", (parent_id, now)).fetchone():
+            return err(409, "يوجد بحث فرعي قيد المعالجة أو المراجعة؛ انتظر اكتماله قبل إنشاء بحث آخر")
+        if c.execute("SELECT 1 FROM rx_claims WHERE prescription_id=? AND status='active' AND expires_at>?", (parent_id, now)).fetchone():
+            return err(409, "انتظر انتهاء أو إكمال المحاولة الحالية قبل بدء بحث فرعي")
+        if c.execute("SELECT COUNT(*) FROM prescriptions WHERE customer_id=? AND status!='closed'", (u["id"],)).fetchone()[0] >= 5:
+            return err(429, "لديك 5 طلبات روشتة مفتوحة بالفعل؛ أكمل أو أغلق طلبًا سابقًا أولًا")
+        cur = c.execute("INSERT INTO prescriptions(customer_id,region_id,file_id,note,created_at,kind) VALUES(?,?,?,?,?,'item')", (u["id"], parent["region_id"], fids[0] if fids else None, ("بحث نواقص للروشتة #%d — " % parent_id) + str(body.get("note") or "").strip()[:200], now))
+        child_id = int(cur.lastrowid)
+        c.execute("INSERT INTO rx_search_links(parent_prescription_id,child_prescription_id,search_kind,created_at) VALUES(?,?,?,?)", (parent_id, child_id, "item_photo" if fids else "typed_items", now))
+        if fids: set_images(c, child_id, fids)
+        c.executemany("INSERT INTO rx_prescription_items(prescription_id,line_no,name,qty,created_at) VALUES(?,?,?,?,?)", [(child_id, i, x["name"], x["qty"], now) for i, x in enumerate(cleaned, 1)])
+        c.commit()
+        assigned = auto_forward(c, child_id)
+        c.commit()
+        h.send(201, {"ok": True, "id": child_id, "parent_prescription_id": parent_id, "kind": "item", "search_kind": "item_photo" if fids else "typed_items", "provider_assigned": bool(assigned), "items": [{"name": x["name"], "qty": x["qty"]} for x in cleaned]}); return True
+
+    m_ap = re.fullmatch(r"/api/medical/prescriptions/(\d+)/accept-partial", path)
+    if m_ap and method == "POST":
+        if not u: return err(401, "سجّل الدخول أولًا")
+        rid = int(m_ap[1])
+        rx_ = c.execute("SELECT status FROM prescriptions WHERE id=? AND customer_id=?", (rid, u["id"])).fetchone()
+        if not rx_: return err(404, "غير موجود")
+        if rx_["status"] == "closed": return err(409, "الطلب مغلق")
+        st = search_state(c, rid, now)
+        if st not in ("ended_partial", "partial_accepted"): return err(409, "لا يوجد عرض جزئي نهائي للقبول بعد")
+        bp = best_partial(c, rid)
+        try: pid_ = int(h.body().get("provider_id"))
+        except (TypeError, ValueError): return err(400, "حدد الصيدلية")
+        if not bp or int(bp["provider_id"]) != pid_:
+            old = c.execute("SELECT provider_id FROM rx_partial_accepts WHERE prescription_id=?", (rid,)).fetchone()
+            if not (old and int(old[0]) == pid_): return err(409, "المعروض للقبول هو أفضل عرض جزئي فقط")
+        old = c.execute("SELECT provider_id FROM rx_partial_accepts WHERE prescription_id=?", (rid,)).fetchone()
+        if old and int(old[0]) != pid_: return err(409, "سبق قبول عرض جزئي آخر")
+        if not old:
+            c.execute("INSERT INTO rx_partial_accepts VALUES(?,?,?)", (rid, pid_, now))
+            c.execute("INSERT INTO audit_log(actor_id,action,target,detail,at) VALUES(?,?,?,?,?)", (u["id"], "rx.partial_accepted", str(rid), json.dumps({"provider_id": pid_}), now))
+        c.commit()
+        h.send(200, {"ok": True, "search_state": "partial_accepted", "message": "تم تسجيل قبول العرض الجزئي. هذا لا يعني شراء الأدوية تلقائيًا؛ يمكنك متابعة البحث عن الأصناف الناقصة أو طلب التوصيل لاحقًا."}); return True
+
+    m_children = re.fullmatch(r"/api/medical/prescriptions/(\d+)/children", path)
+    if m_children and method == "GET":
+        if not u: return err(401, "سجّل الدخول أولًا")
+        parent_id = int(m_children[1])
+        if not c.execute("SELECT 1 FROM prescriptions WHERE id=? AND customer_id=?", (parent_id, u["id"])).fetchone(): return err(404, "غير موجود")
+        rows = c.execute("SELECT p.id,p.status,p.created_at,l.search_kind FROM rx_search_links l JOIN prescriptions p ON p.id=l.child_prescription_id WHERE l.parent_prescription_id=? ORDER BY l.created_at,p.id", (parent_id,)).fetchall()
+        h.send(200, [dict(r) for r in rows]); return True
+
     # ---------- عميل ----------
     m = re.fullmatch(r"/api/medical/prescriptions/(\d+)/(quotes|close|remaining)", path)
     if m:
@@ -594,11 +886,11 @@ def handle(h, c, u, method, path, q):
             elapsed = max(0, now - int(rx['created_at']))
             timed_out = elapsed >= total_minutes * 60
             quotes = quotes_for(c, rid)
-            best_partial = next((x for x in sorted(quotes, key=lambda z: (-sum(1 for i in z.get('items', []) if i['available']), z['updated_at'])) if x['partial']), None)
-            h.send(200, {"id": rid, "status": rx["status"], "stage": stage_of(c, rid, rx["status"]), "images": images_of(c, rid), "quotes": quotes, "pending_review": pend, "pharmacies": ph, "timed_out": timed_out, "no_reply": timed_out and not quotes and not pend, "elapsed_seconds": elapsed, "total_timeout_minutes": total_minutes, "best_partial_provider_id": best_partial['provider_id'] if best_partial else None, "remaining_enabled": _setting(c, "rx_claim_mode", 0) == 1, "aggregate_status": aggregate_status(c, rid), "routing_state": routing_state(c, rid, now)}); return True
+            bp = best_partial(c, rid); sstate = search_state(c, rid, now)
+            h.send(200, {"id": rid, "status": rx["status"], "stage": stage_of(c, rid, rx["status"]), "images": images_of(c, rid), "quotes": quotes, "pending_review": pend, "pharmacies": ph, "timed_out": timed_out, "no_reply": timed_out and not quotes and not pend, "elapsed_seconds": elapsed, "total_timeout_minutes": total_minutes, "best_partial_provider_id": bp['provider_id'] if bp else None, "best_partial": bp if sstate in ("ended_partial", "partial_accepted") else None, "search_state": sstate, "partial_accepted_provider_id": (lambda z: z[0] if z else None)(c.execute("SELECT provider_id FROM rx_partial_accepts WHERE prescription_id=?", (rid,)).fetchone()), "remaining_enabled": _claim_mode_for_request(c, rid), "aggregate_status": aggregate_status(c, rid), "routing_state": routing_state(c, rid, now), "parent_prescription_id": (lambda z: z[0] if z else None)(c.execute("SELECT parent_prescription_id FROM rx_search_links WHERE child_prescription_id=?", (rid,)).fetchone()), "child_searches": [dict(x) for x in c.execute("SELECT p.id,p.status,p.created_at,l.search_kind FROM rx_search_links l JOIN prescriptions p ON p.id=l.child_prescription_id WHERE l.parent_prescription_id=? ORDER BY l.created_at,p.id", (rid,)).fetchall()], "remaining_items": _remaining_items(c, rid) or []}); return True
         if m[2] == "remaining" and method == "POST":
             if rx['status'] == 'closed': return err(409, 'الطلب مغلق بالفعل')
-            if _setting(c, 'rx_claim_mode', 0) != 1: return err(409, 'ميزة البحث عن باقي الأصناف غير مفعّلة بعد')
+            if not _claim_mode_for_request(c, rid): return err(409, 'ميزة البحث عن باقي الأصناف غير مفعّلة بعد')
             total_minutes = int(_setting(c, 'rx_total_timeout_minutes', 60))
             if now - int(rx['created_at']) >= total_minutes * 60: return err(409, 'انتهت مهلة البحث الكلية لهذا الطلب')
             partial = c.execute("SELECT 1 FROM prescription_responses WHERE prescription_id=? AND review='approved' AND status IN('needs_confirmation','unavailable') LIMIT 1", (rid,)).fetchone()
@@ -624,6 +916,24 @@ def handle(h, c, u, method, path, q):
     if path.startswith(("/api/admin/prescriptions/", "/api/admin/rx/")):
         if not u: return err(401, "سجّل الدخول أولًا")
         if u["role"] not in ("admin", "staff"): return err(403, "ليس لديك صلاحية")
+        if path == "/api/admin/rx/distribution-mode":
+            def _info():
+                return {"mode": distribution_mode(c), "claim_mode": _setting(c, "rx_claim_mode", 0) == 1,
+                        "claim_timeout_minutes": int(_setting(c, "rx_claim_timeout_minutes", 10)), "total_timeout_minutes": int(_setting(c, "rx_total_timeout_minutes", 60)),
+                        "eligible_pharmacies": c.execute("SELECT COUNT(*) FROM providers WHERE status='approved' AND distribution_enabled=1").fetchone()[0],
+                        "active_claims": c.execute("SELECT COUNT(*) FROM rx_claims WHERE status='active' AND expires_at>?", (now,)).fetchone()[0],
+                        "open_offers": c.execute("SELECT COUNT(*) FROM rx_offers WHERE state='open'").fetchone()[0]}
+            if method == "GET": h.send(200, _info()); return True
+            if method == "POST":
+                if u["role"] != "admin": return err(403, "ليس لديك صلاحية")
+                mode = h.body().get("mode")
+                if mode not in ("auto", "manual"): return err(400, "الوضع: auto أو manual")
+                old = distribution_mode(c)
+                # التبديل لا يحذف طلبات ولا ردودًا ولا حجوزات قائمة: الحجوزات النشطة تنتهي بمهلتها، والتغيير يسري على الطلبات الجديدة.
+                for k, val in (("rx_distribution_mode", mode), ("rx_claim_mode", "1" if mode == "auto" else "0"), ("rx_auto_forward", "0")):
+                    c.execute("INSERT INTO settings(key,value) VALUES(?,?) ON CONFLICT(key) DO UPDATE SET value=excluded.value", (k, val))
+                c.execute("INSERT INTO audit_log(actor_id,action,target,detail,at) VALUES(?,?,?,?,?)", (u["id"], "rx.distribution_mode", mode, json.dumps({"from": old}), now))
+                c.commit(); h.send(200, {"ok": True, **_info()}); return True
         if path == "/api/admin/rx/auto-forward":
             if method == "GET": h.send(200, {"enabled": _setting(c, "rx_auto_forward", 0) == 1}); return True
             if method == "POST":
@@ -659,7 +969,7 @@ def handle(h, c, u, method, path, q):
             if fresh["review"] == new: return err(409, "القرار نفسه مسجَّل بالفعل")
             c.execute("UPDATE prescription_responses SET review=?,review_reason=?,reviewed_at=?,reviewed_by=? WHERE prescription_id=? AND provider_id=?", (new, reason if new == "rejected" else None, now, u["id"], rid, pid))
             c.execute("INSERT INTO audit_log(actor_id,action,target,detail,at) VALUES(?,?,?,?,?)", (u["id"], "rx.response." + new, "%d/%d" % (rid, pid), json.dumps({"reason": reason or None}, ensure_ascii=False), now))
-            if _setting(c, "rx_claim_mode", 0) == 1:
+            if _claim_mode_for_request(c, rid):
                 advance_claim_after_review(c, rid, pid, rr["response_status"], now, decision=new)
             if new == "approved":
                 _notify(c, rr["customer_id"], "rx.quote", "وصلك رد على روشتتك", "روشتة #%d — راجع التسعيرات" % rid, "medical", rid)

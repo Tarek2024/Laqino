@@ -12,7 +12,7 @@ checks = [
     ("client sends at most five images", "if(fs.length>5)throw 'الحد الأقصى 5 صور للطلب الواحد'" in html),
     ("prescription photos are compressed while preserving more detail before upload", "const compressed=await rxShrink(f)" in html and "await imgB64(compressed)" in html),
     ("old prescription images are excluded from generic file quota", "id NOT IN (SELECT file_id FROM prescriptions WHERE file_id IS NOT NULL)" in server and "id NOT IN (SELECT file_id FROM rx_images)" in server),
-    ("service worker cache bumped for the new UI", 'laqino-v85' in sw),
+    ("service worker cache matches VERSION", "cache=" in (root / "VERSION").read_text(encoding="utf-8") and next((line.split("=", 1)[1].strip() for line in (root / "VERSION").read_text(encoding="utf-8").splitlines() if line.startswith("cache=")), "") in sw),
 ]
 for name, passed in checks:
     print(("PASS " if passed else "FAIL ") + name)
