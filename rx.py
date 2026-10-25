@@ -793,6 +793,9 @@ def customer_quotes(c, rx_id, now=None):
     keep = lambda d: d["complete"] or d.get("delivery_order_id")
     if st in ("searching", "awaiting_partial_approval"):
         return [d for d in quotes if keep(d)]
+    if st == "complete" and any(d["complete"] for d in quotes):
+        # phase-64: وصل رد كامل ← الجزئي ما يظهرش جنبه (إلا اللي له طلب توصيل قائم). لو الاكتمال جاي من تجميع بحث نواقص فرعي (مفيش رد كامل واحد هنا) نسيب الردود زي ما هي.
+        return [d for d in quotes if keep(d) or not d["partial"]]
     if st in ("ended_partial", "partial_accepted"):
         bp = best_partial(c, rx_id)
         acc = c.execute("SELECT provider_id FROM rx_partial_accepts WHERE prescription_id=?", (rx_id,)).fetchone()
@@ -1119,7 +1122,22 @@ def handle(h, c, u, method, path, q):
             if method == "GET": h.send(200, _info()); return True
             if method == "POST":
                 if u["role"] != "admin": return err(403, "ليس لديك صلاحية")
-                mode = h.body().get("mode")
+                b = h.body(); mode = b.get("mode")
+                tt, ct = b.get("total_timeout_minutes"), b.get("claim_timeout_minutes")
+                if mode is None and (tt is not None or ct is not None):
+                    # phase-65: ضبط المهل بالدقيقة من شاشة الإدارة (بدون تغيير وضع التوزيع)
+                    try:
+                        total_m = int(tt) if tt is not None else int(_setting(c, "rx_total_timeout_minutes", 60))
+                        claim_m = int(ct) if ct is not None else int(_setting(c, "rx_claim_timeout_minutes", 10))
+                    except (TypeError, ValueError): return err(400, "المهلة لازم تكون رقم صحيح بالدقائق")
+                    if not 1 <= claim_m <= 60: return err(400, "مهلة الحجز من 1 إلى 60 دقيقة")
+                    if not 5 <= total_m <= 240: return err(400, "مدة البحث الكلية من 5 إلى 240 دقيقة")
+                    if claim_m > total_m: return err(400, "مهلة الحجز لا يمكن أن تزيد عن مدة البحث الكلية")
+                    old_t = (int(_setting(c, "rx_claim_timeout_minutes", 10)), int(_setting(c, "rx_total_timeout_minutes", 60)))
+                    for k, val in (("rx_claim_timeout_minutes", str(claim_m)), ("rx_total_timeout_minutes", str(total_m))):
+                        c.execute("INSERT INTO settings(key,value) VALUES(?,?) ON CONFLICT(key) DO UPDATE SET value=excluded.value", (k, val))
+                    c.execute("INSERT INTO audit_log(actor_id,action,target,detail,at) VALUES(?,?,?,?,?)", (u["id"], "rx.timeouts", None, json.dumps({"claim_from": old_t[0], "claim_to": claim_m, "total_from": old_t[1], "total_to": total_m}), now))
+                    c.commit(); h.send(200, {"ok": True, **_info()}); return True
                 if mode not in ("auto", "manual"): return err(400, "الوضع: auto أو manual")
                 old = distribution_mode(c)
                 # التبديل لا يحذف طلبات ولا ردودًا ولا حجوزات قائمة: الحجوزات النشطة تنتهي بمهلتها، والتغيير يسري على الطلبات الجديدة.
