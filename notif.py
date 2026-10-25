@@ -10,7 +10,7 @@
 # إزالة كاملة (للتراجع إن أردت قاعدة بلا أثر): python3 notif.py --uninstall laqino.db
 import sqlite3, sys, time
 
-VERSION = 3
+VERSION = 5
 KEEP_PER_USER = 200          # أقصى عدد إشعارات محفوظة لكل مستخدم
 KEEP_DAYS = 90               # الأقدم من ذلك يُحذف عند أول قراءة
 
@@ -65,7 +65,9 @@ def _triggers():
     T["order_unassigned"] = ("AFTER UPDATE OF courier_id ON delivery_orders", "WHEN OLD.courier_id IS NOT NULL AND (NEW.courier_id IS NULL OR NEW.courier_id != OLD.courier_id) AND NEW.status NOT IN ('completed','cancelled','disputed')",
         _ins("OLD.courier_id", "order.released", "لم يعد الطلب مسندًا إليك", body="'طلب رقم ' || OLD.id", link="courier", ref_type="order", ref_id="OLD.id"))
     # --- رد صيدلية على استفسار دواء / روشتة (للعميل) ---
-    for tbl, col, what, rtype in (("inquiry_responses", "inquiry_id", "medicine_inquiries", "inquiry"), ("prescription_responses", "prescription_id", "prescriptions", "prescription")):
+    # phase-59: ردود الروشتات خرجت من هنا عمدًا. الـtrigger العام كان يُشعر العميل بـ«صيدلية تطلب تأكيدًا منك» لحظة وصول أي رد جزئي
+    # (حتى والبحث شغال والرد مخفي)، فيسرّب الرد المؤجَّل. إشعار «وصلك رد على روشتتك» يُرسَل من rx.py بشروطه (الكامل فورًا، والجزئي عند نهاية البحث).
+    for tbl, col, what, rtype in (("inquiry_responses", "inquiry_id", "medicine_inquiries", "inquiry"),):
         title = "CASE NEW.status WHEN 'available' THEN 'صيدلية ردّت: الدواء متوفر' WHEN 'unavailable' THEN 'صيدلية ردّت: غير متوفر' ELSE 'صيدلية تطلب تأكيدًا منك' END"
         body = "COALESCE((SELECT name_ar FROM providers WHERE user_id=NEW.provider_id),'صيدلية') || CASE WHEN NEW.price IS NOT NULL THEN ' — السعر ' || NEW.price ELSE '' END"
         sel = _ins("(SELECT customer_id FROM %s WHERE id=NEW.%s)" % (what, col), "medical." + rtype, title, body=body, link="medical", ref_type=rtype, ref_id="NEW.%s" % col,
@@ -73,8 +75,12 @@ def _triggers():
         T[tbl + "_ins"] = ("AFTER INSERT ON " + tbl, "", sel)
         T[tbl + "_upd"] = ("AFTER UPDATE OF status,price ON " + tbl, "WHEN OLD.status IS NOT NEW.status OR OLD.price IS NOT NEW.price", sel)
     # --- روشتة وُجّهت إلى صيدلية ---
+    # phase-59 (بند 3): إشعار واحد للصيدلية لكل روشتة. لا يُرسَل لو للصيدلية عرض مفتوح في وضع البث (إشعار rx.offer هو اللي يوصلها)،
+    # ولا لو سبق إشعارها بنفس الروشتة (إعادة توزيع/إعادة إضافة الصلاحية).
     T["rx_access"] = ("AFTER INSERT ON prescription_access", "",
-        _ins("NEW.provider_id", "provider.prescription", "روشتة جديدة وُجّهت إلى صيدلية", link="pharmacy", ref_type="prescription", ref_id="NEW.prescription_id"))
+        _ins("NEW.provider_id", "provider.prescription", "روشتة جديدة وُجّهت إلى صيدلية", link="pharmacy", ref_type="prescription", ref_id="NEW.prescription_id",
+             where="WHERE NOT EXISTS (SELECT 1 FROM rx_offers o WHERE o.prescription_id=NEW.prescription_id AND o.provider_id=NEW.provider_id) "
+                   "AND NOT EXISTS (SELECT 1 FROM notifications n WHERE n.user_id=NEW.provider_id AND n.ref_type='prescription' AND n.ref_id=NEW.prescription_id AND n.kind IN ('provider.prescription','rx.offer'))"))
     # --- مراجعة طلب شحن رصيد المندوب ---
     T["topup_review"] = ("AFTER UPDATE OF status ON topup_requests", "WHEN OLD.status IS NOT NEW.status AND NEW.status IN ('approved','rejected')",
         _ins("NEW.courier_id", "wallet.topup", "CASE NEW.status WHEN 'approved' THEN 'تم قبول طلب شحن الرصيد' ELSE 'تم رفض طلب شحن الرصيد' END", body="NEW.reason", link="courier", ref_type="topup", ref_id="NEW.id"))

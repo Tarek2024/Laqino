@@ -64,20 +64,20 @@ with sync_playwright() as p:
         ok("[%s] pharmacy: header has back-to-app link to /" % kind, pg.get_attribute("header.ph a.back", "href") == "/" and "رجوع للتطبيق" in pg.inner_text("header.ph") and "لوحة الصيدلية" in pg.inner_text("header.ph h1"))
         ok("[%s] pharmacy: header title and back link are white on navy (readable)" % kind, css(pg, "header.ph h1", "color") == "rgb(255, 255, 255)" and css(pg, "header.ph a.back", "color") == "rgb(255, 255, 255)")
         ok("[%s] pharmacy: back link tap target >= 40px" % kind, pg.query_selector("header.ph a.back").bounding_box()["height"] >= 40)
-        ok("[%s] pharmacy: app identity (navy header, orange buttons, 20px cards, 16px fields)" % kind,
-           css(pg, "header.ph", "backgroundImage").count("15, 42, 92") == 1 and css(pg, "main button", "backgroundColor") == "rgb(242, 140, 27)" and css(pg, "main .card", "borderTopLeftRadius") == "20px" and css(pg, "main input", "fontSize") == "16px")
+        ok("[%s] pharmacy: app identity (navy header, navy primary buttons, 20px cards, 16px fields)" % kind,
+           css(pg, "header.ph", "backgroundImage").count("15, 42, 92") == 1 and css(pg, "main button", "backgroundColor") == "rgb(15, 42, 92)" and css(pg, "main .card", "borderTopLeftRadius") == "20px" and css(pg, "main input", "fontSize") == "16px")
         ok("[%s] pharmacy: both inquiries and the section headings rendered" % kind, "بنادول إكسترا" in pg.inner_text("main") and "أنسولين" in pg.inner_text("main") and pg.locator("h2.sec").count() == 3)  # +1: «سوق الصيدليات»
         ok("[%s] pharmacy: no horizontal overflow, no JS errors" % kind, fits(pg) and not pg.errs)
-        L = lefts(pg)
-        if kind == "phone": ok("[phone] pharmacy: single column", len(set(L)) == 1)
-        else: ok("[desktop] pharmacy: two columns, content centred and <= 1080px", len(set(L)) == 2 and pg.evaluate("document.querySelector('main').getBoundingClientRect().width") <= 1081)
+        L = pg.evaluate("[...document.querySelectorAll('main .tp.on .card')].map(e=>Math.round(e.getBoundingClientRect().left))")  # المرحلة 62: تبويبات، عمود واحد دائمًا
+        ok("[%s] pharmacy: single column (tabs), content centred and <= 640px" % kind, len(set(L)) == 1 and pg.evaluate("document.querySelector('main').getBoundingClientRect().width") <= 641)
+        ok("[%s] pharmacy: 4 bottom tabs, orders first and active" % kind, pg.locator("#tb button").count() == 4 and "on" in (pg.get_attribute("#tb button[data-tab='o']", "class") or "") and pg.locator("main .tp.on").count() == 1)
         shot(pg)
         # وظائف بالنقر الفعلي (لا تغيّر): ردّ على استفسار + تأكيد توافر دواء
         iid = db("SELECT id FROM medicine_inquiries WHERE medicine_name='بنادول إكسترا'")[0][0]
         pg.select_option("#si%d" % iid, "available"); pg.fill("#pi%d" % iid, "33"); pg.click("button[onclick=\"rs('i',%d)\"]" % iid); pg.wait_for_timeout(900)
         r = db("SELECT status,price FROM inquiry_responses WHERE inquiry_id=? AND provider_id=?", (iid, pid))
         ok("[%s] pharmacy: replying to an inquiry still works (saved in DB)" % kind, r == [("available", 33.0)] or r == [("available", 33)])
-        pg.fill("#sn", "كونجستال"); pg.fill("#sp", "20"); pg.click("button[onclick='st()']"); pg.wait_for_timeout(900)
+        pg.click("#tb button[data-tab='s']"); pg.fill("#sn", "كونجستال"); pg.fill("#sp", "20"); pg.click("button[onclick='st()']"); pg.wait_for_timeout(900)
         ok("[%s] pharmacy: stock confirmation still works" % kind, bool(db("SELECT 1 FROM provider_stock WHERE medicine_name='كونجستال' AND provider_id=?", (pid,))))
         pg.context.close()
         pg = mk(kind, "", "pharmacy-guest"); open_(pg, "/pharmacy.html", "main .card")

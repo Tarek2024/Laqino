@@ -1,10 +1,9 @@
-# phase-35: medical tab top = two big actions, other services compact below
-import os, sys, json, threading, time, tempfile, urllib.request, urllib.error, subprocess, re
+# phase-63: medical home = ONE big prescription button (opens the device camera/gallery chooser) + 2x2 services grid
+import os, sys, json, threading, time, tempfile, urllib.request, urllib.error
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 os.environ["LAQINO_DB"] = tempfile.mktemp(suffix=".db"); os.environ["LAQINO_UPLOADS"] = tempfile.mkdtemp()
 os.environ["LAQINO_AUTO_BACKUP"] = "0"
 import server
-from testutil import apply_docs
 from http.server import ThreadingHTTPServer
 server.init("01000000000", "AdminPass123")
 PORT = 8955; BASE = "http://127.0.0.1:%d" % PORT
@@ -18,35 +17,29 @@ def user(ph):
 res = []
 def ok(n, c):
     print(("PASS " if c else "FAIL ") + n); res.append(bool(c))
-at = call("POST", "/login", {"phone": "01000000000", "password": "AdminPass123"})[1]["token"]
-CU = "01044440010"
-tk = {CU: user(CU)}
-inq = call("POST", "/medical/inquiries", {"medicine_name": "دواء س", "region_id": 3}, tk[CU])[1]["id"]
+CU = "01044440010"; tk = user(CU)
+call("POST", "/medical/inquiries", {"medicine_name": "دواء س", "region_id": 3}, tk)
 from playwright.sync_api import sync_playwright
 with sync_playwright() as p:
     b = p.chromium.launch()
     for w in (360, 390):
         ctx = b.new_context(viewport={"width": w, "height": 844}, service_workers="block")
-        ctx.add_init_script("localStorage.setItem('t','%s');localStorage.setItem('rg','3')" % tk[CU])
+        ctx.add_init_script("localStorage.setItem('t','%s');localStorage.setItem('rg','3')" % tk)
         pg = ctx.new_page(); errs = []
         pg.on("pageerror", lambda e: errs.append(str(e)))
-        pg.goto(BASE + "/"); pg.wait_for_timeout(800); pg.evaluate("go(4)"); pg.wait_for_selector(".rxbig", timeout=8000)
-        bt = pg.evaluate("[...document.querySelectorAll('.rxbig button')].map(b=>[b.innerText.replace(/\\s+/g,' '),b.className,getComputedStyle(b).backgroundColor,Math.round(b.getBoundingClientRect().top)])")
-        ok("[%d] two big actions, «ابعت روشتتك» first" % w, len(bt) == 2 and "ابعت روشتتك" in bt[0][0] and "اسأل عن دواء" in bt[1][0])
-        ok("[%d] «ابعت روشتتك» is the orange primary" % w, "pri" in bt[0][1].split() and bt[0][2] == "rgb(242, 140, 27)" and bt[1][2] != "rgb(242, 140, 27)")
-        ok("[%d] big actions are above the compact services row" % w, pg.evaluate("document.querySelector('.rxbig').getBoundingClientRect().top<document.querySelector('.mtabs.sm').getBoundingClientRect().top"))
-        ok("[%d] no full-size tabs row above the actions" % w, pg.locator(".mtabs:not(.sm)").count() == 0 and pg.locator(".mtabs.sm .mt").count() >= 1)
-        ok("[%d] «طلباتك» sits between the actions and the compact row" % w, pg.evaluate("(()=>{const y=s=>document.querySelector(s).getBoundingClientRect().top;return y('.rxbig')<y('.rqc')&&y('.rqc')<y('.mtabs.sm')})()"))
-        ok("[%d] no horizontal overflow" % w, pg.evaluate("document.documentElement.scrollWidth<=innerWidth+1"))
-        pg.locator(".rxbig button.pri").click(); pg.wait_for_selector("#rf", state="attached", timeout=6000)
-        ok("[%d] «ابعت روشتتك» opens the prescription upload" % w, pg.locator("#rf").count() == 1 and "on" in pg.get_attribute(".rxbig button.pri", "class").split())
-        pg.locator(".rxbig button:not(.pri)").click(); pg.wait_for_selector("#ms", timeout=6000)
-        ok("[%d] «اسأل عن دواء» opens the medicine search box" % w, pg.locator("#ms").count() == 1)
-        pg.locator(".mtabs.sm .mt", has_text="الأطباء").click(); pg.wait_for_selector("#dq", timeout=6000)
-        ok("[%d] compact «الأطباء» opens doctors with the full tabs on top" % w, pg.locator(".mtabs:not(.sm) .mt").count() >= 2 and pg.locator(".rxbig").count() == 0)
-        pg.locator(".mtabs .mt", has_text="الأدوية").click(); pg.wait_for_selector(".rxbig", timeout=6000)
-        ok("[%d] «الأدوية» tab returns to the drugs view" % w, pg.locator(".rxbig").count() == 1)
-        if w == 390: pg.screenshot(path=os.environ.get("SHOT", os.devnull) if os.environ.get("SHOT") else "/tmp/s35.png")
+        pg.goto(BASE + "/"); pg.wait_for_timeout(800); pg.evaluate("go(4)"); pg.wait_for_selector(".rxhero", timeout=8000)
+        ok("[%d] exactly one big prescription button, no inner camera/gallery buttons" % w, pg.locator(".rxhero").count() == 1 and pg.locator(".rxhero button").count() == 0 and "ابعت روشتتك" in pg.inner_text(".rxhero"))
+        ok("[%d] hero input has no capture attr, so the phone shows its own camera/gallery chooser" % w, pg.get_attribute("#rfp", "capture") is None and pg.get_attribute("#rfp", "accept") == "image/*" and pg.get_attribute("#rfp", "multiple") is not None)
+        ok("[%d] service cards (3D icons), each once" % w, pg.locator(".msgrid .mscard").count() >= 2 and pg.locator(".msgrid .mscard svg.i3").count() == pg.locator(".msgrid .mscard").count() and pg.locator("text=اسأل عن دواء").count() == 1)
+        ok("[%d] no tabs row on the home, no «خدمات تانية»" % w, pg.locator(".mtabs").count() == 0 and pg.locator("text=خدمات تانية").count() == 0)
+        ok("[%d] labs card hidden while no lab is published (admin controls it); products card follows its flag" % w, pg.locator(".mscard", has_text="المعامل").count() == 0 and pg.locator(".mscard", has_text="المنتجات").count() == 0)
+        ok("[%d] hero above services; no horizontal overflow" % w, pg.evaluate("document.querySelector('.rxhero').getBoundingClientRect().top<document.querySelector('.msgrid').getBoundingClientRect().top&&document.documentElement.scrollWidth<=innerWidth+1"))
+        pg.locator(".mscard", has_text="الأطباء").click(); pg.wait_for_selector(".mtabs", timeout=6000)
+        ok("[%d] a service opens with the tabs on top, «الأطباء» selected" % w, pg.locator(".mtabs .mt").count() >= 2 and "on" in pg.get_attribute(".mt:has-text('الأطباء')", "class").split())
+        pg.locator(".mtabs .mt", has_text="الأدوية").click(); pg.wait_for_selector(".rxhero", timeout=6000)
+        ok("[%d] «الأدوية» tab returns to the home" % w, pg.locator(".rxhero").count() == 1)
+        pg.locator(".mscard", has_text="اسأل عن دواء").click(); pg.wait_for_selector("#ms", timeout=6000)
+        ok("[%d] «اسأل عن دواء» opens the medicine search" % w, pg.locator("#ms").count() == 1)
         ok("[%d] no page errors" % w, not errs)
         ctx.close()
     b.close()

@@ -70,7 +70,7 @@ with sync_playwright() as p:
     # نافذة المنطقة
     pg.evaluate("openRg()"); pg.wait_for_timeout(400)
     t = pg.inner_text("#lq-loc-t")
-    ok("region sheet shows the GPS status and keeps the manual pickers", GPS_NAME in t and pg.query_selector("#g") and pg.query_selector("#k") and pg.query_selector("#vl"))
+    ok("region sheet shows the GPS status and keeps the manual pickers", GPS_NAME in t and pg.query_selector("#g") and pg.query_selector("#k"))
     ok("region sheet: 'clear my location' available", pg.is_visible("#lq-loc-clr"))
     pg.click("#lq-loc-clr"); pg.wait_for_timeout(300)
     ok("clearing removes the saved coordinates but keeps the chosen region", ls(pg, "laq_loc") is None and ls(pg, "rg") == str(GPS_RID))
@@ -103,7 +103,8 @@ with sync_playwright() as p:
     # 4) منطقة مختارة يدويًا من قبل: لا تُستبدل بصمت، والزر يغيّرها بإرادة المستخدم
     pg = page(init="localStorage.setItem('rg','%d');localStorage.setItem('rgn','قرية النور')" % VB)
     pg.goto(BASE + "/"); until(pg); pg.wait_for_timeout(800)
-    ok("existing manual region is NOT overridden by GPS at startup", ls(pg, "rg") == str(VB) and ls(pg, "rgn") == "قرية النور")
+    # الموقع الموحّد: منطقة قرية محفوظة قديمًا تُرفع تلقائيًا إلى المركز الأب (مركز الرياض) — لا يغيّرها الـGPS
+    ok("saved village region is unified to its markaz at startup (not overridden by GPS)", ls(pg, "rg") == str(GPS_RID) and ls(pg, "rgn") == GPS_NAME)
     pg.evaluate("openRg()"); pg.wait_for_timeout(300); pg.click("#lq-loc-go"); pg.wait_for_timeout(1200)
     ok("pressing 'حدّد موقعي' applies the GPS region explicitly", ls(pg, "rg") == str(GPS_RID) and GPS_NAME in pg.inner_text("#rcn"))
     ok("button path: still one-shot reads only (no watch)", pg.evaluate("window.__wp") == 0 and not pg.errs)

@@ -33,7 +33,7 @@ except Exception as e:
 def page(tok):
     ctx = br.new_context(viewport={"width": 390, "height": 844}, device_scale_factor=2); ctx.add_init_script("localStorage.setItem('t','%s')" % tok); p = ctx.new_page(); dialogs = []
     p.on("dialog", lambda d: (dialogs.append(d.message), d.accept())); return p, dialogs
-p, dlg = page(ph); p.goto(BASE + "/pharmacy.html"); p.wait_for_selector("text=تأكيد توافر دواء")
+p, dlg = page(ph); p.goto(BASE + "/pharmacy.html"); p.wait_for_selector("#sn", state="attached")
 ok("button hidden while the admin switch is off", p.locator("#dlw").count() == 0)
 call("POST", "/admin/provider-delivery", {"enabled": True, "commission": 0}, at); p.reload(); p.wait_for_selector("#dlb")
 ok("luxury button + spinning ring shown when on", p.locator("#dlb").is_visible() and p.locator("#dlr").is_visible() and "اطلب دليفري" in p.locator("#dlb").inner_text())

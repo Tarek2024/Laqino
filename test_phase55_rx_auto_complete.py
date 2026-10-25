@@ -124,6 +124,6 @@ print("PASS الحارس لا يقفل روشتة مش مكتملة فعلًا")
 # ---- 7) الواجهات والإصدار
 idx = open("static/index.html", encoding="utf-8").read(); adm = open("static/admin.html", encoding="utf-8").read()
 assert "completed:'اكتمل" in idx and "completed:'اكتملت" in adm
-assert open("VERSION").read().split()[0] in ("release=phase-55", "release=phase-56", "release=phase-57")
+assert open("VERSION").read().split()[0] in ("release=phase-55", "release=phase-56", "release=phase-57", "release=phase-59", "release=phase-61", "release=phase-62", "release=phase-63")
 print("PASS تسميات «اكتمل» في العميل والإدارة والإصدار phase-55")
 print("TOTAL OK")

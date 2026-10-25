@@ -94,7 +94,7 @@ try:
     check('aggregate status becomes complete only after every expected item is approved available',st==200 and pres['aggregate_status']=='complete' and data['aggregate_status']=='complete' and not active)
     check('all previous pharmacy responses remain visible in the customer history',len(data['quotes'])==3 and {x['provider_id'] for x in data['quotes']}=={p1,p2,p3})
     st,delivery=call('POST','/medical/delivery',{'source_type':'prescription','source_id':rxid,'provider_id':p3,'dropoff_text':'شارع البحر'},cust)
-    check('a partial quote (not every item confirmed) cannot create a delivery order',st==409 and 'لم تؤكد' in delivery.get('error',''))
+    check('phase-58: delivery is optional for any visible reply, including a missing-items-only reply (prescription stays open)'+str((st,delivery)),st==201 and sql("SELECT status FROM prescriptions WHERE id=?",(rxid,))[0][0]!='closed')
 
     # A single pharmacy's fully confirmed complete quote ends routing immediately and remains eligible for the existing delivery flow.
     fid2=call('POST','/files',{'data':png()},cust)[1]['id']

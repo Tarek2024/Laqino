@@ -27,6 +27,7 @@ call("POST", "/providers/apply", {"name_ar": "صيدلية الشفاء", "regio
 tmp = tempfile.mkdtemp(); files = []
 for i in range(3):
     fp = os.path.join(tmp, "rx%d.png" % i); open(fp, "wb").write(__import__("base64").b64decode(png())); files.append(fp)
+call("POST", "/admin/rx/manual-review", {"enabled": True}, at)  # phase-54: الاعتماد صار تلقائيًا؛ هذا الاختبار يغطي مسار الاعتماد اليدوي بالإدارة
 errs, bad = [], []
 with sync_playwright() as pw:
     # Prefer Playwright's bundled browser; fall back to a system Chromium in CI/container environments.
@@ -48,10 +49,11 @@ with sync_playwright() as pw:
             raise
         return pg
     # ---- العميل يرفع 3 صور
-    pc = page_for(CU); pc.wait_for_timeout(600); pc.evaluate("mt='rx';rxm='quote';go(4)"); pc.wait_for_selector("#rf", state="attached", timeout=8000)
-    pc.set_input_files("#rf", files); pc.click("button:has-text('إرسال للمراجعة')"); pc.wait_for_selector("text=قيد مراجعة الإدارة", timeout=8000)
+    pc = page_for(CU); pc.wait_for_timeout(600); pc.evaluate("mt='rx';rxm='home';go(4)"); pc.wait_for_selector("#rfp", state="attached", timeout=8000)
+    pc.set_input_files("#rfp", files); pc.click("button.full:has-text('ابعت')"); pc.wait_for_selector("text=قيد مراجعة الإدارة", timeout=8000)
     R = sql("SELECT id FROM prescriptions")[0][0]
     ok("3 images uploaded from the UI in one prescription", sql("SELECT COUNT(*) FROM rx_images WHERE prescription_id=?", (R,))[0][0] == 3)
+    pc.click('.rqc >> nth=0'); pc.wait_for_selector("button:has-text('حذف الصورة')", timeout=6000)
     ok("customer card shows stage + image count + a delete button per image", "(3 صور)" in pc.inner_text("body") and pc.locator("button:has-text('حذف الصورة')").count() == 3)
     call("POST", f"/admin/prescriptions/{R}/forward-many", {"provider_ids": [pid]}, at)
     # ---- الصيدلية

@@ -37,7 +37,9 @@ with sync_playwright() as p:
     pg = ctx.new_page(); errs = []
     pg.on("pageerror", lambda e: errs.append(str(e)))
     pg.goto(BASE + "/"); pg.wait_for_timeout(800)
-    pg.evaluate("go(4)"); pg.wait_for_selector("text=استعلاماتي", timeout=8000)
+    pg.evaluate("go(4)"); pg.wait_for_selector("text=طلباتك", timeout=8000)
+    # phase-63: replies live in the request details screen (opened from «طلباتك»)
+    pg.locator("button.rqc", has_text="دواء اختبار").click(); pg.wait_for_selector("text=رجوع لطلباتك", timeout=8000); pg.wait_for_timeout(500)
     txt = pg.evaluate("[...document.querySelectorAll('#v .card p')].map(e=>e.innerText)")
     order = [next((n for n in names if n in t), None) for t in txt]; order = [o for o in order if o]
     # السلوك الحالي المقصود: الترتيب بالحالة فقط (متوفر ← يحتاج تأكيد ← غير متوفر) دون ترتيب بالسعر، وشارة «الأرخص» أُزيلت.

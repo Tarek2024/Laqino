@@ -30,7 +30,7 @@ with sync_playwright() as p:
         pg.on("pageerror", lambda e: errs.append(str(e)))
         pg.add_init_script("localStorage.setItem('rg','3');" + ("localStorage.setItem('t','%s');" % tok if tok else "")); pg.errs = errs; return pg
     for w in (360, 390, 430):
-        pg = page(w, 844); pg.goto(BASE + "/"); pg.wait_for_timeout(800); pg.evaluate("go(4)"); pg.wait_for_timeout(700)
+        pg = page(w, 844); pg.goto(BASE + "/"); pg.wait_for_timeout(800); pg.evaluate("mt='dr';go(4)"); pg.wait_for_timeout(700)
         r = pg.evaluate("[...document.querySelectorAll('.mtabs .mt')].map(b=>[b.scrollWidth<=b.clientWidth+1&&b.querySelector('span').scrollWidth<=b.querySelector('span').clientWidth+1, b.getBoundingClientRect().height<=100, Math.round(b.getBoundingClientRect().top)])")
         ok("[%d] medical tabs: label stays on one line (no per-letter wrapping)" % w, len(r) >= 2 and all(a and h for a, h, _ in r))
         ok("[%d] medical: no horizontal overflow" % w, pg.evaluate("document.documentElement.scrollWidth<=innerWidth+1"))

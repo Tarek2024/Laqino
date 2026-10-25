@@ -2165,8 +2165,8 @@ class H(BaseHTTPRequestHandler):
             if method == "GET" and path == "/api/medical/prescriptions":
                 self.need(u); out=[]
                 for r in c.execute("SELECT id,file_id,note,status,created_at,kind FROM prescriptions WHERE customer_id=? ORDER BY id DESC", (u["id"],)).fetchall():
-                    d={**dict(r), "responses": resp_rows("prescription_responses", "prescription_id", r["id"]), "stage": rx.stage_of(c, r["id"], r["status"]), "images": rx.images_of(c, r["id"])}
-                    d["aggregate_status"]=rx.aggregate_status(c,r["id"]); d["routing_state"]=rx.routing_state(c,r["id"]); out.append(d)
+                    hid=rx.hidden_provider_ids(c, r["id"]); d={**dict(r), "responses": [x for x in resp_rows("prescription_responses", "prescription_id", r["id"]) if int(x["provider_id"]) not in hid], "stage": rx.customer_stage(c, r["id"], r["status"]), "images": rx.images_of(c, r["id"])}
+                    d["aggregate_status"]=rx.customer_aggregate(c,r["id"]); d["routing_state"]=rx.routing_state(c,r["id"]); out.append(d)
                 return self.send(200, out)
             if method == "GET" and path == "/api/admin/prescriptions":
                 self.need(u, "admin", "staff"); return self.send(200, [{**dict(r), "images": rx.images_of(c, r["id"])} for r in c.execute("SELECT p.id,p.file_id,p.note,p.status,p.region_id,p.created_at,u.name customer FROM prescriptions p JOIN users u ON u.id=p.customer_id WHERE p.status=? ORDER BY p.id", (q.get("status", ["pending"])[0],))])
@@ -2209,11 +2209,16 @@ class H(BaseHTTPRequestHandler):
                 if not pv: raise E(409, "الصيدلية غير متاحة حاليًا")
                 rr = c.execute("SELECT status,updated_at%s FROM %s WHERE %s=? AND provider_id=?" % (",review" if st == "prescription" else "", rtbl, col), (sid, pid_)).fetchone()
                 if not rr or (st == "prescription" and rr["review"] != "approved"): raise E(404, "لا يوجد رد من هذه الصيدلية")  # الرد غير المعتمد من الإدارة لا وجود له عند العميل
-                if rr["status"] != "available": raise E(409, "الصيدلية لم تؤكد توفر الدواء")
+                if st == "prescription":  # phase-58: التوصيل اختياري لأي رد ظاهر للعميل (كامل / جزئي / رد على الأصناف الناقصة)
+                    vq = next((x for x in rx.customer_quotes(c, sid) if int(x["provider_id"]) == int(pid_)), None)
+                    if not vq or not (vq["complete"] or vq["partial"]): raise E(409, "هذا الرد غير متاح لطلب التوصيل حاليًا")
+                elif rr["status"] != "available": raise E(409, "الصيدلية لم تؤكد توفر الدواء")
                 hrs = float(({r["key"]: r["value"] for r in c.execute("SELECT * FROM settings")}).get("stock_fresh_hours", 24))
                 if rr["updated_at"] <= time.time() - hrs * 3600: raise E(409, "رد الصيدلية قديم، اطلب تأكيدًا جديدًا")
-                if st == "prescription" and not c.execute("SELECT 1 FROM prescription_access WHERE prescription_id=? AND provider_id=?", (sid, pid_)).fetchone(): raise E(409, "الصيدلية لم تعد مخوّلة بهذه الروشتة")
-                if st == "prescription" and rx._setting(c, "rx_claim_mode", 0) == 1 and rx.requested_items(c, sid, pid_): raise E(409, "هذه الصيدلية أكدت الأصناف الناقصة فقط؛ لا يمكن إنشاء توصيل للروشتة كاملة من هذا الرد")
+                if st == "prescription" and not c.execute("SELECT 1 FROM prescription_access WHERE prescription_id=? AND provider_id=?", (sid, pid_)).fetchone():
+                    # phase-58: اكتمال البحث (phase-55) بيسحب الصلاحية من باقي الصيدليات؛ ولأن التوصيل اختياري لأي رد ظاهر، اختيار العميل لصيدلية ردّها ظاهر يرجّع لها الصلاحية (عشان تشوف الروشتة وتجهّز الطلب)
+                    if not rx.is_completed(c, sid): raise E(409, "الصيدلية لم تعد مخوّلة بهذه الروشتة")  # سحب إداري/يدوي للصلاحية يفضل مانع
+                    c.execute("INSERT OR IGNORE INTO prescription_access(prescription_id,provider_id) VALUES(?,?)", (sid, pid_))
                 if c.execute("SELECT 1 FROM medical_delivery_links l JOIN delivery_orders o ON o.id=l.order_id WHERE l.source_type=? AND l.source_id=? AND l.provider_id=? AND o.status!='cancelled'", (st, sid, pid_)).fetchone(): raise E(409, "يوجد طلب توصيل لهذا الرد بالفعل")
                 f = region_fee(c, pv["region_id"])
                 if not f: raise E(400, "الدليفري غير متاح في منطقة الصيدلية")

@@ -18,7 +18,7 @@ def page(pg, tok, steps):
     o = subprocess.run(["node", HN, pg, BASE, tok, json.dumps(steps)], capture_output=True, text=True, timeout=60); return json.loads(o.stdout)
 at = call("POST", "/login", {"phone": "01000000000", "password": "AdminPass123"})[1]["token"]; cu = user("01012345678")
 r = page("index", cu, [{"js": "mt='lab';go(4)", "snap": "v", "wait": 1000}])
-ok("no labs: medical tab has no labs segment, falls back to medicines, nothing invented", not r["errs"] and "المعامل" not in r["v"] and "الأدوية" in r["v"] and "الأطباء" in r["v"])
+ok("no labs: medical screen has no labs entry, falls back to the medical home (prescription + doctors), nothing invented", not r["errs"] and "المعامل" not in r["v"] and "ابعت روشتتك" in r["v"] and "الأطباء" in r["v"])
 def add(**k): return call("POST", "/admin/labs", {"name_ar": "معمل الشفاء", "region_id": 3, "address": "شارع المحطة", "hours": "يوميًا 8ص-10م", "tests": "صورة دم كاملة، سكر صائم", "home_visit": True, "phone": "0473111111", **k}, at)[1]["id"]
 l1 = add(); call("POST", f"/admin/labs/{l1}/publish", {"published": True}, at)
 l2 = add(name_ar="مختبر النيل", tests="هرمونات الغدة", home_visit=False, phone="", whatsapp="01055550000"); call("POST", f"/admin/labs/{l2}/publish", {"published": True}, at)

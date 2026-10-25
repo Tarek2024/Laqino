@@ -493,7 +493,10 @@ def _offer_all(c, rx_id, now, requested_items=None):
     if fresh:
         try: c.execute("INSERT INTO audit_log(actor_id,action,target,detail,at) VALUES(NULL,'rx.offer',?,?,?)", (str(rx_id), json.dumps({'provider_ids': fresh, 'requested_items_only': requested_items is not None}), now))
         except Exception: pass
-        for pid in fresh: _notify(c, pid, "rx.offer", "طلب روشتة جديد في منطقتك", "أول صيدلية تقبل الطلب تحصل على حجز مؤقت — روشتة #%d" % rx_id, "pharmacy", rx_id)
+        for pid in fresh:
+            # phase-59 (بند 3): إشعار واحد للصيدلية لكل روشتة؛ إعادة العرض في جولة تانية ما بتكررش الإشعار
+            if c.execute("SELECT 1 FROM notifications WHERE user_id=? AND ref_type='prescription' AND ref_id=? AND kind IN ('provider.prescription','rx.offer')", (pid, rx_id)).fetchone(): continue
+            _notify(c, pid, "rx.offer", "طلب روشتة جديد في منطقتك", "أول صيدلية تقبل الطلب تحصل على حجز مؤقت — روشتة #%d" % rx_id, "pharmacy", rx_id)
     return True
 
 
@@ -799,6 +802,26 @@ def customer_quotes(c, rx_id, now=None):
     return quotes
 
 
+def hidden_provider_ids(c, rx_id, now=None):
+    """phase-61: الصيدليات اللي ردّها معتمد لكنه مخفي عن العميل حاليًا (رد جزئي أثناء البحث). بيتستخدم لتصفية `responses` في قائمة العميل فالعدّاد «ردّت N» ما يعدّش الردود المخفية."""
+    vis = {int(d["provider_id"]) for d in customer_quotes(c, rx_id, now)}
+    return {int(d["provider_id"]) for d in quotes_for(c, rx_id)} - vis
+
+
+def customer_stage(c, rx_id, status, now=None):
+    """phase-59: المرحلة اللي العميل يشوفها. «وصلت ردود» ما تظهرش إلا لو في رد ظاهر له فعلًا؛ الرد الجزئي المخفي أثناء البحث يفضل «عند الصيدليات»."""
+    st = stage_of(c, rx_id, status)
+    if st == "quoted" and not customer_quotes(c, rx_id, now): return "at_pharmacies"
+    return st
+
+
+def customer_aggregate(c, rx_id, now=None):
+    """phase-59: ملخص التوافر للعميل. أثناء البحث (أو بانتظار اعتماد رد) ما يتقالش «توافر جزئي» ولا «لا يوجد توافر مؤكد» لأن الردود دي لسه مخفية."""
+    agg = aggregate_status(c, rx_id)
+    if agg in ("partial", "unavailable") and _claim_mode_for_request(c, rx_id) and search_state(c, rx_id, now) in ("searching", "awaiting_partial_approval"): return "unknown"
+    return agg
+
+
 MONITOR_PAGE = 50
 
 
@@ -1050,13 +1073,14 @@ def handle(h, c, u, method, path, q):
         if not rx: return err(404, "غير موجود")
         if m[2] == "quotes" and method == "GET":
             pend = c.execute("SELECT COUNT(*) FROM prescription_responses WHERE prescription_id=? AND review='pending'", (rid,)).fetchone()[0]
-            ph = [{"pharmacy": t["pharmacy"], "seen": t["seen_at"] is not None, "quoted": t["review"] == "approved"} for t in tracking(c, rid)]
+            hid = hidden_provider_ids(c, rid, now)  # phase-61: «ردّت N» ما تعدّش الرد الجزئي المخفي أثناء البحث
+            ph = [{"pharmacy": t["pharmacy"], "seen": t["seen_at"] is not None, "quoted": t["review"] == "approved" and int(t["provider_id"]) not in hid} for t in tracking(c, rid)]
             total_minutes = int(_setting(c, 'rx_total_timeout_minutes', 60))
             elapsed = max(0, now - int(rx['created_at']))
             timed_out = elapsed >= total_minutes * 60
             quotes = customer_quotes(c, rid, now)
             bp = best_partial(c, rid); sstate = search_state(c, rid, now)
-            h.send(200, {"id": rid, "status": rx["status"], "stage": stage_of(c, rid, rx["status"]), "images": images_of(c, rid), "quotes": quotes, "pending_review": pend, "pharmacies": ph, "timed_out": timed_out, "no_reply": timed_out and not quotes and not pend, "elapsed_seconds": elapsed, "total_timeout_minutes": total_minutes, "best_partial_provider_id": bp['provider_id'] if bp else None, "best_partial": bp if sstate in ("ended_partial", "partial_accepted") else None, "search_state": sstate, "completed": is_completed(c, rid), "completed_at": (lambda z: z[0] if z else None)(c.execute("SELECT completed_at FROM rx_completed WHERE prescription_id=?", (rid,)).fetchone()), "partial_accepted_provider_id": (lambda z: z[0] if z else None)(c.execute("SELECT provider_id FROM rx_partial_accepts WHERE prescription_id=?", (rid,)).fetchone()), "remaining_enabled": _claim_mode_for_request(c, rid), "aggregate_status": aggregate_status(c, rid), "routing_state": routing_state(c, rid, now), "parent_prescription_id": (lambda z: z[0] if z else None)(c.execute("SELECT parent_prescription_id FROM rx_search_links WHERE child_prescription_id=?", (rid,)).fetchone()), "child_searches": [dict(x) for x in c.execute("SELECT p.id,p.status,p.created_at,l.search_kind FROM rx_search_links l JOIN prescriptions p ON p.id=l.child_prescription_id WHERE l.parent_prescription_id=? ORDER BY l.created_at,p.id", (rid,)).fetchall()], "remaining_items": _remaining_items(c, rid) or []}); return True
+            h.send(200, {"id": rid, "status": rx["status"], "stage": customer_stage(c, rid, rx["status"], now), "images": images_of(c, rid), "quotes": quotes, "pending_review": pend, "pharmacies": ph, "timed_out": timed_out, "no_reply": timed_out and not quotes and not pend, "elapsed_seconds": elapsed, "total_timeout_minutes": total_minutes, "best_partial_provider_id": bp['provider_id'] if bp else None, "best_partial": bp if sstate in ("ended_partial", "partial_accepted") else None, "search_state": sstate, "completed": is_completed(c, rid), "completed_at": (lambda z: z[0] if z else None)(c.execute("SELECT completed_at FROM rx_completed WHERE prescription_id=?", (rid,)).fetchone()), "partial_accepted_provider_id": (lambda z: z[0] if z else None)(c.execute("SELECT provider_id FROM rx_partial_accepts WHERE prescription_id=?", (rid,)).fetchone()), "remaining_enabled": _claim_mode_for_request(c, rid), "aggregate_status": customer_aggregate(c, rid, now), "routing_state": routing_state(c, rid, now), "parent_prescription_id": (lambda z: z[0] if z else None)(c.execute("SELECT parent_prescription_id FROM rx_search_links WHERE child_prescription_id=?", (rid,)).fetchone()), "child_searches": [dict(x) for x in c.execute("SELECT p.id,p.status,p.created_at,l.search_kind FROM rx_search_links l JOIN prescriptions p ON p.id=l.child_prescription_id WHERE l.parent_prescription_id=? ORDER BY l.created_at,p.id", (rid,)).fetchall()], "remaining_items": _remaining_items(c, rid) or []}); return True
         if m[2] == "remaining" and method == "POST":
             if rx['status'] == 'closed': return err(409, 'الطلب مغلق بالفعل')
             if not _claim_mode_for_request(c, rid): return err(409, 'ميزة البحث عن باقي الأصناف غير مفعّلة بعد')

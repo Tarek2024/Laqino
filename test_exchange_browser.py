@@ -39,7 +39,7 @@ with sync_playwright() as pw:
         pg.on("console", lambda m: errs.append(m.text) if m.type == "error" and "ERR_TUNNEL" not in m.text and "ERR_NAME_NOT_RESOLVED" not in m.text and "fonts" not in m.text and "status of 4" not in m.text else None)
         pg.add_init_script("try{%s}catch(e){}" % (("sessionStorage.setItem('at','%s')" % token) if admin else "localStorage.setItem('t','%s');localStorage.setItem('rg','3');localStorage.setItem('rgn','x')" % token)); pg.goto(BASE + url); return pg
     # ---- أ تنشر
-    a = page_for(PA, "/pharmacy.html"); a.wait_for_selector("#xt")
+    a = page_for(PA, "/pharmacy.html#x"); a.wait_for_selector("#dxa summary"); a.click("#dxa summary"); a.wait_for_selector("#xt")
     ok("pharmacy panel shows the exchange section", "سوق الصيدليات" in a.inner_text("#m"))
     a.fill("#xt", "أوجمنتين 1 جم"); a.fill("#xd", "علبة ١٤ قرص"); a.fill("#xq", "4"); a.fill("#xe", exp); a.fill("#xo", "100"); a.fill("#xp", "65"); a.set_input_files("#xf", fp)
     a.click("button:has-text('نشر في سوق الصيدليات')"); a.wait_for_selector("text=تم إرسال الإعلان للمراجعة")
@@ -47,7 +47,7 @@ with sync_playwright() as pw:
     ok("A sees own deal as pending review", "قيد المراجعة" in a.inner_text("#exw") and "أوجمنتين" in a.inner_text("#exw"))
     until(a, "document.querySelector('#exw img[data-xi]') && document.querySelector('#exw img[data-xi]').naturalWidth>0")
     ok("owner's image renders from the protected endpoint", True)
-    b = page_for(PB, "/pharmacy.html"); b.wait_for_selector("#exw .card")
+    b = page_for(PB, "/pharmacy.html#x"); b.wait_for_selector("#exw .card")
     ok("B does NOT see the pending deal", "أوجمنتين" not in b.inner_text("#exw"))
     # ---- الإدارة تعتمد من التبويب
     ad = page_for(at, "/admin.html", admin=True); ad.wait_for_selector("nav button"); ad.click("nav button:has-text('سوق الصيدليات')"); ad.wait_for_selector("#v >> text=أوجمنتين")

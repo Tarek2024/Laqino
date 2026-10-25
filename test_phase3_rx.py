@@ -70,7 +70,7 @@ ok("rejected quotes wrote nothing", sql("SELECT COUNT(*) FROM prescription_respo
 s, r = call("POST", Q, {"items": ITEMS, "note": "توصيل متاح"}, pa); ok("pharmacy A quote complete → available, total 95.5", s == 200 and r["status"] == "available" and r["total"] == 95.5)
 s, r = call("POST", f"/provider/prescriptions/{R1}/quote", {"items": [{"name": "باراسيتامول", "qty": 2, "unit_price": 15}, {"name": "فيتامين د", "qty": 1, "unit_price": 50}]}, pb); ok("pharmacy B cheaper total 80", s == 200 and r["total"] == 80)
 ok("response row total matches (old flow keeps working)", sql("SELECT status,price FROM prescription_responses WHERE prescription_id=? AND provider_id=?", (R1, ids["a"]))[0] == ("available", 95.5))
-ok("existing notification trigger tells the customer", sql("SELECT COUNT(*) FROM notifications WHERE user_id=? AND kind LIKE 'medical.%'", (call("GET", "/me", None, cust)[1]["id"],))[0][0] >= 1)
+ok("customer is told a reply arrived (phase-59: rx.quote from rx.py, no generic trigger)", sql("SELECT COUNT(*) FROM notifications WHERE user_id=? AND kind='rx.quote'", (call("GET", "/me", None, cust)[1]["id"],))[0][0] >= 1)
 s, r = call("GET", f"/provider/prescriptions/{R1}/quote", None, pa); ok("pharmacy can read back own lines", s == 200 and [i["name"] for i in r["items"]] == ["باراسيتامول", "فيتامين د"] and r["response"]["price"] == 95.5)
 ok("pharmacy cannot read another pharmacy's lines (no access → 404)", call("GET", f"/provider/prescriptions/{R1}/quote", None, pc)[0] == 404)
 s, r = call("GET", f"/medical/prescriptions/{R1}/quotes", None, cust); qs = r["quotes"]
@@ -88,7 +88,7 @@ qa = next(x for x in call("GET", f"/medical/prescriptions/{R1}/quotes", None, cu
 ok("partial flagged, missing item named, not cheapest", qa["partial"] and qa["missing"] == ["دواء نادر"] and not qa["cheapest"])
 ok("partial ranks after complete quotes", call("GET", f"/medical/prescriptions/{R1}/quotes", None, cust)[1]["quotes"][-1]["pharmacy"] == "صيدلية a")
 ok("quote update replaces lines (no leftovers)", sql("SELECT COUNT(*) FROM rx_quote_items WHERE prescription_id=? AND provider_id=?", (R1, ids["a"]))[0][0] == 2)
-ok("customer cannot order from a partial quote", call("POST", "/medical/delivery", {"source_type": "prescription", "source_id": R1, "provider_id": ids["a"], "dropoff_text": "شارع النيل"}, cust)[0] == 409)
+ok("phase-58: delivery is optional for a visible partial quote (prescription stays open)", call("POST", "/medical/delivery", {"source_type": "prescription", "source_id": R1, "provider_id": ids["a"], "dropoff_text": "شارع النيل"}, cust)[0] == 201 and sql("SELECT status FROM prescriptions WHERE id=?", (R1,))[0][0] != "closed")
 s, r = call("POST", Q, {"items": [{"name": "دواء أ", "available": False}, {"name": "دواء ب", "available": False}]}, pa)
 ok("all-unavailable quote → unavailable, no price", s == 200 and r["status"] == "unavailable" and sql("SELECT price FROM prescription_responses WHERE prescription_id=? AND provider_id=?", (R1, ids["a"]))[0][0] is None)
 call("POST", Q, {"items": ITEMS}, pa)
@@ -104,9 +104,9 @@ ok("stale quote flagged not fresh and not cheapest", qa["fresh"] is False and no
 # ---- إغلاق الروشتة
 ok("another customer cannot close mine", call("POST", f"/medical/prescriptions/{R1}/close", {}, other)[0] == 404 and call("POST", f"/medical/prescriptions/{R1}/close", {})[0] == 401)
 ok("owner closes prescription", call("POST", f"/medical/prescriptions/{R1}/close", {}, cust)[0] == 200 and call("POST", f"/medical/prescriptions/{R1}/close", {}, cust)[0] == 409)
-ok("close revokes access for pharmacies without an order but keeps the ordered one", sql("SELECT provider_id FROM prescription_access WHERE prescription_id=?", (R1,)) == [(ids["b"],)])
+ok("close revokes access for pharmacies without an order but keeps the ordered one", sql("SELECT provider_id FROM prescription_access WHERE prescription_id=?", (R1,)) in ([(ids["b"],)], [(ids["a"],), (ids["b"],)], [(ids["b"],), (ids["a"],)]))
 ok("closed prescription refuses new quotes", call("POST", Q, {"items": ITEMS}, pa)[0] == 404)
-ok("revoked pharmacy cannot fetch the prescription image", call("GET", "/files/%d" % sql("SELECT file_id FROM prescriptions WHERE id=?", (R1,))[0][0], None, pa)[0] in (403, 404))
+ok("phase-58: pharmacy with a delivery order keeps access; others stay revoked", {r[0] for r in sql("SELECT provider_id FROM prescription_access WHERE prescription_id=?", (R1,))} == {r[0] for r in sql("SELECT l.provider_id FROM medical_delivery_links l JOIN delivery_orders o ON o.id=l.order_id WHERE l.source_type='prescription' AND l.source_id=? AND o.status!='cancelled'", (R1,))})
 
 # ---- صلاحية الروشتة (14 يومًا)
 R2 = new_rx(); call("POST", f"/admin/prescriptions/{R2}/forward-many", {"provider_ids": [ids["a"]]}, at)
@@ -140,7 +140,7 @@ rd = lambda p: open(os.path.join(os.path.dirname(os.path.abspath(__file__)), p),
 ph, ad, ix, sw = rd("static/pharmacy.html"), rd("static/admin.html"), rd("static/index.html"), rd("static/sw.js")
 ok("pharmacy UI: line-item quote form wired to /quote", all(x in ph for x in ("window.qsend", "window.qadd", "window.qinit", "/provider/prescriptions/'+id+'/quote", "p.forEach(qinit)")) and "form('p'" not in ph)
 ok("admin UI: multi-select + region forward + auto toggle", all(x in ad for x in ("forward-many", "window.fmany", "/admin/rx/distribution-mode", "تحويل لصيدليات المنطقة")))
-ok("customer UI: comparison + close wired, without cheapest badge", all(x in ix for x in ("const rxq=", "/quotes", "window.rc=", "/close", "rxq(qs[k]")) and "الأرخص" not in ix)
+ok("customer UI: comparison + close wired, without cheapest badge", all(x in ix for x in ("const rxq=", "/quotes", "window.rc=", "/close", "rxq(q,x.id")) and "الأرخص" not in ix)
 ok("every UI string is escaped through esc() for pharmacy/customer data", all(x in ix for x in ("esc(x.pharmacy)", "esc(i.name)")) and "esc(it.name" in ph)
 ok("service worker cache version >= v32", (lambda m: bool(m) and int(m.group(1)) >= 32)(__import__("re").search(r'const V = "laqino-v(\d+)"', sw)))
 print("ALL PASSED")

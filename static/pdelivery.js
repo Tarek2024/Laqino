@@ -1,4 +1,4 @@
-// لاقينو — المرحلة 40: بطاقة «اطلب دليفري» في لوحة الصيدلية. ملحق مستقل عن pharmacy.html: يُحمَّل بعد سكربت الصفحة ويحقن بطاقته أعلى اللوحة
+// لاقينو — المرحلة 40: بطاقة «اطلب دليفري» في لوحة الصيدلية. ملحق مستقل عن pharmacy.html: يُحمَّل بعد سكربت الصفحة ويحقن بطاقته في #dlslot (أعلى تبويب الطلبات؛ المرحلة 62) أو أعلى #m لو الخانة غير موجودة
 // (MutationObserver على #m) بدون تعديل دالة load(). يعتمد على globals الصفحة: $ و esc و api و T. يظهر فقط حين تفعّله الإدارة (المفتاح العام).
 (()=>{
 const DLS={searching:'بانتظار مندوب',assigned:'تم قبول الطلب',heading_pickup:'المندوب في الطريق إليك',picked_up:'تم الاستلام',completed:'تم تسليم الأوردر للمندوب ✓',cancelled:'ملغي',disputed:'قيد المراجعة'};
@@ -10,7 +10,7 @@ const card=d=>`<div class="dl" id="dlw"><h3>اطلب مندوب</h3><p class="su
 const panel=()=>document.getElementById('m')&&document.getElementById('sn');  // حقل «تأكيد توافر دواء»: يوجد فقط للصيدلية المعتمدة
 async function fetchState(){try{PDC=await api('/provider/delivery-requests')}catch(e){PDC={enabled:false,items:[]}}}
 function put(){const mm=document.getElementById('m');if(!mm||document.getElementById('dlw')||!panel())return;
- if(PDC){if(PDC.enabled){mm.insertAdjacentHTML('afterbegin',card(PDC));const a=document.getElementById('dla');if(a)a.value=TYP}}
+ if(PDC){if(PDC.enabled){const sl=document.getElementById('dlslot');(sl||mm).insertAdjacentHTML(sl?'beforeend':'afterbegin',card(PDC));const a=document.getElementById('dla');if(a)a.value=TYP}}
  else if(!BZ){BZ=1;fetchState().then(()=>{BZ=0;put()})}}
 async function poll(){if(!T||!panel())return;await fetchState();const w=document.getElementById('dlw');if(!PDC.enabled){if(w)w.remove();return}if(!w){put();return}const it=PDC.items;document.getElementById('dlr').classList.toggle('go',it.some(x=>x.status=='searching'));document.getElementById('dls').textContent=dltxt(it);document.getElementById('dll').innerHTML=dlrows(it);if(!DLB){const b=document.getElementById('dlb');if(b){b.disabled=false;setTimeout(()=>b.classList.remove('on'),350)}}}
 window.dlsend=async()=>{if(DLB)return;DLB=1;const b=document.getElementById('dlb');if(b){b.disabled=true;b.classList.add('on')}const r=document.getElementById('dlr');if(r)r.classList.add('go');navigator.vibrate&&navigator.vibrate(25);
