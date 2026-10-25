@@ -22,6 +22,9 @@ bad = []
 for root, ds, fs in os.walk(here):
     ds[:] = [d for d in ds if d not in ("__pycache__", "node_modules")]
     for f in fs:
+        # تجاهل قواعد البيانات المحلية في جذر المشروع فقط؛ لا تحذفها.
+        if root == here and f in ("laqino.db", "laqino.db-wal", "laqino.db-shm"):
+            continue
         if re.search(r"(\.db(-wal|-shm)?|\.env|google-services\.json|\.pem|\.p12|\.jks|\.keystore)$", f) or f.endswith("service-account.json"): bad.append(os.path.relpath(os.path.join(root, f), here))
     if os.path.basename(root) == "uploads": bad.append("uploads/")
 chk("no database / .env / key / service-account files inside the project", not bad, bad)

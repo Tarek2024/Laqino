@@ -5,6 +5,7 @@ import server
 from http.server import ThreadingHTTPServer
 from imgutil import png
 server.init("01000000000", "AdminPass123")
+import sqlite3 as _sq; _m=_sq.connect(os.environ['LAQINO_DB']); _m.execute("INSERT OR REPLACE INTO settings(key,value) VALUES('rx_manual_review','1')"); _m.commit(); _m.close()  # phase-56: تغطية الاعتماد اليدوي (المفتاح الاحتياطي من phase-54)
 threading.Thread(target=ThreadingHTTPServer(("127.0.0.1", 8814), server.H).serve_forever, daemon=True).start(); time.sleep(.3)
 BASE = "http://127.0.0.1:8814"; DB = os.environ["LAQINO_DB"]
 def raw(m, p, d=None, t=None):

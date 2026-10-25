@@ -339,7 +339,7 @@ OPEN_ORDERS = "('searching','assigned','heading_pickup','picked_up','heading_cus
 COUNT_SQL = {
     "orders": "SELECT COUNT(*) FROM delivery_orders WHERE customer_id=? AND status IN " + OPEN_ORDERS,
     "inquiries": "SELECT COUNT(*) FROM medicine_inquiries WHERE customer_id=? AND status='open'",
-    "prescriptions": "SELECT COUNT(*) FROM prescriptions WHERE customer_id=? AND status!='closed'",
+    "prescriptions": "SELECT COUNT(*) FROM prescriptions WHERE customer_id=? AND status!='closed' AND id NOT IN (SELECT prescription_id FROM rx_completed)",  # المرحلة 55: المكتملة لا تُحسب
     # Count only standalone/unattached uploads against the temporary 20-file quota.
     # Once a file is attached to a feature, that feature's own quota/policy applies.
     # This deliberately excludes courier verification documents and avatars too;
@@ -1986,6 +1986,7 @@ class H(BaseHTTPRequestHandler):
                     if price <= 0: raise E(400, "أدخل السعر عند تأكيد التوفر")
                 else: price = None
                 c.execute("INSERT INTO %s(%s,provider_id,status,price,note,updated_at) VALUES(?,?,?,?,?,?) ON CONFLICT(%s,provider_id) DO UPDATE SET status=excluded.status,price=excluded.price,note=excluded.note,updated_at=excluded.updated_at" % (table, col, col), (pid_, u["id"], st, price, str(d.get("note", ""))[:300], int(time.time())))
+                if table == "prescription_responses": rx.auto_approve_response(c, pid_, u["id"], st)  # المرحلة 57: اعتماد تلقائي كمسار /quote (إلا لو الاعتماد اليدوي مفعّل)
                 c.commit(); return self.send(200, {"ok": True})
             def resp_rows(table, col, id_): return [dict(r) for r in c.execute("SELECT x.provider_id,p.name_ar pharmacy,x.status,x.price,x.note,x.updated_at,(SELECT d.order_id FROM medical_delivery_links d JOIN delivery_orders o ON o.id=d.order_id WHERE d.source_type=? AND d.source_id=x.%s AND d.provider_id=x.provider_id AND o.status!='cancelled' ORDER BY d.order_id DESC LIMIT 1) delivery_order_id FROM %s x JOIN providers p ON p.user_id=x.provider_id WHERE x.%s=?%s ORDER BY x.updated_at DESC" % (col, table, col, " AND x.review='approved'" if table == "prescription_responses" else ""), ("inquiry" if table == "inquiry_responses" else "prescription", id_))]
             if method == "POST" and path == "/api/providers/apply":
@@ -2051,7 +2052,7 @@ class H(BaseHTTPRequestHandler):
                 old = c.execute('SELECT * FROM providers WHERE user_id=?', (pid,)).fetchone()
                 if not old: raise E(404, "الصيدلية غير موجودة")
                 rid = d.get('region_id', old['region_id'])
-                if not c.execute("SELECT 1 FROM regions WHERE id=? AND level IN ('markaz','village','zone')", (rid,)).fetchone(): raise E(400, "اختر مركزًا أو منطقة صالحة")
+                if not c.execute("SELECT 1 FROM regions WHERE id=? AND level IN ('governorate','markaz','village','zone')", (rid,)).fetchone(): raise E(400, "اختر محافظة أو مركزًا أو منطقة صالحة")  # المرحلة 57: ربط الصيدلية بمحافظة كاملة
                 lat, lng = old['lat'], old['lng']
                 if 'lat' in d or 'lng' in d: lat, lng = geo_pair(d.get('lat'), d.get('lng'))
                 enabled = int(bool(d.get('distribution_enabled', old['distribution_enabled'])))

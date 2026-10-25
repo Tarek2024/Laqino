@@ -8,6 +8,7 @@ os.environ["LAQINO_UPLOADS"] = tempfile.mkdtemp(prefix="laqino-p53-up-")
 import server
 rx = server.rx
 server.init("01000000000", "AdminPass123")
+import sqlite3 as _sq; _m=_sq.connect(os.environ['LAQINO_DB']); _m.execute("INSERT OR REPLACE INTO settings(key,value) VALUES('rx_manual_review','1')"); _m.commit(); _m.close()  # phase-56: تغطية الاعتماد اليدوي (المفتاح الاحتياطي من phase-54)
 now = int(time.time())
 c = server.db()
 
@@ -103,10 +104,10 @@ it = lambda n, st: {"name": n, "qty": 1, "unit_price": 10 if st == "available" e
 accept(P[0], r2); quote(P[0], r2, [it("اموكسيسيللين", "available"), it("بنادول", "unavailable"), it("فيتامين")] if False else [it("اموكسيسيللين", "available"), it("بنادول", "unavailable"), it("فولتارين", "needs_confirmation")])
 op = {x[0] for x in c.execute("SELECT provider_id FROM rx_offers WHERE prescription_id=? AND state='open'", (r2,))}
 assert op == set(P[1:]), "إعادة البث بعد الرد الجزئي لمن لم يجرّب"
-assert [i["name"] for i in rx.requested_items(c, r2, P[1])] == ["بنادول", "فولتارين"]
+assert rx.requested_items(c, r2, P[1]) == [], "المرحلة 56: إعادة التوزيع للروشتة كلها، مش الناقص بس"
 assert rx.search_state(c, r2) == "searching"
-accept(P[1], r2); quote(P[1], r2, [it("بنادول", "available"), it("فولتارين", "unavailable")])
-accept(P[2], r2); quote(P[2], r2, [it("فولتارين", "unavailable")])
+accept(P[1], r2); quote(P[1], r2, [it("اموكسيسيللين", "available"), it("بنادول", "available"), it("فولتارين", "unavailable")])
+accept(P[2], r2); quote(P[2], r2, [it("اموكسيسيللين", "unavailable"), it("بنادول", "unavailable"), it("فولتارين", "unavailable")])
 for pid in P[3:9]:
     assert rx.search_state(c, r2) == "searching"
     assert call(U(pid), "POST", "/api/provider/prescriptions/%d/decline" % r2)[0] == 200
@@ -122,7 +123,7 @@ print("PASS الاعتذار والردود الجزئية وإعادة البث
 code, qs = call(CUST, "GET", "/api/medical/prescriptions/%d/quotes" % r2)
 bp = qs["best_partial"]
 assert code == 200 and qs["search_state"] == "ended_partial" and bp["provider_id"] == P[1], bp
-assert [x["name"] for x in bp["confirmed"]] == ["بنادول"] and [x["name"] for x in bp["unavailable"]] == ["فولتارين"] and bp["undecided"] == []
+assert [x["name"] for x in bp["confirmed"]] == ["اموكسيسيللين", "بنادول"] and [x["name"] for x in bp["unavailable"]] == ["فولتارين"] and bp["undecided"] == []
 c0 = [d for d in rx.quotes_for(c, r2) if d["provider_id"] == P[0]][0]
 v0 = rx._partial_view(c0); assert [x["name"] for x in v0["undecided"]] == ["فولتارين"] and v0["unavailable"] != v0["undecided"], "المجهول لا يُعرض كغير متوفر"
 assert call(CUST, "POST", "/api/medical/prescriptions/%d/accept-partial" % r2, {"provider_id": P[0]})[0] == 409

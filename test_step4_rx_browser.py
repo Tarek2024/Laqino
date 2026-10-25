@@ -58,7 +58,7 @@ with sync_playwright() as pw:
     pp = page_for(PH, "/pharmacy.html"); pp.wait_for_selector("img[data-im]", timeout=8000); pp.wait_for_timeout(800)
     ok("pharmacy page shows all 3 images", pp.locator("img[data-im]").count() == 3)
     ok("pharmacy opening the images marked it as seen", sql("SELECT COUNT(*) FROM rx_seen WHERE prescription_id=?", (R,))[0][0] == 1)
-    pp.fill(f"#qr{R} .qn >> nth=0", "باراسيتامول"); pp.fill(f"#qr{R} .qp >> nth=0", "25"); pp.click("button:has-text('إرسال التسعيرة')"); pp.wait_for_selector("text=بانتظار اعتماد الإدارة", timeout=8000)
+    pp.fill(f"#qr{R} .qn >> nth=0", "باراسيتامول"); pp.fill(f"#qr{R} .qp >> nth=0", "25"); pp.click("button:has-text('الروشتة كاملة')"); pp.wait_for_selector("text=بانتظار اعتماد الإدارة", timeout=8000)
     ok("pharmacy sees its quote is waiting for approval", sql("SELECT review FROM prescription_responses")[0][0] == "pending")
     pc.evaluate("go(4)"); pc.wait_for_timeout(900)
     ok("customer sees no quote yet but a review notice", "تُراجعها الإدارة" in pc.inner_text("body") and "باراسيتامول" not in pc.inner_text("body"))

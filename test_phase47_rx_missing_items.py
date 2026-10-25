@@ -6,6 +6,7 @@ import server, rx
 from http.server import ThreadingHTTPServer
 from imgutil import png
 server.init('01000000000', 'AdminPass123')
+import sqlite3 as _sq; _m=_sq.connect(os.environ['LAQINO_DB']); _m.execute("INSERT OR REPLACE INTO settings(key,value) VALUES('rx_manual_review','1')"); _m.commit(); _m.close()  # phase-56: تغطية الاعتماد اليدوي (المفتاح الاحتياطي من phase-54)
 httpd=ThreadingHTTPServer(('127.0.0.1',0),server.H); threading.Thread(target=httpd.serve_forever,daemon=True).start()
 BASE='http://127.0.0.1:%s'%httpd.server_address[1]; DB=os.environ['LAQINO_DB']
 
@@ -72,21 +73,19 @@ try:
     [w.start() for w in workers]; barrier.wait(); [w.join() for w in workers]
     active=sql("SELECT provider_id FROM rx_claims WHERE prescription_id=? AND status='active'",(rxid,))
     scope=sql('SELECT name,qty FROM rx_claim_items WHERE prescription_id=? AND provider_id=? ORDER BY line_no',(rxid,p2))
-    check('simultaneous admin approvals cannot duplicate redistribution',sorted(review_results)==[200,409] and len(active)==1 and active[0]['provider_id']==p2 and [x['name'] for x in scope]==['دواء د','دواء هـ'])
+    check('simultaneous admin approvals cannot duplicate redistribution',sorted(review_results)==[200,409] and len(active)==1 and active[0]['provider_id']==p2 and scope==[])  # phase-56: الروشتة كلها بدل الناقص فقط
     st,plist=call('GET','/provider/prescriptions',token=t2)
     row=next((x for x in plist if x['id']==rxid),{})
-    check('next pharmacy sees the missing-item list in its work queue',st==200 and [x['name'] for x in row.get('requested_items',[])]==['دواء د','دواء هـ'])
-    p2items=[{'name':'دواء د','qty':1,'unit_price':8,'item_status':'available'},{'name':'دواء هـ','qty':1,'item_status':'needs_confirmation'}]
+    check('next pharmacy gets the whole prescription (no missing-item scope) in its work queue',st==200 and row.get('requested_items',[])==[])
+    p2items=[{'name':'دواء أ','qty':1,'item_status':'unavailable'},{'name':'دواء ب','qty':1,'item_status':'unavailable'},{'name':'دواء ج','qty':1,'item_status':'unavailable'},{'name':'دواء د','qty':1,'unit_price':8,'item_status':'available'},{'name':'دواء هـ','qty':1,'item_status':'needs_confirmation'}]
     st,r=call('POST',f'/provider/prescriptions/{rxid}/quote',{'items':p2items,'confirm_all':False},t2)
     check('pharmacy can mark an individual item as needing review',st==200 and r['status']=='needs_confirmation')
     call('POST',f'/admin/rx/responses/{rxid}/{p2}/review',{'decision':'approve'},admin)
     active=sql("SELECT provider_id FROM rx_claims WHERE prescription_id=? AND status='active'",(rxid,))
     scope3=sql('SELECT name,qty FROM rx_claim_items WHERE prescription_id=? AND provider_id=? ORDER BY line_no',(rxid,p3))
-    check('after the second partial response, only the remaining item is assigned',len(active)==1 and active[0]['provider_id']==p3 and [x['name'] for x in scope3]==['دواء هـ'])
-    st,_=call('POST',f'/provider/prescriptions/{rxid}/quote',{'items':[{'name':'دواء د','qty':1,'unit_price':8,'item_status':'available'},{'name':'دواء هـ','qty':1,'unit_price':7,'item_status':'available'}],'confirm_all':True},t3)
-    check('server rejects extra items outside the assigned missing-item scope',st==400)
-    st,r=call('POST',f'/provider/prescriptions/{rxid}/quote',{'items':[{'name':'دواء هـ','qty':1,'unit_price':7,'item_status':'available'}],'confirm_all':True},t3)
-    check('third pharmacy can explicitly confirm the last missing item',st==200 and r['status']=='available')
+    check('after the second partial response, the whole prescription goes to the next pharmacy',len(active)==1 and active[0]['provider_id']==p3 and scope3==[])
+    st,r=call('POST',f'/provider/prescriptions/{rxid}/quote',{'items':[{'name':'دواء أ','qty':1,'item_status':'unavailable'},{'name':'دواء ب','qty':1,'item_status':'unavailable'},{'name':'دواء ج','qty':1,'item_status':'unavailable'},{'name':'دواء د','qty':1,'item_status':'unavailable'},{'name':'دواء هـ','qty':1,'unit_price':7,'item_status':'available'}],'send_mode':'partial'},t3)
+    check('third pharmacy quotes the whole prescription and confirms the last missing item',st==200 and r['status']=='needs_confirmation')
     st,_=call('POST',f'/admin/rx/responses/{rxid}/{p3}/review',{'decision':'approve'},admin)
     data=call('GET',f'/medical/prescriptions/{rxid}/quotes',None,cust)[1]
     listing=call('GET','/medical/prescriptions',None,cust)[1]
@@ -95,7 +94,7 @@ try:
     check('aggregate status becomes complete only after every expected item is approved available',st==200 and pres['aggregate_status']=='complete' and data['aggregate_status']=='complete' and not active)
     check('all previous pharmacy responses remain visible in the customer history',len(data['quotes'])==3 and {x['provider_id'] for x in data['quotes']}=={p1,p2,p3})
     st,delivery=call('POST','/medical/delivery',{'source_type':'prescription','source_id':rxid,'provider_id':p3,'dropoff_text':'شارع البحر'},cust)
-    check('partial-scope quote cannot create a whole-prescription delivery order',st==409 and 'الأصناف الناقصة فقط' in delivery.get('error',''))
+    check('a partial quote (not every item confirmed) cannot create a delivery order',st==409 and 'لم تؤكد' in delivery.get('error',''))
 
     # A single pharmacy's fully confirmed complete quote ends routing immediately and remains eligible for the existing delivery flow.
     fid2=call('POST','/files',{'data':png()},cust)[1]['id']

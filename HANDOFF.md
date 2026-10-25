@@ -1,6 +1,20 @@
-# HANDOFF — لاقينو (التحديث التراكمي phase-53)
+# HANDOFF — لاقينو (التحديث التراكمي phase-57)
 
-> الإصدار الأساسي `phase-53`؛ كاش الواجهة الحالي `laqino-v88`.
+> الإصدار الأساسي `phase-57`؛ كاش الواجهة الحالي `laqino-v92` (السابق laqino-v90).
+
+## phase-55 — قفل البحث تلقائيًا لما الرد يكتمل
+- `rx.py`: جدول `rx_completed` + `is_completed` / `mark_completed` / `open_prescription_count`؛ `complete_claim_on_full_approval` و`_claim_next` بيستدعوا القفل؛ `stage_of` بترجع `completed`؛ حارس في `_claim_next` يمنع إعادة التوزيع (ويفتح البحث تاني لو الاكتمال اتراجع)؛ بحث النواقص الفرعي لما يكتمل بيقفل الأصل كمان؛ `/quotes` بترجع `completed` و`completed_at`.
+- `server.py`: حد الـ5 روشتات مفتوحة مابيحسبش المكتملة.
+- `static/index.html` و`static/admin.html`: تسمية مرحلة «اكتمل». `sw.js`/`VERSION`: v90.
+- القرار: الطلب مش بيبقى `closed` (يكسر التوصيل) — لو عايز `closed` فعلًا لازم تعديل `/api/medical/delivery` وواجهة العميل وقائمة الصيدلية.
+- اختبار: `test_phase55_rx_auto_complete.py`.
+
+## phase-54 — اعتماد تلقائي لردود الروشتات + شاشة متابعة
+- **الجزء 1 — إلغاء الاعتماد اليدوي:** رد الصيدلية على الروشتة يُعتمد تلقائيًا فور وصوله (`review=approved`) ويشغّل منطق الحجز والنواقص (`advance_claim_after_review`). إشعار الإدارة «بانتظار الاعتماد» موقوف، وإشعار «ردّت + السعر» أُزيل عن الروشتات فقط (الاستعلامات كما هي). العميل يصله إشعار واحد «وصلك رد على روشتتك» بلا سعر. مفتاح رجوع مخفي: تبويب الروشتات ← «إعدادات متقدمة» (`rx_manual_review`، مقفول افتراضيًا، admin فقط، مسجَّل في audit_log كـ`rx.manual_review`). نص الصيدلية: «✔ ظهر ردك للعميل».
+- **الجزء 2 — شاشة المتابعة (قراءة فقط):** تبويب «متابعة الروشتات» و`GET /api/admin/rx/monitor?status=all|pending|forwarded|closed&before=<id>` (50 في الصفحة + تحميل المزيد + فلتر حالة، المغلقة ظاهرة). لكل روشتة: كل صيدلية وحالتها (ردّت+السعر، حجز+وقت الانتهاء، انتهى الحجز، اعتذرت، معروض، استلمت…)، حالة البحث، النواقص، وطلبات النواقص المرتبطة. لا كتابة في القاعدة (مثبت باختبار).
+- **الملفات:** `rx.py`, `notif.py`, `static/pharmacy.html`, `static/admin.html`, `static/sw.js`, `VERSION`. اختبارات: `test_phase54_rx_auto_review.py`, `test_phase54_rx_monitor.py`, `test_phase54_rx_browser.py`، وعُدّلت `test_phase3_rx.py`, `test_step4_rx.py`, `test_phase47_rx_missing_items.py`, `test_phase53_rx_broadcast_accept.py` (الثلاثة الأخيرة تفعّل مفتاح الرجوع أو تحذف خطوة الاعتماد).
+- **لم يُجرَّب:** هاتف حقيقي، Docker، FCM/Push حقيقي. `test_step4_rx_browser.py` يفشل في الأصل نفسه (لا يجد زر «إرسال للمراجعة») وليس من هذا التعديل.
+
 
 ## التوزيع المتزامن والقبول الذري (فوق phase-52)
 - **مفتاح الوضع:** `POST/GET /api/admin/rx/distribution-mode` {mode: auto|manual} محفوظ في `settings.rx_distribution_mode`، والافتراضي `manual`. `auto` يضبط `rx_claim_mode=1`، و`manual` يضبطه `0` ويوقف `rx_auto_forward`. التبديل يسري على الطلبات الجديدة فقط ولا يحذف طلبات ولا ردودًا ولا حجوزات.
