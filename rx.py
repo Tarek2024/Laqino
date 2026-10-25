@@ -773,7 +773,8 @@ def quotes_for(c, rx_id, approved_only=True):
         d["complete"] = r["status"] == "available"
         d["partial"] = r["status"] == "needs_confirmation" and any(i["available"] for i in d["items"])
         d["missing"] = [i["name"] for i in d["items"] if i.get("item_status") != "available"]
-        d["requested_items_only"] = bool(requested_items(c, rx_id, r["provider_id"]))
+        _req = requested_items(c, rx_id, r["provider_id"])
+        d["requested_items_only"] = bool(_req)
         d["scope_label"] = "رد على الأصناف الناقصة فقط" if d["requested_items_only"] else "رد على الروشتة"
         out.append(d)
     rank = lambda d: (0 if d["complete"] and d["fresh"] else 1 if d["complete"] else 2 if d["partial"] else 3, -sum(1 for i in d.get("items", []) if i["available"]) if d["partial"] else (d["price"] if d["price"] is not None else 0), d["updated_at"] if d["partial"] else -d["updated_at"])

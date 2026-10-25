@@ -472,3 +472,75 @@ body.app .rx-thumb img{border-radius:14px}
 body.app .rx-thumb button{display:grid!important;place-items:center;top:-6px;left:-6px;width:28px!important;height:28px!important;min-height:0!important;margin:0!important;padding:0!important;border:2px solid #fff!important;border-radius:50%!important;background:#142f66!important;color:#fff!important;font-size:16px;line-height:1;box-shadow:none!important}
 body.app .rx-add{min-height:96px;width:96px}
 body.app .medfoot{margin:6px 0 14px;text-align:center;font-size:.8rem}body.app .medfoot a{color:#5b6577;text-decoration:underline}
+
+/* phase-62: كارت رد الصيدلية + صفحة الرد الكاملة (شاشتان). الألوان من متغيرات app.css الحالية */
+body.app .qcard{position:relative;display:block;background:#fff;border:1.5px solid var(--line);border-radius:18px;padding:14px 16px;margin:10px 0;cursor:pointer;box-shadow:0 1px 2px #0f2a5c0f;text-align:start}
+body.app .qcard:focus-visible{outline:3px solid var(--orange);outline-offset:2px}
+body.app .qcard:active{transform:scale(.99)}
+body.app .qcard.best{border:2.5px solid var(--navy2);background:linear-gradient(#f4f8ff,#fff 60%);padding-top:22px}
+body.app .qbest{position:absolute;top:-1px;inset-inline-start:14px;transform:translateY(-50%);background:var(--navy2);color:#fff;font:700 .78rem var(--fb);padding:3px 12px;border-radius:999px}
+body.app .qh{display:flex;align-items:center;justify-content:space-between;gap:10px}
+body.app .qh b,body.app .qh h3{font-size:1.05rem;margin:0;color:var(--navy)}
+body.app .qb{flex:none;font:700 .8rem var(--fb);padding:3px 12px;border-radius:999px}
+body.app .qb.ok{background:#dff3e6;color:var(--ok)}
+body.app .qb.wn{background:#fff1bd;color:#8a5a00}
+body.app .qb.no{background:#fbe9e7;color:var(--bad)}
+body.app .qm{display:flex;align-items:center;justify-content:space-between;gap:8px;margin:8px 0 4px}
+body.app .qtot{font:800 1.9rem/1.1 var(--fd);color:var(--navy-d)}
+body.app .qcur{font:700 1rem var(--fb);color:var(--mute)}
+body.app .qcnt{display:block;font:600 .85rem var(--fb);color:var(--mute);margin-top:2px}
+body.app .qar{flex:none;color:var(--navy2);background:var(--sky-bg);border-radius:50%;padding:7px;box-sizing:content-box}
+body.app .qd .qh{margin-bottom:4px}
+body.app .qt{width:100%;border-collapse:collapse;margin:12px 0 6px;font-size:.9rem}
+body.app .qt th{font:700 .75rem var(--fb);color:var(--mute);text-align:start;padding:6px 4px;border-bottom:2px solid var(--line)}
+body.app .qt td{padding:9px 4px;border-bottom:1px solid #edf1f8;vertical-align:middle}
+body.app .qt td:first-child{font-weight:700;color:var(--ink)}
+body.app .qt tr.no td:first-child,body.app .qt tr.no td:nth-child(2),body.app .qt tr.no td:nth-child(3){color:var(--mute)}
+body.app .qt td:last-child,body.app .qt th:last-child{text-align:center;width:44px}
+body.app .qi{display:inline-flex;align-items:center;justify-content:center;width:26px;height:26px;border-radius:50%;font:800 .85rem var(--fb)}
+body.app .qi.ok{background:#dff3e6;color:var(--ok)}
+body.app .qi.wn{background:#fff1bd;color:#8a5a00}
+body.app .qi.no{background:#fbe9e7;color:var(--bad)}
+body.app .qlg{display:flex;flex-wrap:wrap;gap:6px 14px;font-size:.78rem;color:var(--mute);margin:4px 0 10px}
+body.app .qlg .qi{width:20px;height:20px;font-size:.7rem;vertical-align:middle}
+body.app .qtotbox{display:flex;align-items:center;justify-content:space-between;background:var(--navy);color:#fff;border-radius:16px;padding:14px 18px;margin:10px 0}
+body.app .qtotbox span{font:700 1rem var(--fb)}
+body.app .qtotbox b{font:800 1.8rem var(--fd);color:#fff}
+body.app .qnote{background:var(--sand-bg);border-radius:14px;padding:10px 14px;margin:8px 0;font-size:.92rem}
+body.app button.qdel{min-height:56px;font-size:1.1rem;margin-top:12px}
+body.app .qt th{white-space:nowrap;padding-inline:3px}
+body.app .qt td:nth-child(2),body.app .qt td:nth-child(3){white-space:nowrap}
+body.app button.qdel{height:auto;padding:12px 18px;line-height:1.4}
+
+/* phase-62b: شكل مجسّم (حافة سفلية + ظل طبقات + لمعة علوية، زي أزرار التطبيق) وأصناف كبطاقات واضحة */
+body.app .qcard{border:1.5px solid #d3dcee;border-bottom-width:5px;border-radius:20px;background:linear-gradient(180deg,#fff 0,#f7f9fe 100%);box-shadow:0 1px 0 #fff inset,0 2px 0 #e6ecf7,0 8px 18px -6px #0f2a5c33;transition:transform .12s,box-shadow .12s}
+body.app .qcard:active{transform:translateY(3px);border-bottom-width:2px;box-shadow:0 1px 0 #fff inset,0 3px 8px -4px #0f2a5c33}
+body.app .qcard.best{border-color:var(--navy2);border-bottom-color:var(--navy);background:linear-gradient(180deg,#fff 0,#e9f0ff 100%);box-shadow:0 1px 0 #fff inset,0 10px 22px -6px #1b3f8666}
+body.app .qbest{background:linear-gradient(180deg,#2a5bbd,var(--navy));box-shadow:0 3px 0 #0a1d44,0 6px 10px -3px #0f2a5c66}
+body.app .qb{box-shadow:0 2px 0 #00000014;border:1px solid #00000010}
+body.app .qar{background:linear-gradient(180deg,#fff,#dbe6fb);box-shadow:0 3px 0 #b9c9ea,0 5px 8px -3px #0f2a5c44}
+body.app .qd{border-bottom:5px solid #d3dcee!important;box-shadow:0 10px 24px -8px #0f2a5c40!important}
+/* الأصناف: كل صنف بطاقة بشريط حالة ملوّن وأيقونة كبيرة */
+body.app .qt,body.app .qt tbody{display:block;width:100%}
+body.app .qt thead{display:none}
+body.app .qt{margin:14px 0 6px}
+body.app .qt tr{display:grid;grid-template-columns:44px 1fr auto;grid-template-areas:"ic nm tt" "ic qp tt";column-gap:12px;row-gap:2px;align-items:center;background:#fff;border:1px solid #e1e8f5;border-inline-start:6px solid var(--ok);border-radius:16px;padding:10px 12px;margin-bottom:9px;box-shadow:0 3px 0 #e3eaf6,0 7px 12px -8px #0f2a5c40}
+body.app .qt tr.wn{border-inline-start-color:#e0a100;background:linear-gradient(#fffdf3,#fff)}
+body.app .qt tr.no{border-inline-start-color:var(--bad);background:#fafafa}
+body.app .qt td{display:block;border:0;padding:0}
+body.app .qt td:nth-child(1){grid-area:nm;font:800 1.02rem/1.35 var(--fb);color:var(--ink)}
+body.app .qt td:nth-child(2){grid-area:qp;font:600 .86rem var(--fb);color:var(--mute)!important;direction:rtl}
+body.app .qt td:nth-child(3){grid-area:tt;font:800 1.15rem var(--fd);color:var(--navy-d)!important;text-align:end}
+body.app .qt tr.ok td:nth-child(3):not(:empty)::after{content:" ج";font:700 .8rem var(--fb);color:var(--mute)}
+body.app .qt tr.no td:nth-child(1){text-decoration:line-through;text-decoration-color:#b3261e66}
+body.app .qt tr.no td:nth-child(3),body.app .qt tr.wn td:nth-child(3){color:var(--mute)!important}
+body.app .qt td:nth-child(4){grid-area:ic;width:auto;text-align:center}
+body.app .qt td .qi{width:40px;height:40px;font-size:1.25rem;box-shadow:0 3px 0 #00000018,inset 0 2px 0 #ffffff99}
+body.app .qt .qi.ok{background:linear-gradient(180deg,#e9f9ef,#c9ecd6);border:1.5px solid #9bd3b0}
+body.app .qt .qi.wn{background:linear-gradient(180deg,#fff7d6,#ffe79a);border:1.5px solid #e8c457}
+body.app .qt .qi.no{background:linear-gradient(180deg,#fdeeec,#f6cfca);border:1.5px solid #e7a9a2}
+body.app .qlg{justify-content:center;background:#f3f6fc;border-radius:12px;padding:8px}
+body.app .qtotbox{background:linear-gradient(180deg,#1b3f86,var(--navy-d));border-bottom:5px solid #06122e;box-shadow:0 10px 20px -8px #0f2a5c80,inset 0 2px 0 #ffffff26}
+body.app .qnote{border:1px solid #f1d9b3;border-bottom-width:3px}
+body.app button.qdel{border-bottom:5px solid var(--orange-d);box-shadow:0 8px 16px -6px #c96a0080}
+body.app button.qdel:active{transform:translateY(3px);border-bottom-width:2px}
