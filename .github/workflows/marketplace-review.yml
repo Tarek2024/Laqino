@@ -1,0 +1,40 @@
+name: Marketplace ad management review
+on:
+  push:
+    branches: [feature/marketplace-ad-management]
+  pull_request:
+    branches: [main]
+jobs:
+  marketplace-regression:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Compile changed Python files
+        run: python -m py_compile server.py market.py test_phase_marketplace_ad_management.py
+      - name: Run isolated marketplace regression tests
+        run: python test_phase_marketplace_ad_management.py
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+      - name: Syntax-check inline page scripts
+        run: |
+          python - <<'PY'
+          import pathlib, re
+          files = [pathlib.Path('static/index.html'), pathlib.Path('static/market.html')]
+          out = pathlib.Path('/tmp/laqino-inline-js')
+          out.mkdir(exist_ok=True)
+          n = 0
+          for page in files:
+              source = page.read_text(encoding='utf-8')
+              for script in re.findall(r'<script(?:\\s[^>]*)?>([\\s\\S]*?)</script>', source, re.I):
+                  if not script.strip():
+                      continue
+                  target = out / f'check-{n}.js'
+                  target.write_text(script, encoding='utf-8')
+                  n += 1
+          print(f'Extracted {n} inline scripts')
+          PY
+          for f in /tmp/laqino-inline-js/*.js; do node --check "$f"; done
