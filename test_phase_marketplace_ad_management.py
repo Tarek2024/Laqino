@@ -103,7 +103,7 @@ ok("service-worker cache version bumped for gold featured design", '"laqino-v108
 
 ok("home latest marketplace cards show listing photos", "home-market-photo" in idx and "l.images[0]" in idx and "home-market-no-image" in idx)
 ok("home latest marketplace cards open the selected listing detail", "location.href=\'/market.html#/l/\'+(Number(l.id)|0)" in idx)
-ok("market add button routes to the existing publish form", \'id="addlisting"\' in market_html and \'href="/?market-add=1"\' in market_html and \'id="listing-publish"\' in idx and "market-add" in idx)
+ok("market add button routes to the existing publish form", 'id="addlisting"' in market_html and 'href="/?market-add=1"' in market_html and 'id="listing-publish"' in idx and "market-add" in idx)
 ok("gold styling applies only to featured ad cards", ".card.ad.featured-card{position:relative;" in css and ".card.ad:not(.featured-card)" in css and ".card.ad{position:relative;" not in css)
 ok("featured status checks reject truthy non-boolean strings", "function isFeatured(x)" in market_html and "isFeaturedListing(l)" in idx)
 print("Marketplace ad-management regression checks passed.")
