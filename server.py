@@ -1221,7 +1221,7 @@ class H(BaseHTTPRequestHandler):
                 for kind, fid in docs.items(): c.execute("INSERT INTO courier_documents VALUES(?,?,?,?)", (u["id"], kind, fid, now))
                 audit(c, u["id"], "courier.apply", str(u["id"]), {"documents": sorted(docs)}); c.commit(); return self.send(201, {"status": "pending"})
             if method == "GET" and path == "/api/admin/couriers":
-                self.need(u, "admin", "staff"); rows = [dict(r) for r in c.execute("SELECT c.*,u.name,u.phone FROM couriers c JOIN users u ON u.id=c.user_id WHERE c.status=?", (q.get("status", ["pending"])[0],))]
+                self.need(u, "admin", "staff"); rows = [dict(r) for r in c.execute("SELECT c.*,u.name,u.phone,r.name_ar AS region_name FROM couriers c JOIN users u ON u.id=c.user_id LEFT JOIN regions r ON r.id=c.region_id WHERE c.status=?", (q.get("status", ["pending"])[0],))]
                 for r in rows: r["documents"] = [dict(x) for x in c.execute("SELECT kind,file_id FROM courier_documents WHERE courier_id=? ORDER BY kind", (r["user_id"],))]
                 return self.send(200, rows)
             m = re.fullmatch(r"/api/admin/couriers/(\d+)/review", path)
