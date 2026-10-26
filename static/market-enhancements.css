@@ -21,3 +21,12 @@
 @media(hover:hover){.card.ad:hover{transform:translateY(-3px);box-shadow:0 15px 24px -12px rgba(16,44,96,.55),0 25px 36px -22px rgba(242,140,27,.7)!important}}
 @media(prefers-reduced-motion:reduce){.card.ad{transition:none}.card.ad:hover{transform:none}}
 @media(prefers-color-scheme:dark){.card.ad{background:linear-gradient(145deg,#20272e,#27231d)!important;border-color:#79552b!important}.card.ad .top h3,.market-edit summary{color:#dce7ff}.market-edit{background:#ffffff08;border-color:#394454}.lt{background:#20272e}}
+
+/* Standalone market.html: make each regular listing card itself visually distinct; no separate featured shelf */
+.grid>.card{position:relative;border:1px solid #f2b45f!important;border-inline-start:5px solid var(--lag-orange,#f28c1b)!important;border-radius:20px!important;background:linear-gradient(145deg,var(--card,#fff),#fffaf2)!important;box-shadow:0 10px 18px -12px rgba(16,44,96,.55),0 22px 34px -26px rgba(242,140,27,.65)!important;transition:transform .18s ease,box-shadow .18s ease}
+.grid>.card .ph{border-radius:17px 17px 0 0;overflow:hidden}
+.grid>.card .t{font-weight:900;color:var(--lag-navy,#102c60)}
+.grid>.card .p{border-radius:11px;padding:3px 8px;background:linear-gradient(180deg,#1c4389,#102c60);color:#fff}
+@media(hover:hover){.grid>.card:hover{transform:translateY(-3px);box-shadow:0 15px 24px -12px rgba(16,44,96,.55),0 25px 36px -22px rgba(242,140,27,.7)!important}}
+@media(prefers-color-scheme:dark){.grid>.card{background:linear-gradient(145deg,#20272e,#27231d)!important;border-color:#79552b!important}.grid>.card .t{color:#dce7ff}}
+@media(prefers-reduced-motion:reduce){.grid>.card{transition:none}.grid>.card:hover{transform:none}}
