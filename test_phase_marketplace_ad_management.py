@@ -70,6 +70,7 @@ css=open(os.path.join(root_dir,"static","market-enhancements.css"),encoding="utf
 ok("primary image chooser moves selected image to first position", "window.lImgs.unshift(x)" in idx and "mainImg(" in idx)
 ok("post form offers named and anonymous publishing", "id=\"lanon\"" in idx and "anonymous:$('lanon').value==='1'" in idx)
 ok("owner editor resubmits edits for review", "إرسال التعديلات للموافقة" in idx and "status='pending'" in open(os.path.join(root_dir,"server.py"),encoding="utf-8").read())
+ok("edit form supports image upload and image ordering", "addEditImgs(this," in idx and "image_file_ids=window._editImgs[id]" in idx and "initEditImgs" in idx)
 ok("service-worker cache version is bumped for updated marketplace assets", "laqino-v104" in open(os.path.join(root_dir,"static","sw.js"),encoding="utf-8").read())
 ok("standalone market uses individual cards, not featured shelf", "loadFeatured();" not in market_html and ".grid>.card" in css)
 print("Marketplace ad-management regression checks passed.")
