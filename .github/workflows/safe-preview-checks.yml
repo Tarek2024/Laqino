@@ -1,0 +1,73 @@
+name: Safe preview checks (no deploy)
+
+on:
+  push:
+    branches:
+      - test/responsive-seo-ci
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  checks:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Checkout isolated test branch
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install runtime dependency
+        run: python -m pip install --disable-pip-version-check cryptography==44.0.0
+
+      - name: Compile Python files
+        run: python -m compileall -q server.py account.py market.py market_seed.py gsearch.py products.py provider_delivery.py rx.py chat.py svc.py overview.py fcm.py lsocial.py bulk_import.py exchange.py setup_initial.py backup_restore.py notif.py
+
+      - name: Check release consistency
+        run: |
+          python3 check_versions.py
+          python3 release_check.py
+
+      - name: Check responsive UI regression
+        run: python3 test_phase17_responsive_ui.py
+
+      - name: Check server deployment smoke tests
+        run: python3 test_deploy.py
+
+      - name: Check SEO metadata and crawl files
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          import re
+          root = Path("static")
+          checks = []
+          def check(name, condition):
+              checks.append((name, bool(condition)))
+          home = (root / "index.html").read_text(encoding="utf-8")
+          market = (root / "market.html").read_text(encoding="utf-8")
+          robots = (root / "robots.txt").read_text(encoding="utf-8")
+          sitemap = (root / "sitemap.xml").read_text(encoding="utf-8")
+          check("home title", bool(re.search(r"<title>[^<]+</title>", home, re.I)))
+          check("home description", bool(re.search(r'<meta name="description" content="[^"]+"', home, re.I)))
+          check("home canonical", 'href="https://laqino.tech/"' in home)
+          check("home Open Graph tags", all(f'property="{x}"' in home for x in ("og:title", "og:description", "og:url")))
+          check("market title/description/canonical", all(x in market for x in ("<title>", 'name="description"', 'href="https://laqino.tech/market.html"')))
+          check("robots blocks API", "Disallow: /api/" in robots)
+          check("robots references sitemap", "https://laqino.tech/sitemap.xml" in robots)
+          check("sitemap XML is balanced", sitemap.count("<url>") == sitemap.count("</url>") and sitemap.count("<loc>") == sitemap.count("</loc>"))
+          check("sitemap uses canonical host", all("https://laqino.tech/" in x for x in re.findall(r"<loc>(.*?)</loc>", sitemap)))
+          for name in ("admin.html", "pharmacy.html", "courier.html", "register.html"):
+              page = (root / name).read_text(encoding="utf-8")
+              check(f"{name} is noindex", bool(re.search(r'<meta name="robots" content="noindex,\s*nofollow"', page, re.I)))
+          failed = [name for name, ok in checks if not ok]
+          for name, ok in checks:
+              print(("PASS " if ok else "FAIL ") + name)
+          if failed:
+              raise SystemExit(f"{len(failed)} SEO checks failed: {failed}")
+          print(f"SEO CHECKS: {len(checks)} passed")
+          PY
