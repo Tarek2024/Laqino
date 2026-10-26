@@ -30,3 +30,5 @@
 @media(hover:hover){.grid>.card:hover{transform:translateY(-3px);box-shadow:0 15px 24px -12px rgba(16,44,96,.55),0 25px 36px -22px rgba(242,140,27,.7)!important}}
 @media(prefers-color-scheme:dark){.grid>.card{background:linear-gradient(145deg,#20272e,#27231d)!important;border-color:#79552b!important}.grid>.card .t{color:#dce7ff}}
 @media(prefers-reduced-motion:reduce){.grid>.card{transition:none}.grid>.card:hover{transform:none}}
+
+.market-edit-images{margin:10px 0;padding:10px;border:1px dashed var(--market-line);border-radius:12px}.market-edit-images>b{display:block;margin-bottom:8px}.market-edit-images #eip\:not(:empty){display:flex;flex-wrap:wrap;gap:8px}.market-edit-images img{width:82px;height:72px;object-fit:cover;border-radius:8px;background:#eef1f5}.market-edit-images .lt{max-width:100px}.market-edit-images .lt-tools button{min-width:0}
