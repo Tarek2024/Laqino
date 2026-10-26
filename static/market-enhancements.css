@@ -1,0 +1,71 @@
+/* Laqino marketplace ad enhancements — isolated phase branch; presentation and controls only */
+:root{--market-navy:#102c60;--market-orange:#f28c1b;--market-line:#dce5f5}
+.card.ad{position:relative;border:1px solid #f2b45f!important;border-inline-start:5px solid var(--market-orange)!important;border-radius:20px!important;background:linear-gradient(145deg,var(--card,#fff),#fffaf2)!important;box-shadow:0 10px 18px -12px rgba(16,44,96,.55),0 22px 34px -26px rgba(242,140,27,.65)!important;overflow:hidden;transition:transform .18s ease,box-shadow .18s ease}
+.card.ad::before{content:"إعلان";position:absolute;top:10px;inset-inline-start:10px;z-index:2;padding:4px 10px;border-radius:10px;background:linear-gradient(135deg,#ffd58a,#f28c1b);color:#3a2400;font-size:11px;font-weight:900;box-shadow:0 5px 10px #7b450033}
+.card.ad .cv,.card.ad>img{border-radius:15px;object-fit:cover}
+.card.ad .top h3{font-weight:900;color:var(--market-navy)}
+.card.ad .pr{background:linear-gradient(180deg,#1c4389,#102c60);color:#fff;border-radius:12px;padding:6px 10px;box-shadow:0 7px 12px -8px #102c60}
+.card.ad .meta{align-items:center}
+.card.ad .av{box-shadow:0 0 0 2px #fff,0 0 0 4px #f4bf70}
+.market-edit{margin-top:10px;padding:10px 12px;border:1px solid var(--market-line);border-radius:14px;background:rgba(16,44,96,.035)}
+.market-edit summary{cursor:pointer;font-weight:900;color:var(--market-navy);padding:5px}
+.market-edit label{display:block;margin:8px 0;font-size:13px;font-weight:700}
+.market-edit input,.market-edit textarea,.market-edit select{width:100%;margin-top:5px}
+.market-edit small{display:block;color:var(--mut,#68707a);line-height:1.6;margin:6px 0}
+.lt{position:relative;display:inline-flex;flex-direction:column;gap:4px;vertical-align:top;border-radius:12px;padding:4px;border:1px solid var(--market-line);background:#fff}
+.lt.lt-main{border:2px solid var(--market-orange);box-shadow:0 4px 12px #f28c1b30}
+.lt-tools{display:flex;gap:3px;align-items:center;justify-content:center;flex-wrap:wrap}
+.lt-tools button{font-size:11px!important;min-height:28px!important;padding:3px 6px!important;border-radius:7px!important}
+.lt-tools .main-pick{background:#fff2db;color:#784500;border:1px solid #f2bf6b}
+.lt.lt-main .main-pick{background:#f28c1b;color:#2d1a00;font-weight:900}
+@media(hover:hover){.card.ad:hover{transform:translateY(-3px);box-shadow:0 15px 24px -12px rgba(16,44,96,.55),0 25px 36px -22px rgba(242,140,27,.7)!important}}
+@media(prefers-reduced-motion:reduce){.card.ad{transition:none}.card.ad:hover{transform:none}}
+@media(prefers-color-scheme:dark){.card.ad{background:linear-gradient(145deg,#20272e,#27231d)!important;border-color:#79552b!important}.card.ad .top h3,.market-edit summary{color:#dce7ff}.market-edit{background:#ffffff08;border-color:#394454}.lt{background:#20272e}}
+
+/* Standalone market.html: make each regular listing card itself visually distinct; no separate featured shelf */
+.grid>.card{position:relative;border:1px solid var(--lag-line,#dce4f2)!important;border-inline-start:3px solid #b8c7df!important;border-radius:20px!important;background:var(--card,#fff)!important;box-shadow:0 8px 18px -13px rgba(16,44,96,.42),0 18px 30px -25px rgba(16,44,96,.3)!important;transition:transform .18s ease,box-shadow .18s ease}
+.grid>.card .ph{border-radius:17px 17px 0 0;overflow:hidden}
+.grid>.card .t{font-weight:900;color:var(--lag-navy,#102c60)}
+.grid>.card .p{border-radius:11px;padding:3px 8px;background:linear-gradient(180deg,#1c4389,#102c60);color:#fff}
+@media(hover:hover){.grid>.card:hover{transform:translateY(-3px);box-shadow:0 15px 24px -12px rgba(16,44,96,.55),0 25px 36px -22px rgba(242,140,27,.7)!important}}
+@media(prefers-color-scheme:dark){.grid>.card{background:linear-gradient(145deg,#20272e,#27231d)!important;border-color:#79552b!important}.grid>.card .t{color:#dce7ff}}
+@media(prefers-reduced-motion:reduce){.grid>.card{transition:none}.grid>.card:hover{transform:none}}
+
+.market-edit-images{margin:10px 0;padding:10px;border:1px dashed var(--market-line);border-radius:12px}.market-edit-images>b{display:block;margin-bottom:8px}.market-edit-images [id^="eip"]{display:flex;flex-wrap:wrap;gap:8px}.market-edit-images img{width:82px;height:72px;object-fit:cover;border-radius:8px;background:#eef1f5}.market-edit-images .lt{max-width:100px}.market-edit-images .lt-tools button{min-width:0}
+
+
+/* إعلان الإدارة المميز: إبراز ذهبي واضح على نفس الكارت، دون تغيير شكل الإعلانات العادية */
+.grid>.card.featured-card{
+  border:2px solid #e7ad35!important;
+  border-inline-start:5px solid #d99a18!important;
+  background:linear-gradient(145deg,#fffdf6 0%,#fff4d5 55%,#fff 100%)!important;
+  box-shadow:0 0 0 2px rgba(255,205,91,.28),0 12px 20px -8px rgba(137,89,9,.38),0 26px 38px -22px rgba(15,42,92,.42)!important;
+}
+.grid>.card.featured-card::after{
+  content:none;
+  position:absolute;top:10px;inset-inline-start:10px;z-index:3;
+  display:flex;align-items:center;min-height:30px;padding:0 11px;border-radius:10px;
+  color:#4b3000;font-size:12px;font-weight:900;letter-spacing:.1px;
+  background:linear-gradient(135deg,#fff0b5 0%,#f8cd63 42%,#d99a18 100%);
+  border:1px solid rgba(142,94,7,.32);
+  box-shadow:0 5px 0 rgba(132,84,5,.16),0 9px 16px rgba(132,84,5,.25),inset 0 1px 0 rgba(255,255,255,.85);
+  text-shadow:0 1px 0 rgba(255,255,255,.55);
+}
+.grid>.card.featured-card .ph{outline:1px solid rgba(218,161,39,.5);outline-offset:-1px}
+@media(hover:hover){.grid>.card.featured-card:hover{transform:translateY(-5px) scale(1.008);box-shadow:0 0 0 3px rgba(255,205,91,.34),0 18px 26px -9px rgba(137,89,9,.45),0 32px 44px -20px rgba(15,42,92,.48)!important}}
+@media(prefers-color-scheme:dark){
+ .grid>.card.featured-card{background:linear-gradient(145deg,#28251b,#322a17)!important;border-color:#c99a36!important;box-shadow:0 0 0 2px #b889302b,0 12px 24px -10px #000b!important}
+ .grid>.card.featured-card::after{background:linear-gradient(135deg,#5e4818,#d4a83e 55%,#8e681c);color:#fff4ce;border-color:#e0ba5a;text-shadow:none}
+}
+@media(prefers-reduced-motion:reduce){.grid>.card.featured-card:hover{transform:none}}
+
+/* الشارة الذهبية الفعلية داخل الكارت؛ نستخدم عنصر ★ مميز الموجود أصلًا لتجنب تكرار الشارات */
+.grid>.card.featured-card .gold{
+  top:10px;inset-inline-start:10px;inset-inline-end:auto;z-index:4;
+  min-height:30px;padding:0 11px;border-radius:10px;
+  color:#4b3000;font-size:12px;font-weight:900;
+  background:linear-gradient(135deg,#fff0b5 0%,#f8cd63 42%,#d99a18 100%);
+  border:1px solid rgba(142,94,7,.32);
+  box-shadow:0 5px 0 rgba(132,84,5,.16),0 9px 16px rgba(132,84,5,.25),inset 0 1px 0 rgba(255,255,255,.85);
+}
+@media(prefers-color-scheme:dark){.grid>.card.featured-card .gold{background:linear-gradient(135deg,#5e4818,#d4a83e 55%,#8e681c);color:#fff4ce;border-color:#e0ba5a}}

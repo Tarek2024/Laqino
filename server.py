@@ -288,6 +288,8 @@ def init(admin_phone=None, admin_pw=None):
     rx.install(c)  # RX schema extensions (idempotent, additive migrations)
     try: c.execute("ALTER TABLE listings ADD COLUMN featured_until INTEGER")  # المرحلة 30: تمييز الإعلان حتى تاريخ (NULL = غير مميز). بعد market.migrate لأنه قد يعيد بناء الجدول
     except sqlite3.OperationalError: pass
+    try: c.execute("ALTER TABLE listings ADD COLUMN anonymous INTEGER NOT NULL DEFAULT 0 CHECK(anonymous IN (0,1))")  # تحديث السوق المعزول: إظهار الاسم أو إخفاؤه
+    except sqlite3.OperationalError: pass
     ensure_fts(c)  # المرحلة 30: فهرس بحث trigram للإعلانات (اختياري)
     chat.install(c)  # Phase 4: chat_* tables + listings.contact_mode (idempotent; after market.migrate)
     svc.install(c)  # Phase 5: service_requests (idempotent)
@@ -1014,8 +1016,9 @@ class H(BaseHTTPRequestHandler):
                 clean, price = listing_clean_fields(c, cat["id"], d.get("fields") or {})
                 if d.get("contact_mode") is not None and d.get("contact_mode") not in chat.MODES: raise E(400, "طريقة التواصل غير صالحة")
                 cond, neg = listing_flags(d); img_ids = listing_image_ids(c, u["id"], d.get("image_file_ids"))
+                anon = 1 if d.get("anonymous") in (1, True, "1", "true", "yes") else 0
                 now = int(time.time())
-                cur = c.execute("INSERT INTO listings(user_id,category_id,region_id,title,description,price,data,created_at,updated_at,condition,negotiable) VALUES(?,?,?,?,?,?,?,?,?,?,?)", (u["id"], cat["id"], d["region_id"], title, str(d.get("description", ""))[:2000], price, json.dumps(clean, ensure_ascii=False), now, now, cond, neg))
+                cur = c.execute("INSERT INTO listings(user_id,category_id,region_id,title,description,price,data,created_at,updated_at,condition,negotiable,anonymous) VALUES(?,?,?,?,?,?,?,?,?,?,?,?)", (u["id"], cat["id"], d["region_id"], title, str(d.get("description", ""))[:2000], price, json.dumps(clean, ensure_ascii=False), now, now, cond, neg, anon))
                 for i, fid in enumerate(img_ids): c.execute("INSERT INTO listing_images(listing_id,file_id,position,created_at) VALUES(?,?,?,?)", (cur.lastrowid, fid, i, now))
                 chat.set_mode(c, cur.lastrowid, d.get("contact_mode") or "both"); c.commit(); return self.send(201, {"id": cur.lastrowid, "status": "pending", "images": img_ids})
             if method == "POST" and path == "/api/listings/images":  # رفع صورة إعلان: سقف مستقل (MAX_MARKET_UPLOADS) عن سقف الـ20 ملفًا
@@ -1038,7 +1041,7 @@ class H(BaseHTTPRequestHandler):
                 self.need(u); lid = int(m[1]); r = c.execute("SELECT * FROM listings WHERE id=? AND user_id=? AND status!='deleted'", (lid, u["id"])).fetchone()
                 if not r: raise E(404, "غير موجود")
                 if r["status"] == "hidden": raise E(409, "الإعلان مخفي بقرار إداري؛ تواصل مع الإدارة")
-                d = self.body(); keys = ("title", "description", "region_id", "category_id", "fields", "condition", "negotiable", "image_file_ids")
+                d = self.body(); keys = ("title", "description", "region_id", "category_id", "fields", "condition", "negotiable", "image_file_ids", "anonymous")
                 if not any(k in d for k in keys): raise E(400, "لا توجد تعديلات")
                 cat_id = d["category_id"] if "category_id" in d else r["category_id"]
                 if not c.execute("SELECT 1 FROM categories WHERE id=? AND section='souq' AND is_active=1 AND id IN " + market.VISIBLE_CATEGORIES, (cat_id,)).fetchone(): raise E(400, "التصنيف غير متاح")
@@ -1055,7 +1058,8 @@ class H(BaseHTTPRequestHandler):
                 cond, neg = listing_flags(d, r["condition"], r["negotiable"])
                 new_imgs = listing_image_ids(c, u["id"], d["image_file_ids"], lid) if "image_file_ids" in d else None
                 now = int(time.time()); drop = []
-                c.execute("UPDATE listings SET category_id=?,region_id=?,title=?,description=?,price=?,data=?,condition=?,negotiable=?,status='pending',reject_reason=NULL,reviewed_by=NULL,reviewed_at=NULL,updated_at=? WHERE id=?", (cat_id, region, title, desc, price, data, cond, neg, now, lid))
+                anon = (1 if d.get("anonymous") in (1, True, "1", "true", "yes") else 0) if "anonymous" in d else r["anonymous"]
+                c.execute("UPDATE listings SET category_id=?,region_id=?,title=?,description=?,price=?,data=?,condition=?,negotiable=?,anonymous=?,status='pending',reject_reason=NULL,reviewed_by=NULL,reviewed_at=NULL,updated_at=? WHERE id=?", (cat_id, region, title, desc, price, data, cond, neg, anon, now, lid))
                 if new_imgs is not None:
                     old = market.images_for(c, [lid])[lid]; c.execute("DELETE FROM listing_images WHERE listing_id=?", (lid,))
                     for i, fid in enumerate(new_imgs): c.execute("INSERT INTO listing_images(listing_id,file_id,position,created_at) VALUES(?,?,?,?)", (lid, fid, i, now))
@@ -1112,7 +1116,7 @@ class H(BaseHTTPRequestHandler):
                 lim = max(1, min(toint(q.get("limit", ["20"])[0]), 50)); off = max(0, toint(q.get("offset", ["0"])[0]))
                 pre = ("WITH RECURSIVE " + ",".join(ctes) + " ") if ctes else ""; where = " AND ".join(sql_w)
                 total = c.execute(pre + "SELECT COUNT(*) FROM listings l WHERE " + where, (*cargs, *args)).fetchone()[0]
-                rows = [dict(r) for r in c.execute(pre + "SELECT l.id,l.title,l.description,l.price,l.data,l.category_id,l.region_id,l.condition,l.negotiable,l.contact_mode,l.closed_kind,l.created_at,CASE WHEN l.featured_until>" + str(int(time.time())) + " THEN 1 ELSE 0 END featured,u.name seller FROM listings l JOIN users u ON u.id=l.user_id WHERE " + where + " ORDER BY " + ("l.featured_until DESC,l.id DESC" if only_feat else SORTS[srt]) + " LIMIT ? OFFSET ?", (*cargs, *args, lim, off)).fetchall()]
+                rows = [dict(r) for r in c.execute(pre + "SELECT l.id,l.title,l.description,l.price,l.data,l.category_id,l.region_id,l.condition,l.negotiable,l.contact_mode,l.closed_kind,l.created_at,l.anonymous,CASE WHEN l.featured_until>" + str(int(time.time())) + " THEN 1 ELSE 0 END featured,CASE WHEN COALESCE(l.anonymous,0)=1 THEN 'مستخدم مجهول' ELSE u.name END seller FROM listings l JOIN users u ON u.id=l.user_id WHERE " + where + " ORDER BY " + ("l.featured_until DESC,l.id DESC" if only_feat else SORTS[srt]) + " LIMIT ? OFFSET ?", (*cargs, *args, lim, off)).fetchall()]
                 imgs = market.images_for(c, [r["id"] for r in rows])
                 for r in rows: r["images"] = imgs[r["id"]]
                 return self.send(200, rows, extra={"X-Total-Count": str(total)})
@@ -1133,14 +1137,15 @@ class H(BaseHTTPRequestHandler):
                         if not n: break
                         out.append({"id": n["id"], "name": n["name_ar"]}); rid = n["parent_id"]
                     return list(reversed(out))
+                seller_name = r["seller"] if (own or adm or not r["anonymous"]) else "مستخدم مجهول"
                 out = {"id": r["id"], "title": r["title"], "description": r["description"], "price": r["price"], "condition": r["condition"], "negotiable": r["negotiable"],
-                       "closed_kind": r["closed_kind"], "created_at": r["created_at"], "updated_at": r["updated_at"], "seller": r["seller"], "fields": fields,
+                       "closed_kind": r["closed_kind"], "created_at": r["created_at"], "updated_at": r["updated_at"], "seller": seller_name, "anonymous": bool(r["anonymous"]), "fields": fields,
                        "category": chain("categories", r["category_id"]), "region": chain("regions", r["region_id"]), "images": market.images_for(c, [r["id"]])[r["id"]], "is_owner": own, "contact_mode": r["contact_mode"], "featured": bool(r["featured_until"] and r["featured_until"] > time.time())}
                 if own or adm: out["status"] = r["status"]; out["reject_reason"] = r["reject_reason"] if own else None
                 out.update(lsocial.flags(c, u, r["id"]))  # is_favorite / reported للمسجّل فقط
                 return self.send(200, out)
             if method == "GET" and path == "/api/my/listings":
-                self.need(u); rows = [dict(r) for r in c.execute("SELECT id,title,price,status,reject_reason,created_at,contact_mode FROM listings WHERE user_id=? AND status!='deleted' ORDER BY id DESC", (u["id"],))]; imgs = market.images_for(c, [r["id"] for r in rows])
+                self.need(u); rows = [dict(r) for r in c.execute("SELECT id,title,description,price,status,reject_reason,created_at,contact_mode,anonymous,condition,negotiable,category_id,region_id,data FROM listings WHERE user_id=? AND status!='deleted' ORDER BY id DESC", (u["id"],))]; imgs = market.images_for(c, [r["id"] for r in rows])
                 for r in rows: r["images"] = imgs[r["id"]]
                 return self.send(200, rows)
             m = re.fullmatch(r"/api/listings/(\d+)/contact", path)
@@ -1149,7 +1154,7 @@ class H(BaseHTTPRequestHandler):
                 r = c.execute("SELECT l.user_id,u.name,u.phone FROM listings l JOIN users u ON u.id=l.user_id WHERE l.id=? AND l.status='approved'", (int(lid),)).fetchone()
                 if not r: raise E(404, "غير موجود")
                 if r["user_id"] != u["id"]: contact_guard(c, u, "listing.contact", lid, "تجاوزت الحد المسموح لعرض أرقام البائعين، حاول لاحقًا")
-                return self.send(200, {"seller": r["name"], "phone": r["phone"]})
+                return self.send(200, {"seller": ("مستخدم مجهول" if c.execute("SELECT COALESCE(anonymous,0) FROM listings WHERE id=?", (int(lid),)).fetchone()[0] else r["name"]), "phone": r["phone"]})
             m = re.fullmatch(r"/api/listings/(\d+)/delete", path)
             if method == "POST" and m:
                 self.need(u); r = c.execute("SELECT user_id FROM listings WHERE id=?", (int(m[1]),)).fetchone()
