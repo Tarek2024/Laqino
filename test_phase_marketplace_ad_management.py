@@ -84,6 +84,8 @@ ok("owner editor resubmits edits for review", "إرسال التعديلات ل�
 ok("edit form supports image upload and image ordering", "addEditImgs(this," in idx and "image_file_ids=window._editImgs[id]" in idx and "initEditImgs" in idx)
 sw=open(os.path.join(root_dir,"static","sw.js"),encoding="utf-8").read()
 ok("service-worker cache version is bumped for updated marketplace assets", "laqino-v107" in sw)
+version_file=open(os.path.join(root_dir,"VERSION"),encoding="utf-8").read()
+ok("VERSION metadata matches the service-worker cache version", "cache=laqino-v107" in version_file and "laqino-v107" in sw)
 ok("marketplace enhancement stylesheet is cached in the app shell", "/market-enhancements.css" in sw)
 ok("versioned stylesheet URL is cached for offline compatibility", "/market-enhancements.css?v=3" in sw)
 ok("edit form can clear product condition when selecting no condition", "body.condition=cond||null" in idx)
