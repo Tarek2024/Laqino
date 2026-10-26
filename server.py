@@ -35,6 +35,7 @@ CREATE INDEX IF NOT EXISTS ix_listings ON listings(status,category_id,region_id)
 CREATE TABLE IF NOT EXISTS couriers(user_id INTEGER PRIMARY KEY REFERENCES users(id), status TEXT NOT NULL DEFAULT 'pending' CHECK(status IN('pending','approved','suspended','rejected')),
  region_id INTEGER NOT NULL REFERENCES regions(id), is_available INTEGER NOT NULL DEFAULT 1, created_at INTEGER NOT NULL);
 CREATE TABLE IF NOT EXISTS region_fees(region_id INTEGER PRIMARY KEY REFERENCES regions(id), fee REAL NOT NULL CHECK(fee>=0));
+CREATE TABLE IF NOT EXISTS region_neighbors(region_id INTEGER NOT NULL REFERENCES regions(id), neighbor_id INTEGER NOT NULL REFERENCES regions(id), PRIMARY KEY(region_id,neighbor_id));
 CREATE TABLE IF NOT EXISTS password_resets(user_id INTEGER PRIMARY KEY REFERENCES users(id), code_hash TEXT NOT NULL, salt TEXT NOT NULL, expires INTEGER NOT NULL, attempts INTEGER NOT NULL DEFAULT 0, issued_by INTEGER, created_at INTEGER NOT NULL);
 CREATE TABLE IF NOT EXISTS push_subs(endpoint TEXT PRIMARY KEY, user_id INTEGER NOT NULL REFERENCES users(id), created_at INTEGER NOT NULL);
 CREATE TABLE IF NOT EXISTS push_keys(id INTEGER PRIMARY KEY CHECK(id=1), priv TEXT NOT NULL, pub TEXT NOT NULL);
@@ -181,6 +182,19 @@ def seed_riyad_zones(c):
         r = c.execute("SELECT id FROM regions WHERE slug=? OR (parent_id=? AND name_ar=?)", ("eg-kfs-riyad-" + slug, mk[0], name)).fetchone()
         rid = r[0] if r else c.execute("INSERT INTO regions(parent_id,level,slug,name_ar,is_active,sort) VALUES(?,'zone',?,?,1,?)", (mk[0], "eg-kfs-riyad-" + slug, name, i + 1)).lastrowid
         c.execute("INSERT OR IGNORE INTO region_fees(region_id,fee,min_fee,max_fee) VALUES(?,?,?,?)", (rid, fee, lo, hi))
+# مراكز محافظة كفر الشيخ (10 مراكز بحسب التقسيم الإداري). الإحداثيات = مدينة عاصمة المركز (تقريبية، للتحديد التلقائي بالـGPS وتُعدَّل من لوحة الإدارة).
+# مركز الرياض يُزرع في init بإحداثياته الخاصة. المراكز التسعة الباقية: (slug، الاسم، lat، lng).
+KFS_MARKAZ = (("kafr-el-sheikh", "مركز كفر الشيخ", 31.11167, 30.94583), ("desouk", "مركز دسوق", 31.14222, 30.64500), ("fuwa", "مركز فوه", 31.20365, 30.54908),
+              ("metoubes", "مركز مطوبس", 31.29167, 30.52222), ("burullus", "مركز البرلس (بلطيم)", 31.59917, 31.09167), ("hamool", "مركز الحامول", 31.31000, 31.14222),
+              ("bella", "مركز بيلا", 31.17466, 31.22043), ("qallin", "مركز قلين", 31.04639, 30.85458), ("sidi-salem", "مركز سيدي سالم", 31.27133, 30.78617))
+def seed_kfs_markaz(c):
+    """يزرع مراكز كفر الشيخ تحت المحافظة (مفعّلة): لا يكرّر مركزًا موجودًا (بالـslug أو الاسم) ولا يكتب فوق إحداثيات عدّلتها الإدارة."""
+    gov = c.execute("SELECT id FROM regions WHERE slug='eg-kfs'").fetchone()
+    if not gov: return
+    for i, (slug, name, la, ln) in enumerate(KFS_MARKAZ):
+        r = c.execute("SELECT id FROM regions WHERE slug=? OR (parent_id=? AND name_ar=?)", ("eg-kfs-" + slug, gov[0], name)).fetchone()
+        if r: c.execute("UPDATE regions SET lat=?,lng=? WHERE id=? AND lat IS NULL AND lng IS NULL", (la, ln, r[0]))
+        else: c.execute("INSERT INTO regions(parent_id,level,slug,name_ar,is_active,sort,lat,lng) VALUES(?,'markaz',?,?,1,?,?,?)", (gov[0], "eg-kfs-" + slug, name, i + 2, la, ln))
 FTS_OK = False
 def ensure_fts(c):
     """Trigram full-text index over listings(title, description). Same substring semantics as LIKE '%q%' for queries of 3+ chars, but indexed
@@ -256,7 +270,7 @@ def init(admin_phone=None, admin_pw=None):
         c.execute("INSERT INTO regions(id,parent_id,level,slug,name_ar,is_active) VALUES(3,2,'markaz','eg-kfs-riyad','مركز الرياض',1)")
     # إحداثيات مركز الرياض (كفر الشيخ) للتحديد التلقائي بالـGPS؛ تُملأ فقط لو فارغة (لا تكتب فوق تعديل الإدارة)
     c.execute("UPDATE regions SET lat=31.314810,lng=30.928087 WHERE slug='eg-kfs-riyad' AND lat IS NULL AND lng IS NULL")
-    seed_riyad_zones(c)
+    seed_riyad_zones(c); seed_kfs_markaz(c)
     c.commit()
     if not c.execute("SELECT 1 FROM categories").fetchone():
         # section roots only; hidden until the admin activates them
@@ -514,13 +528,39 @@ def push_send(endpoint, priv, pub, ttl):
     except Exception: return 0
 def push_targets(c, oid):
     """Couriers to wake for an order: approved, covering the region, chose 'online' recently (heartbeat may be stale because the app is closed), enough wallet for the commission, not the customer, not already rejected it. Waking is NOT dispatch: offers/accept still require a fresh heartbeat."""
-    o = c.execute("SELECT customer_id,region_id,commission FROM delivery_orders WHERE id=? AND status='searching'", (oid,)).fetchone()
+    o = c.execute("SELECT customer_id,region_id,commission,search_started_at,created_at FROM delivery_orders WHERE id=? AND status='searching'", (oid,)).fetchone()
     if not o: return []
     reach = int(time.time()) - int(cfg(c, "push_reach_hours", 12)) * 3600; out = []
     for r in c.execute("SELECT cr.user_id FROM couriers cr WHERE cr.status='approved' AND cr.is_available=1 AND cr.last_seen>=? AND cr.user_id!=? AND (cr.region_id IN " + COVER_REV + " OR cr.region_id IN " + COVER + ") AND (EXISTS(SELECT 1 FROM push_subs p WHERE p.user_id=cr.user_id) OR EXISTS(SELECT 1 FROM fcm_tokens ft WHERE ft.user_id=cr.user_id)) AND NOT EXISTS(SELECT 1 FROM order_offers f WHERE f.order_id=? AND f.courier_id=cr.user_id AND f.status IN('rejected','lost'))", (reach, o["customer_id"], o["region_id"], o["region_id"], oid)).fetchall():
         if wallet_free(c, r["user_id"])[1] >= o["commission"]: out.append(r["user_id"])
+    nb = neighbor_cover(c, o["region_id"])
+    if nb and expansion_open(c, o["region_id"], o["search_started_at"] if o["search_started_at"] > 0 else o["created_at"], int(time.time())):  # المرحلة 64: المناطق المجاورة
+        nbl = sorted(nb)
+        for r in c.execute("SELECT cr.user_id FROM couriers cr WHERE cr.status='approved' AND cr.is_available=1 AND cr.last_seen>=? AND cr.user_id!=? AND cr.region_id IN (%s) AND (EXISTS(SELECT 1 FROM push_subs p WHERE p.user_id=cr.user_id) OR EXISTS(SELECT 1 FROM fcm_tokens ft WHERE ft.user_id=cr.user_id)) AND NOT EXISTS(SELECT 1 FROM order_offers f WHERE f.order_id=? AND f.courier_id=cr.user_id AND f.status IN('rejected','lost'))" % ",".join("?" * len(nbl)), (reach, o["customer_id"], *nbl, oid)).fetchall():
+            if r["user_id"] not in out and wallet_free(c, r["user_id"])[1] >= o["commission"]: out.append(r["user_id"])
     return out
 COVER_REV = "(WITH RECURSIVE r(id) AS (SELECT ? UNION SELECT g.parent_id FROM regions g JOIN r ON g.id=r.id WHERE g.parent_id IS NOT NULL) SELECT id FROM r)"  # courier region must be the order region or one of its ancestors
+# ---- المرحلة 64: التوسّع للمناطق المجاورة (الأدمن يربط المناطق يدويًا في region_neighbors، مثلًا الرياض ↔ سيدي سالم).
+# الطلب يظهر أولًا لمناديب منطقته؛ ويتوسّع لمناديب المناطق المجاورة فورًا إن لم يكن في منطقته مندوب متصل، أو بعد neighbor_expand_secs (افتراضي 60ث) دون قبول.
+def _cover_set(c, rid):
+    """مناطق المندوب التي تخدم طلبًا في rid مباشرة: المنطقة نفسها وأسلافها وأحفادها."""
+    return {r[0] for r in c.execute("SELECT id FROM " + COVER_REV, (rid,))} | {r[0] for r in c.execute("SELECT id FROM " + COVER, (rid,))}
+def neighbor_cover(c, rid):
+    """مناطق المندوب المسموح لها بالتوسّع على طلب في rid (جيران المنطقة وأسلافها، وما يغطّيه كل جار) بعد استبعاد التغطية المباشرة."""
+    out = set()
+    for a in {r[0] for r in c.execute("SELECT id FROM " + COVER_REV, (rid,))}:
+        for (n,) in c.execute("SELECT neighbor_id FROM region_neighbors WHERE region_id=?", (a,)).fetchall(): out |= _cover_set(c, n)
+    return out - _cover_set(c, rid) if out else out
+def expansion_open(c, rid, started, now):
+    if now - started >= int(cfg(c, "neighbor_expand_secs", 60)): return True
+    cov = sorted(_cover_set(c, rid))
+    rows = c.execute("SELECT * FROM couriers WHERE status='approved' AND region_id IN (%s)" % ",".join("?" * len(cov)), cov).fetchall()
+    return not any(is_online(c, r) for r in rows)  # لا مندوب متصل في منطقته → لا داعي للانتظار
+def can_extend(c, courier_region, o, now=None):
+    """هل يحق لمندوب في courier_region رؤية/قبول الطلب o (صف فيه region_id وsearch_started_at وcreated_at) عبر التوسّع للمجاورة؟"""
+    now = now or int(time.time()); started = o["search_started_at"] if o["search_started_at"] and o["search_started_at"] > 0 else o["created_at"]
+    nb = neighbor_cover(c, o["region_id"])
+    return bool(nb) and courier_region in nb and expansion_open(c, o["region_id"], started, now)
 # ---- Repeating push (phase 17): the wake-up push is re-sent every `push_repeat_secs` (default 25s; 0 = off) while the order is still searching,
 # then ONE final "sweep" push when it is accepted / cancelled / expired so devices drop the alert. The push still carries NO data:
 # sw.js asks /api/push/state how many orders are still waiting for that device's courier and shows or clears the alert accordingly.
@@ -535,6 +575,8 @@ def push_pending(c, uid):
     win = int(cfg(c, "search_timeout", 300)); free = wallet_free(c, uid)[1]; n = 0
     for o in c.execute("SELECT o.commission FROM delivery_orders o WHERE o.status='searching' AND o.courier_id IS NULL AND o.customer_id!=? AND (o.region_id IN " + COVER + " OR o.region_id IN " + COVER_REV + ") AND (CASE WHEN o.search_started_at>0 THEN o.search_started_at ELSE o.created_at END)>? AND NOT EXISTS(SELECT 1 FROM order_offers f WHERE f.order_id=o.id AND f.courier_id=? AND f.status IN('rejected','lost'))", (uid, cr["region_id"], cr["region_id"], now - win, uid)).fetchall():
         if free >= o["commission"]: n += 1
+    for o in c.execute("SELECT o.id,o.commission,o.region_id,o.search_started_at,o.created_at FROM delivery_orders o WHERE o.status='searching' AND o.courier_id IS NULL AND o.customer_id!=? AND (CASE WHEN o.search_started_at>0 THEN o.search_started_at ELSE o.created_at END)>? AND NOT EXISTS(SELECT 1 FROM order_offers f WHERE f.order_id=o.id AND f.courier_id=? AND f.status IN('rejected','lost'))", (uid, now - win, uid)).fetchall():  # المرحلة 64: التوسّع للمجاورة
+        if free >= o["commission"] and can_extend(c, cr["region_id"], o, now): n += 1
     return n
 def _push_to_users(c, uids, ttl, native=True, kind="order"):
     """Web Push (data-less) to every subscribed device, then (Phase 8) FCM to the user's Android app tokens. native=False for the final sweep: a generic FCM notification cannot be withdrawn."""
@@ -1201,7 +1243,21 @@ class H(BaseHTTPRequestHandler):
                 audit(c, u["id"], "fee.set", str(d.get("region_id")), d); c.commit(); return self.send(200, {"ok": True})
             if method == "POST" and path == "/api/delivery/orders":
                 self.need(u); d = self.body(); rid = d.get("region_id")
-                if not (rid and c.execute("SELECT 1 FROM regions WHERE id=? AND is_active=1", (rid,)).fetchone()): rid = default_delivery_region(c)  # المرحلة 28: العميل لا يختار منطقة؛ المنطقة داخلية (مركز الرياض) ولا تُستعمل لتسعير الطلب
+                act = lambda x: bool(x) and bool(c.execute("SELECT 1 FROM regions WHERE id=? AND is_active=1", (x,)).fetchone())
+                gla, gln = geo_pair(d.get("dropoff_lat"), d.get("dropoff_lng"))  # GPS للتحقق والمساعدة، لا يستبدل اختيار العميل المؤكد بصمت
+                gps_region = None
+                if gla is not None:
+                    gps_region, _gd, _gs = resolve_region(c, gla, gln)
+                selected_region_valid = act(rid)
+                confirmed_mismatch = bool(d.get("confirm_region_mismatch"))
+                if gps_region and selected_region_valid and int(rid) != int(gps_region["id"]) and not confirmed_mismatch:
+                    selected_name = c.execute("SELECT name_ar FROM regions WHERE id=?", (rid,)).fetchone()[0]
+                    return self.send(409, {"error": "REGION_MISMATCH|%s|%s|%s|%s" % (rid, gps_region["id"], selected_name, gps_region["name_ar"])})
+                # عند التأكيد نلتزم بالمنطقة التي اختارها العميل. إذا لم يختر منطقة صالحة، يمكن استخدام GPS كاقتراح تلقائي.
+                if not selected_region_valid and gps_region:
+                    rid = gps_region["id"]
+                if not act(rid): rid = u["region_id"] if act(u["region_id"]) else None  # منطقة الحساب احتياطي عند غياب اختيار صالح
+                if not rid: rid = default_delivery_region(c)  # احتياطي أخير لعملاء قدامى بلا أي منطقة فقط
                 if not rid: raise E(400, "الدليفري غير متاح حاليًا")
                 pk, dr = str(d.get("pickup_text", "")).strip(), str(d.get("dropoff_text", "")).strip()
                 if len(pk) < 3 or len(dr) < 3: raise E(400, "عنوان الاستلام والتسليم مطلوبان")
@@ -1311,6 +1367,8 @@ class H(BaseHTTPRequestHandler):
                 bal, free = wallet_free(c, u["id"])
                 for o in c.execute("SELECT o.id,o.commission FROM delivery_orders o WHERE o.status='searching' AND o.customer_id!=? AND (o.region_id IN " + COVER + " OR o.region_id IN " + COVER_REV + ") AND " + fresh + " AND o.id NOT IN (SELECT order_id FROM order_offers WHERE courier_id=?)", (u["id"], cr["region_id"], cr["region_id"], now - win, u["id"])).fetchall():
                     if free >= o["commission"]: c.execute("INSERT OR IGNORE INTO order_offers(order_id,courier_id,status,offered_at) VALUES(?,?,'offered',?)", (o["id"], u["id"], now))
+                for o in c.execute("SELECT o.id,o.commission,o.region_id,o.search_started_at,o.created_at FROM delivery_orders o WHERE o.status='searching' AND o.courier_id IS NULL AND o.customer_id!=? AND " + fresh + " AND o.id NOT IN (SELECT order_id FROM order_offers WHERE courier_id=?)", (u["id"], now - win, u["id"])).fetchall():  # المرحلة 64: التوسّع للمناطق المجاورة
+                    if free >= o["commission"] and can_extend(c, cr["region_id"], o, now): c.execute("INSERT OR IGNORE INTO order_offers(order_id,courier_id,status,offered_at) VALUES(?,?,'offered',?)", (o["id"], u["id"], now))
                 c.commit()
                 rows = [dict(r) for r in c.execute("SELECT o.id,o.origin_type,o.region_id,rg.name_ar region_name,o.offer_fee,o.created_at,f.offered_at+? - ? expires_in,0 taken FROM order_offers f JOIN delivery_orders o ON o.id=f.order_id JOIN regions rg ON rg.id=o.region_id WHERE f.courier_id=? AND f.status='offered' AND o.status='searching' ORDER BY o.id", (ttl, now, u["id"]))]
                 rows += [dict(r) for r in c.execute("SELECT o.id,o.region_id,rg.name_ar region_name,NULL offer_fee,o.created_at,0 expires_in,1 taken FROM order_offers f JOIN delivery_orders o ON o.id=f.order_id JOIN regions rg ON rg.id=o.region_id WHERE f.courier_id=? AND f.status='lost' AND f.responded_at>?", (u["id"], now - 60))]
@@ -1325,8 +1383,9 @@ class H(BaseHTTPRequestHandler):
                     if not cr: raise E(403, "حساب المندوب غير معتمد")
                     if not is_online(c, cr): raise E(403, "أنت غير متصل حاليًا")
                     bal, free = wallet_free(c, u["id"])
-                    need_ = c.execute("SELECT commission,customer_id,region_id,comm_type,comm_value,offer_fee,origin_type FROM delivery_orders WHERE id=?", (oid,)).fetchone()
+                    need_ = c.execute("SELECT commission,customer_id,region_id,comm_type,comm_value,offer_fee,origin_type,search_started_at,created_at FROM delivery_orders WHERE id=?", (oid,)).fetchone()
                     if not need_: raise E(404, "غير موجود")
+                    ext_ = 1 if can_extend(c, cr["region_id"], need_, now) else 0  # المرحلة 64: مندوب منطقة مجاورة بعد التوسّع
                     dflt = region_fee(c, need_["region_id"]); cm_ = commission_for(c, dflt["fee"], need_["comm_type"], need_["comm_value"]) if dflt else need_["commission"]
                     if need_["offer_fee"] is not None: dflt = {"fee": need_["offer_fee"]}; cm_ = commission_for(c, need_["offer_fee"], need_["comm_type"], need_["comm_value"])  # المرحلة 27: السعر المرجعي هو سعر العميل لا الافتراضي  # الأجرة الافتراضية الحالية للمنطقة (الإدارة قد تكون عدّلتها بعد إنشاء الطلب)
                     pk_ = need_["origin_type"] == provider_delivery.KIND
@@ -1335,7 +1394,7 @@ class H(BaseHTTPRequestHandler):
                     if free < cm_: raise E(402, "رصيدك غير كافٍ لقبول هذا الطلب")
                     mine = c.execute("SELECT status FROM order_offers WHERE order_id=? AND courier_id=?", (oid, u["id"])).fetchone()
                     if mine and mine[0] == "rejected": raise E(409, "رفضت هذا الطلب سابقًا")
-                    n = c.execute("UPDATE delivery_orders SET status='assigned',courier_id=?,updated_at=? WHERE id=? AND status='searching' AND courier_id IS NULL AND (region_id IN " + COVER + " OR region_id IN " + COVER_REV + ")", (u["id"], now, oid, cr["region_id"], cr["region_id"])).rowcount
+                    n = c.execute("UPDATE delivery_orders SET status='assigned',courier_id=?,updated_at=? WHERE id=? AND status='searching' AND courier_id IS NULL AND (region_id IN " + COVER + " OR region_id IN " + COVER_REV + " OR ?=1)", (u["id"], now, oid, cr["region_id"], cr["region_id"], ext_)).rowcount
                     if not n:
                         c.execute("UPDATE order_offers SET status='lost',responded_at=? WHERE order_id=? AND courier_id=? AND status IN('offered','expired')", (now, oid, u["id"])); c.commit(); raise E(409, "الطلب لم يعد متاحًا")
                     c.execute("INSERT INTO order_offers(order_id,courier_id,status,offered_at,responded_at) VALUES(?,?,'accepted',?,?) ON CONFLICT(order_id,courier_id) DO UPDATE SET status='accepted',responded_at=excluded.responded_at", (oid, u["id"], now, now))
@@ -1562,10 +1621,22 @@ class H(BaseHTTPRequestHandler):
             if method == "GET" and path == "/api/admin/settings":
                 self.need(u, "admin"); return self.send(200, {"settings": {r["key"]: r["value"] for r in c.execute("SELECT * FROM settings")},
                     "fees": [dict(r) for r in c.execute("SELECT f.region_id,r.name_ar,f.fee FROM region_fees f JOIN regions r ON r.id=f.region_id ORDER BY r.parent_id,r.sort,r.id")]})
+            if path == "/api/admin/region-neighbors":  # المرحلة 64: ربط المناطق المجاورة لتوسّع طلبات الدليفري (ثنائي الاتجاه)
+                self.need(u, "admin")
+                if method == "GET": return self.send(200, [dict(r) for r in c.execute("SELECT a.region_id,a.neighbor_id,x.name_ar region_name,y.name_ar neighbor_name FROM region_neighbors a JOIN regions x ON x.id=a.region_id JOIN regions y ON y.id=a.neighbor_id WHERE a.region_id<a.neighbor_id ORDER BY x.name_ar,y.name_ar")])
+                if method == "POST":
+                    d = self.body(); a_, b_ = toint(d.get("region_id")), toint(d.get("neighbor_id")); linked = d.get("linked", True)
+                    if not a_ or not b_ or a_ == b_ or not isinstance(linked, bool): raise E(400, "بيانات غير صالحة")
+                    if not all(c.execute("SELECT 1 FROM regions WHERE id=? AND is_active=1 AND level!='country'", (x,)).fetchone() for x in (a_, b_)): raise E(400, "منطقة غير موجودة أو غير مفعّلة")
+                    if b_ in _cover_set(c, a_): raise E(400, "لا حاجة للربط: إحدى المنطقتين تتبع الأخرى وتغطيها أصلًا")
+                    for x, y in ((a_, b_), (b_, a_)):
+                        if linked: c.execute("INSERT OR IGNORE INTO region_neighbors VALUES(?,?)", (x, y))
+                        else: c.execute("DELETE FROM region_neighbors WHERE region_id=? AND neighbor_id=?", (x, y))
+                    audit(c, u["id"], "region.neighbor", "%d-%d" % (a_, b_), {"linked": linked}); c.commit(); return self.send(200, {"ok": True})
             if path == "/api/admin/delivery-settings":
                 self.need(u, "admin")
-                if method == "GET": return self.send(200, {"offer_timeout": int(cfg(c, "offer_timeout", 30)), "search_timeout": int(cfg(c, "search_timeout", 300)), "heartbeat_ttl": int(cfg(c, "heartbeat_ttl", 45)), "auto_confirm_hours": cfg(c, "auto_confirm_hours", 24)})
-                d = self.body(); lim = {"offer_timeout": (10, 300), "search_timeout": (60, 3600), "heartbeat_ttl": (15, 300)}
+                if method == "GET": return self.send(200, {"offer_timeout": int(cfg(c, "offer_timeout", 30)), "search_timeout": int(cfg(c, "search_timeout", 300)), "heartbeat_ttl": int(cfg(c, "heartbeat_ttl", 45)), "neighbor_expand_secs": int(cfg(c, "neighbor_expand_secs", 60)), "auto_confirm_hours": cfg(c, "auto_confirm_hours", 24)})
+                d = self.body(); lim = {"offer_timeout": (10, 300), "search_timeout": (60, 3600), "heartbeat_ttl": (15, 300), "neighbor_expand_secs": (10, 600)}
                 for k, (lo, hi) in lim.items():
                     if k in d:
                         try: v = int(d[k])
