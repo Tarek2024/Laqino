@@ -558,3 +558,78 @@ body.app button.qdel:active{transform:translateY(3px);border-bottom-width:2px}
   body.app img,body.app video,body.app canvas{max-width:100%}
   body.app input:not([type=checkbox]):not([type=radio]),body.app select,body.app textarea{max-width:100%;min-width:0}
 }
+
+
+/* Desktop layout follow-up: real wide-screen layout for the customer app.
+   Mobile rules remain unchanged; navigation and content expand only on large screens. */
+@media (min-width: 900px){
+  body.app{
+    display:flex;
+    flex-direction:column;
+    min-height:100vh;
+    padding-bottom:24px!important;
+  }
+  body.app header.bar{order:0;position:sticky;top:0;padding:14px max(28px,calc((100% - 1180px)/2))!important;gap:14px}
+  body.app header.bar .lg{width:48px;height:48px}
+  body.app header.bar .wm b{font-size:1.45rem}
+  body.app header.bar .wm small{font-size:.78rem}
+  body.app header.bar .rg{max-width:none;margin-inline-start:auto;min-height:44px!important;font-size:.95rem}
+  body.app>nav{
+    order:1;position:sticky;top:0;bottom:auto;inset-inline:0;
+    display:flex;justify-content:center;gap:8px;flex-wrap:nowrap;
+    width:100%;max-width:none;margin:0;padding:8px max(28px,calc((100% - 1180px)/2))!important;
+    background:#fff;border-top:1px solid #e3e8f3;border-bottom:1px solid #dfe6f2;
+    box-shadow:0 4px 12px #0f2a5c0d!important;z-index:29;
+  }
+  body.app>nav button{
+    flex:0 1 180px;flex-direction:row;justify-content:center;gap:9px;
+    min-height:48px;padding:0 16px;font-size:.95rem;white-space:nowrap;
+    border-radius:12px!important;
+  }
+  body.app>nav button svg.i3{width:28px;height:28px}
+  body.app>nav button.on::before{top:auto;bottom:0;width:42px;height:3px;border-radius:4px 4px 0 0}
+  body.app>nav button .pl{display:flex;align-items:center}
+  body.app>nav button span:last-child{display:inline}
+  body.app main#v{
+    order:2;flex:1;width:100%;max-width:1200px!important;
+    margin-inline:auto;padding:24px 28px 32px!important;
+  }
+  body.app main:has(.find){max-width:none!important;padding:0 0 28px!important}
+  body.app .find{
+    width:100%;max-width:none;margin:0;padding:30px max(28px,calc((100% - 1144px)/2)) 28px;
+    border-radius:0 0 30px 30px;
+  }
+  body.app .find .fi{max-width:1144px;margin:0 auto 18px;min-height:150px;padding-inline-end:150px;align-items:center}
+  body.app .find .mk{width:126px;height:164px;inset-inline-end:0;bottom:-10px}
+  body.app .find .mini{width:68px;height:68px}
+  body.app .find h1{font-size:clamp(1.8rem,2.3vw,2.5rem)}
+  body.app .find p{font-size:1.08rem}
+  body.app .sbar.lg{max-width:1144px;margin-inline:auto;min-height:68px;border-radius:18px}
+  body.app .sbar.lg input{min-height:62px;font-size:1.12rem!important}
+  body.app .sbar.lg button{min-height:50px;padding-inline:28px}
+  body.app .home{width:100%;max-width:1144px;margin:24px auto 0;padding:0}
+  body.app .tiles{grid-template-columns:repeat(4,minmax(0,1fr));gap:18px;margin-bottom:22px}
+  body.app .sc{min-height:190px;padding:22px;gap:6px;border-radius:22px!important}
+  body.app .sc .ti{width:64px;height:64px;margin-bottom:12px}
+  body.app .sc .ti svg.i3{width:48px;height:48px}
+  body.app .sc .h{font-size:1.25rem}
+  body.app .sc .d{font-size:.94rem;line-height:1.6}
+  body.app .sec{font-size:1.2rem}
+  body.app .sec.sh{margin:24px 0 12px}
+  body.app .ad{padding:20px 24px;border-radius:20px!important}
+  body.app .ad h3{font-size:1.2rem}
+  body.app .ad .pr{font-size:1.25rem}
+  body.app .ad .meta{font-size:.95rem}
+  body.app .card{padding:22px!important;border-radius:20px!important}
+  body.app input,body.app select,body.app textarea{font-size:1rem!important}
+  body.app .foot{font-size:.95rem;padding:18px 0}
+}
+@media (min-width: 1200px){
+  body.app .home{max-width:1144px}
+  body.app .tiles{gap:22px}
+  body.app .sc{min-height:205px;padding:24px}
+}
+@media (min-width: 900px) and (max-width: 1100px){
+  body.app .tiles{grid-template-columns:repeat(2,minmax(0,1fr))}
+  body.app .sc{min-height:160px}
+}
