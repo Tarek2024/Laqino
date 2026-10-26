@@ -74,6 +74,7 @@ ok("edit form supports image upload and image ordering", "addEditImgs(this," in 
 sw=open(os.path.join(root_dir,"static","sw.js"),encoding="utf-8").read()
 ok("service-worker cache version is bumped for updated marketplace assets", "laqino-v106" in sw)
 ok("marketplace enhancement stylesheet is cached in the app shell", "/market-enhancements.css" in sw)
+ok("versioned stylesheet URL is cached for offline compatibility", "/market-enhancements.css?v=2" in sw)
 ok("edit form can clear product condition when selecting no condition", "body.condition=cond||null" in idx)
 ok("edit form includes category, region, and dynamic fields", "id=" + chr(34) + "ek${x.id}" + chr(34) in idx and "id=" + chr(34) + "er${x.id}" + chr(34) in idx and "data-ek" in idx and "category_id,region_id,fields" in idx)
 ok("standalone market uses individual cards, not featured shelf", "loadFeatured();" not in market_html and ".grid>.card" in css)
