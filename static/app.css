@@ -238,6 +238,11 @@ body.app .lc .prow .ds{margin:4px 0 0}
 body.app .pc .acts{display:flex;gap:8px;margin-top:10px;flex-wrap:wrap}
 body.app .pc .acts button{min-height:44px;margin:0}
 body.app .ad .cv{display:block;width:100%;aspect-ratio:4/3;object-fit:cover;border-radius:12px;margin-bottom:8px;background:#e9edf0}
+body.app .home-market-ad{padding:0!important;overflow:hidden}
+body.app .home-market-photo{width:100%;aspect-ratio:16/10;object-fit:cover;border-radius:0;margin:0;background:var(--sky-bg)}
+body.app .home-market-no-image{display:grid;place-items:center;min-height:132px;background:var(--sky-bg);color:var(--mute);font-weight:700}
+body.app .home-market-body{padding:12px 14px}
+body.app .home-market-ad .meta{padding-bottom:2px}
 body.app .imgs{display:flex;flex-direction:column;gap:6px;margin:6px 0}
 body.app .imgs #lip{display:flex;flex-wrap:wrap;gap:8px}
 body.app .imgs .lt{position:relative;width:72px;height:72px}

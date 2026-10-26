@@ -21,7 +21,7 @@
 header{background:var(--card);border-bottom:1px solid var(--bd);padding:10px 12px}
 h1{font-size:18px;margin:0 0 8px}main{max-width:900px;margin:0 auto;padding:12px}
 input,select,button{font:inherit;color:inherit;background:var(--card);border:1px solid var(--bd);border-radius:10px;padding:9px 10px;min-height:42px}
-#q{width:100%}.row{display:flex;flex-wrap:wrap;gap:8px;margin-top:8px}.row>*{flex:1 1 130px}
+#q{width:auto;flex:1;min-width:0}.market-search-row{display:flex;direction:rtl;align-items:stretch;gap:8px;margin:8px 0}.market-search-row #q{flex:1;min-width:0}.add-listing-btn{display:inline-flex;align-items:center;justify-content:center;flex:0 0 auto;white-space:nowrap;text-decoration:none;background:var(--ac);border:1px solid var(--ac);color:#fff;font-weight:800;border-radius:10px;padding:9px 12px;min-height:42px}.row{display:flex;flex-wrap:wrap;gap:8px;margin-top:8px}.row>*{flex:1 1 130px}
 button.pri{background:var(--ac);color:#fff;border-color:var(--ac);cursor:pointer}
 .grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(160px,1fr));gap:10px}
 .card{background:var(--card);border:1px solid var(--bd);border-radius:12px;overflow:hidden;cursor:pointer;display:flex;flex-direction:column}
@@ -129,7 +129,7 @@ a.back{display:inline-flex;align-items:center;min-height:44px;padding:0 16px;bor
   <h1>سوق لاقينو</h1>
   <button id="mychats" type="button">محادثاتي</button>
   <button id="myfav" type="button">مفضلتي</button>
-  <input id="q" type="search" placeholder="ابحث في الإعلانات…" aria-label="بحث">
+  <div class="market-search-row"><input id="q" type="search" placeholder="ابحث في الإعلانات…" aria-label="بحث"><a id="addlisting" class="add-listing-btn" href="/?market-add=1">＋ إضافة إعلان</a></div>
   <div class="row" id="filters">
     <select id="cat" aria-label="التصنيف"><option value="">كل التصنيفات</option></select>
     <select id="reg" aria-label="المحافظة"><option value="">كل المحافظات</option></select>
@@ -199,6 +199,7 @@ function api(path, opt) {
 }
 function money(v) { return v == null ? "بدون سعر" : Number(v).toLocaleString("ar-EG") + " ج.م"; }
 function ago(ts) { var d = Math.max(0, Date.now() / 1000 - ts), m = Math.floor(d / 60); if (m < 1) return "الآن"; if (m < 60) return "منذ " + m + " دقيقة"; var hr = Math.floor(m / 60); if (hr < 24) return "منذ " + hr + " ساعة"; return "منذ " + Math.floor(hr / 24) + " يوم"; }
+function isFeatured(x) { return !!x && (x.featured === true || x.featured === 1 || x.featured === "1"); }
 function img(lid, fid) { return "/api/listings/" + lid + "/images/" + fid; }
 
 function query(offset) {
@@ -212,12 +213,12 @@ function query(offset) {
 function card(x) {
   var ph = x.images.length ? h("img", {src: img(x.id, x.images[0]), alt: "", loading: "lazy"}) : h("span", {text: "بلا صورة"});
   if (x.images.length) { var ld = function () { ph.classList.add("ld"); }; ph.addEventListener("load", ld); ph.addEventListener("error", ld); if (ph.complete && ph.naturalWidth) ld(); }
-  var fresh = x.featured ? h("span", {class: "gold", text: "إعلان"}) : ((Date.now() / 1000 - x.created_at) < 86400 && !x.closed_kind ? h("span", {class: "fresh", text: "جديد الآن"}) : null);
+  var fresh = isFeatured(x) ? h("span", {class: "gold", text: "إعلان"}) : ((Date.now() / 1000 - x.created_at) < 86400 && !x.closed_kind ? h("span", {class: "fresh", text: "جديد الآن"}) : null);
   var tags = [];
   if (x.condition) tags.push(h("span", {class: "tag " + (x.condition === "new" ? "new" : "used"), text: x.condition === "new" ? "جديد" : "مستعمل"}));
   if (x.negotiable) tags.push(h("span", {class: "tag neg", text: "قابل للتفاوض"}));
   if (x.closed_kind) tags.push(h("span", {class: "tag closed", text: x.closed_kind === "sold" ? "تم البيع" : "تم التأجير"}));
-  return h("div", {class: "card" + (x.featured ? " featured-card" : ""), role: "link", tabindex: "0", onclick: function () { location.hash = "#/l/" + x.id; }}, [
+  return h("div", {class: "card" + (isFeatured(x) ? " featured-card" : ""), role: "link", tabindex: "0", onclick: function () { location.hash = "#/l/" + x.id; }}, [
     h("div", {class: "ph"}, [ph, fresh]),
     h("div", {class: "b"}, [h("p", {class: "t", text: x.title}), h("div", {class: "p", text: money(x.price)}), h("div", {}, tags), h("div", {class: "m", text: ago(x.created_at)})])
   ]);
@@ -374,7 +375,7 @@ function detail(id) {
       box.appendChild(cnt); show(0); box.appendChild(thumbs);
     }
     box.appendChild(h("h2", {text: d.title})); box.appendChild(h("div", {class: "p", text: money(d.price)}));
-    var tags = h("div", {}); if (d.featured) tags.appendChild(h("span", {class: "tag gold", text: "★ مميز"})); if (d.condition) tags.appendChild(h("span", {class: "tag " + (d.condition === "new" ? "new" : "used"), text: d.condition === "new" ? "جديد" : "مستعمل"})); if (d.negotiable) tags.appendChild(h("span", {class: "tag neg", text: "قابل للتفاوض"})); box.appendChild(tags);
+    var tags = h("div", {}); if (isFeatured(d)) tags.appendChild(h("span", {class: "tag gold", text: "★ مميز"})); if (d.condition) tags.appendChild(h("span", {class: "tag " + (d.condition === "new" ? "new" : "used"), text: d.condition === "new" ? "جديد" : "مستعمل"})); if (d.negotiable) tags.appendChild(h("span", {class: "tag neg", text: "قابل للتفاوض"})); box.appendChild(tags);
     box.appendChild(h("div", {class: "m", text: d.category.map(function (c) { return c.name; }).join(" ‹ ") + " — " + d.region.map(function (c) { return c.name; }).join(" ‹ ")}));
     var tb = h("table"); d.fields.forEach(function (f) { if (f.type !== "price") tb.appendChild(h("tr", {}, [h("td", {text: f.label}), h("td", {text: String(f.value)})])); });
     tb.appendChild(h("tr", {}, [h("td", {text: "البائع"}), h("td", {text: d.seller})])); box.appendChild(tb);
