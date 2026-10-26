@@ -72,7 +72,7 @@ ok("post form offers named and anonymous publishing", "id=\"lanon\"" in idx and 
 ok("owner editor resubmits edits for review", "إرسال التعديلات للموافقة" in idx and "status='pending'" in open(os.path.join(root_dir,"server.py"),encoding="utf-8").read())
 ok("edit form supports image upload and image ordering", "addEditImgs(this," in idx and "image_file_ids=window._editImgs[id]" in idx and "initEditImgs" in idx)
 sw=open(os.path.join(root_dir,"static","sw.js"),encoding="utf-8").read()
-ok("service-worker cache version is bumped for updated marketplace assets", "laqino-v105" in sw)
+ok("service-worker cache version is bumped for updated marketplace assets", "laqino-v106" in sw)
 ok("marketplace enhancement stylesheet is cached in the app shell", "/market-enhancements.css" in sw)
 ok("edit form includes category, region, and dynamic fields", "id=" + chr(34) + "ek${x.id}" + chr(34) in idx and "id=" + chr(34) + "er${x.id}" + chr(34) in idx and "data-ek" in idx and "category_id,region_id,fields" in idx)
 ok("standalone market uses individual cards, not featured shelf", "loadFeatured();" not in market_html and ".grid>.card" in css)
