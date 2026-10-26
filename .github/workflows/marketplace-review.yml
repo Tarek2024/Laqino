@@ -16,6 +16,8 @@ jobs:
         run: python -m py_compile server.py market.py test_phase_marketplace_ad_management.py
       - name: Run isolated marketplace regression tests
         run: python test_phase_marketplace_ad_management.py
+      - name: Run existing marketplace favorites and reports regression tests
+        run: python test_phase8b_listing_social.py
       - uses: actions/setup-node@v4
         with:
           node-version: '20'
