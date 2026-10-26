@@ -2,7 +2,7 @@
 <html lang="ar" dir="rtl">
 <head>
 <meta charset="utf-8">
-<link rel="stylesheet" href="/market-enhancements.css?v=2">
+<link rel="stylesheet" href="/market-enhancements.css?v=3">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <title>سوق لاقينو | الإعلانات والمنتجات المحلية</title>
 <meta name="description" content="تصفح سوق لاقينو للمنتجات والإعلانات المحلية وتواصل مع أصحاب الإعلانات من خلال المنصة.">
@@ -212,7 +212,7 @@ function query(offset) {
 function card(x) {
   var ph = x.images.length ? h("img", {src: img(x.id, x.images[0]), alt: "", loading: "lazy"}) : h("span", {text: "بلا صورة"});
   if (x.images.length) { var ld = function () { ph.classList.add("ld"); }; ph.addEventListener("load", ld); ph.addEventListener("error", ld); if (ph.complete && ph.naturalWidth) ld(); }
-  var fresh = x.featured ? h("span", {class: "gold", text: "★ مميز"}) : ((Date.now() / 1000 - x.created_at) < 86400 && !x.closed_kind ? h("span", {class: "fresh", text: "جديد الآن"}) : null);
+  var fresh = x.featured ? h("span", {class: "gold", text: "إعلان"}) : ((Date.now() / 1000 - x.created_at) < 86400 && !x.closed_kind ? h("span", {class: "fresh", text: "جديد الآن"}) : null);
   var tags = [];
   if (x.condition) tags.push(h("span", {class: "tag " + (x.condition === "new" ? "new" : "used"), text: x.condition === "new" ? "جديد" : "مستعمل"}));
   if (x.negotiable) tags.push(h("span", {class: "tag neg", text: "قابل للتفاوض"}));
