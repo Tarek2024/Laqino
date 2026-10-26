@@ -53,10 +53,10 @@ contact=call("GET",f"/listings/{lid}/contact",None,buyer)[1]
 ok("anonymous seller name is hidden in contact endpoint too",contact["seller"]=="مستخدم مجهول" and bool(contact.get("phone")))
 own=call("GET",f"/listings/{lid}",None,seller)[1]
 ok("owner still sees own account name and edit controls metadata",own["seller"]=="بائع 01" and own["is_owner"])
-edited=call("POST",f"/listings/{lid}/edit",{"title":"كرسي خشب للبيع","description":"وصف بعد التعديل","anonymous":False},seller)
+edited=call("POST",f"/listings/{lid}/edit",{"title":"كرسي خشب للبيع","description":"وصف بعد التعديل","anonymous":False,"condition":None},seller)
 ok("editing returns pending for admin review",edited[0]==200 and edited[1]["status"]=="pending")
-row=sql("select title,description,status,anonymous from listings where id=?",(lid,))[0]
-ok("edit updates only requested fields and queues review",row==("كرسي خشب للبيع","وصف بعد التعديل","pending",0))
+row=sql("select title,description,status,anonymous,condition from listings where id=?",(lid,))[0]
+ok("edit updates requested fields, queues review, and can clear condition",row==("كرسي خشب للبيع","وصف بعد التعديل","pending",0,None))
 ok("edited ad is hidden from public while awaiting approval",all(x["id"]!=lid for x in call("GET","/listings",None,buyer)[1]))
 ok("admin can approve edited ad",call("POST",f"/admin/listings/{lid}/review",{"status":"approved"},admin)[0]==200)
 pub2=call("GET","/listings",None,buyer)[1]
@@ -74,6 +74,7 @@ ok("edit form supports image upload and image ordering", "addEditImgs(this," in 
 sw=open(os.path.join(root_dir,"static","sw.js"),encoding="utf-8").read()
 ok("service-worker cache version is bumped for updated marketplace assets", "laqino-v106" in sw)
 ok("marketplace enhancement stylesheet is cached in the app shell", "/market-enhancements.css" in sw)
+ok("edit form can clear product condition when selecting no condition", "body.condition=cond||null" in idx)
 ok("edit form includes category, region, and dynamic fields", "id=" + chr(34) + "ek${x.id}" + chr(34) in idx and "id=" + chr(34) + "er${x.id}" + chr(34) in idx and "data-ek" in idx and "category_id,region_id,fields" in idx)
 ok("standalone market uses individual cards, not featured shelf", "loadFeatured();" not in market_html and ".grid>.card" in css)
 ok("featured listings receive a dedicated card class from server-provided featured flag", 'x.featured ? " featured-card" : ""' in market_html)
