@@ -240,7 +240,7 @@ function loadFeatured() {
 }
 function list(reset) {
   if (state.busy) return; state.busy = true;
-  var app = $("app"); if (reset) { state.offset = 0; app.textContent = ""; app.appendChild(h("div", {class: "grid", id: "grid"})); app.appendChild(h("div", {id: "foot"})); loadFeatured(); }
+  var app = $("app"); if (reset) { state.offset = 0; app.textContent = ""; app.appendChild(h("div", {class: "grid", id: "grid"})); app.appendChild(h("div", {id: "foot"})); }
   api(query(state.offset)).then(function (r) {
     var g = $("grid"); if (!g) return;
     r.data.forEach(function (x) { g.appendChild(card(x)); }); state.offset += r.data.length; state.total = r.total;
