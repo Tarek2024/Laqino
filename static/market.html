@@ -2,7 +2,7 @@
 <html lang="ar" dir="rtl">
 <head>
 <meta charset="utf-8">
-<link rel="stylesheet" href="/market-enhancements.css?v=1">
+<link rel="stylesheet" href="/market-enhancements.css?v=2">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <title>سوق لاقينو | الإعلانات والمنتجات المحلية</title>
 <meta name="description" content="تصفح سوق لاقينو للمنتجات والإعلانات المحلية وتواصل مع أصحاب الإعلانات من خلال المنصة.">
@@ -217,7 +217,7 @@ function card(x) {
   if (x.condition) tags.push(h("span", {class: "tag " + (x.condition === "new" ? "new" : "used"), text: x.condition === "new" ? "جديد" : "مستعمل"}));
   if (x.negotiable) tags.push(h("span", {class: "tag neg", text: "قابل للتفاوض"}));
   if (x.closed_kind) tags.push(h("span", {class: "tag closed", text: x.closed_kind === "sold" ? "تم البيع" : "تم التأجير"}));
-  return h("div", {class: "card", role: "link", tabindex: "0", onclick: function () { location.hash = "#/l/" + x.id; }}, [
+  return h("div", {class: "card" + (x.featured ? " featured-card" : ""), role: "link", tabindex: "0", onclick: function () { location.hash = "#/l/" + x.id; }}, [
     h("div", {class: "ph"}, [ph, fresh]),
     h("div", {class: "b"}, [h("p", {class: "t", text: x.title}), h("div", {class: "p", text: money(x.price)}), h("div", {}, tags), h("div", {class: "m", text: ago(x.created_at)})])
   ]);
