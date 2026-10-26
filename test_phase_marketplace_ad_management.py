@@ -77,7 +77,7 @@ ok("marketplace enhancement stylesheet is cached in the app shell", "/market-enh
 ok("edit form includes category, region, and dynamic fields", "id=" + chr(34) + "ek${x.id}" + chr(34) in idx and "id=" + chr(34) + "er${x.id}" + chr(34) in idx and "data-ek" in idx and "category_id,region_id,fields" in idx)
 ok("standalone market uses individual cards, not featured shelf", "loadFeatured();" not in market_html and ".grid>.card" in css)
 ok("featured listings receive a dedicated card class from server-provided featured flag", 'x.featured ? " featured-card" : ""' in market_html)
-ok("gold featured treatment is scoped to featured cards, not every listing", ".grid>.card.featured-card::after" in css and "✦ إعلان مميز" in css and ".grid>.card::after" not in css)
+ok("gold featured treatment is scoped to featured cards, not every listing", ".grid>.card.featured-card .gold" in css and "linear-gradient(135deg,#fff0b5" in css and "content:none;" in css)
 admin_html=open(os.path.join(root_dir,"static","admin.html"),encoding="utf-8").read()
 ok("admin panel includes active featured list and unfeature control", "api('/admin/featured')" in admin_html and "days:0" in admin_html)
 ok("admin panel allows choosing feature duration and setting featured status", "تمييز إعلان منشور" in admin_html and "days:+document.getElementById" in admin_html)
