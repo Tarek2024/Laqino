@@ -1145,7 +1145,7 @@ class H(BaseHTTPRequestHandler):
                 out.update(lsocial.flags(c, u, r["id"]))  # is_favorite / reported للمسجّل فقط
                 return self.send(200, out)
             if method == "GET" and path == "/api/my/listings":
-                self.need(u); rows = [dict(r) for r in c.execute("SELECT id,title,description,price,status,reject_reason,created_at,contact_mode,anonymous FROM listings WHERE user_id=? AND status!='deleted' ORDER BY id DESC", (u["id"],))]; imgs = market.images_for(c, [r["id"] for r in rows])
+                self.need(u); rows = [dict(r) for r in c.execute("SELECT id,title,description,price,status,reject_reason,created_at,contact_mode,anonymous,condition,negotiable FROM listings WHERE user_id=? AND status!='deleted' ORDER BY id DESC", (u["id"],))]; imgs = market.images_for(c, [r["id"] for r in rows])
                 for r in rows: r["images"] = imgs[r["id"]]
                 return self.send(200, rows)
             m = re.fullmatch(r"/api/listings/(\d+)/contact", path)
