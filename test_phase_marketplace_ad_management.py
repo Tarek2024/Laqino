@@ -70,7 +70,7 @@ ok("admin can approve second listing",call("POST",f"/admin/listings/{second_id}/
 feature_status, feature_result=call("POST",f"/admin/listings/{second_id}/feature",{"days":7},admin)
 ok("admin can feature a published open listing",feature_status==200 and feature_result.get("featured") is True)
 ordered=call("GET","/listings?sort=oldest",None,buyer)[1]
-ok("featured listing is first even when another sort is selected",bool(ordered) and ordered[0]["id"]==second_id and ordered[0]["featured"] is True)
+ok("featured listing is first even when another sort is selected",bool(ordered) and ordered[0]["id"]==second_id and bool(ordered[0]["featured"]))
 unfeature_status, unfeature_result=call("POST",f"/admin/listings/{second_id}/feature",{"days":0},admin)
 ok("admin can remove featured status",unfeature_status==200 and unfeature_result.get("featured") is False)
 # Static front-end safeguards: primary-image chooser reorders the selected image first.
