@@ -544,3 +544,17 @@ body.app .qtotbox{background:linear-gradient(180deg,#1b3f86,var(--navy-d));borde
 body.app .qnote{border:1px solid #f1d9b3;border-bottom-width:3px}
 body.app button.qdel{border-bottom:5px solid var(--orange-d);box-shadow:0 8px 16px -6px #c96a0080}
 body.app button.qdel:active{transform:translateY(3px);border-bottom-width:2px}
+
+
+/* Responsive review: give the customer app more breathing room on desktop while preserving the mobile layout. */
+@media (min-width: 900px){
+  body.app main{max-width:860px;margin-inline:auto;padding-inline:24px}
+  body.app .home,body.app #home{max-width:100%}
+}
+@media (min-width: 1280px){
+  body.app main{max-width:920px}
+}
+@media (max-width: 600px){
+  body.app img,body.app video,body.app canvas{max-width:100%}
+  body.app input:not([type=checkbox]):not([type=radio]),body.app select,body.app textarea{max-width:100%;min-width:0}
+}
