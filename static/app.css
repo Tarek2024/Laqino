@@ -546,13 +546,13 @@ body.app button.qdel{border-bottom:5px solid var(--orange-d);box-shadow:0 8px 16
 body.app button.qdel:active{transform:translateY(3px);border-bottom-width:2px}
 
 
-/* Responsive review: give the customer app more breathing room on desktop while preserving the mobile layout. */
+/* Responsive review: override theme.css desktop max-width rules for the customer app's main#v only. */
 @media (min-width: 900px){
-  body.app main{max-width:860px;margin-inline:auto;padding-inline:24px}
+  body.app main#v{max-width:860px!important;margin-inline:auto;padding-inline:24px}
   body.app .home,body.app #home{max-width:100%}
 }
 @media (min-width: 1280px){
-  body.app main{max-width:920px}
+  body.app main#v{max-width:920px!important}
 }
 @media (max-width: 600px){
   body.app img,body.app video,body.app canvas{max-width:100%}
