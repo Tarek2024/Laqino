@@ -1224,6 +1224,22 @@ class H(BaseHTTPRequestHandler):
                 self.need(u, "admin", "staff"); rows = [dict(r) for r in c.execute("SELECT c.*,u.name,u.phone,r.name_ar AS region_name FROM couriers c JOIN users u ON u.id=c.user_id LEFT JOIN regions r ON r.id=c.region_id WHERE c.status=?", (q.get("status", ["pending"])[0],))]
                 for r in rows: r["documents"] = [dict(x) for x in c.execute("SELECT kind,file_id FROM courier_documents WHERE courier_id=? ORDER BY kind", (r["user_id"],))]
                 return self.send(200, rows)
+            m = re.fullmatch(r"/api/admin/couriers/(\d+)/region", path)
+            if method == "POST" and m:
+                self.need(u, "admin")
+                uid = int(m[1]); d = self.body()
+                try: rid = int(d.get("region_id"))
+                except (TypeError, ValueError): raise E(400, "اختر منطقة صالحة")
+                region = c.execute("SELECT id,name_ar FROM regions WHERE id=? AND is_active=1", (rid,)).fetchone()
+                if not region: raise E(400, "المنطقة غير موجودة أو غير مفعّلة")
+                courier_row = c.execute("SELECT region_id FROM couriers WHERE user_id=?", (uid,)).fetchone()
+                if not courier_row: raise E(404, "المندوب غير موجود")
+                old_rid = courier_row["region_id"]
+                if old_rid != rid:
+                    c.execute("UPDATE couriers SET region_id=? WHERE user_id=?", (rid, uid))
+                    audit(c, u["id"], "courier.region_update", str(uid), {"old_region_id": old_rid, "new_region_id": rid, "region_name": region["name_ar"]})
+                    c.commit()
+                return self.send(200, {"ok": True, "region_id": rid, "region_name": region["name_ar"]})
             m = re.fullmatch(r"/api/admin/couriers/(\d+)/review", path)
             if method == "POST" and m:
                 self.need(u, "admin"); rd = self.body(); st = rd.get("status")
