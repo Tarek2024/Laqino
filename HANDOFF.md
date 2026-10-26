@@ -1,6 +1,6 @@
-# HANDOFF — لاقينو (التحديث التراكمي phase-57)
+# HANDOFF — لاقينو (الحالة الحالية phase-65)
 
-> الإصدار الأساسي `phase-63`؛ كاش الواجهة الحالي `laqino-v97` (السابق laqino-v96).
+> **الحالة الحالية: الإصدار `phase-65` — كاش الواجهة `laqino-v100`** (المرجع الوحيد: ملف `VERSION`). السجل أدناه يتضمن ملاحظات تسليم تاريخية.
 
 ## phase-55 — قفل البحث تلقائيًا لما الرد يكتمل
 - `rx.py`: جدول `rx_completed` + `is_completed` / `mark_completed` / `open_prescription_count`؛ `complete_claim_on_full_approval` و`_claim_next` بيستدعوا القفل؛ `stage_of` بترجع `completed`؛ حارس في `_claim_next` يمنع إعادة التوزيع (ويفتح البحث تاني لو الاكتمال اتراجع)؛ بحث النواقص الفرعي لما يكتمل بيقفل الأصل كمان؛ `/quotes` بترجع `completed` و`completed_at`.
