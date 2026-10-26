@@ -82,3 +82,19 @@ th,td{overflow-wrap:anywhere}
 @media(prefers-reduced-motion:reduce){*,*::before,*::after{scroll-behavior:auto!important;animation-duration:.01ms!important;transition-duration:.01ms!important}}
 /* المرحلة 20: مربعات الاختيار والراديو بحجمها الطبيعي (القاعدة العامة input{width:100%;min-height:46px} كانت تضخّمها في لوحة الإدارة). app.css يخصّصها للتطبيق بأولوية أعلى. */
 input[type=checkbox],input[type=radio]{width:20px;min-height:0;height:20px;margin:0;accent-color:var(--navy,#0f2a5c);vertical-align:middle;flex:none}
+
+
+/* Responsive review: dashboard pages use the available desktop width and keep dense navigation usable on phones. */
+@media (min-width: 768px){
+  body:not(.app) main{width:min(calc(100% - 48px),1180px);max-width:1180px!important;margin-inline:auto;padding:24px}
+  body:not(.app) #app main,body:not(.app) main#m{max-width:1180px!important}
+}
+@media (max-width: 767px){
+  body:not(.app) main{width:100%;max-width:100%;min-width:0}
+  body:not(.app) header{min-width:0;flex-wrap:wrap}
+  body:not(.app) #app>nav,body:not(.app) header+nav{max-width:100%;overflow-x:auto;overflow-y:hidden;flex-wrap:nowrap;-webkit-overflow-scrolling:touch;scrollbar-width:thin}
+  body:not(.app) #app>nav button,body:not(.app) header+nav button{flex:0 0 auto;white-space:nowrap}
+  body:not(.app) #app main,body:not(.app) main#m{min-width:0}
+  body:not(.app) .table-wrap,body:not(.app) .tbl-wrap,body:not(.app) .table-responsive{max-width:100%;overflow-x:auto;-webkit-overflow-scrolling:touch}
+}
+@media (prefers-reduced-motion: reduce){body:not(.app) *{scroll-behavior:auto!important}}
