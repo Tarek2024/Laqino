@@ -49,6 +49,8 @@ item=next(x for x in pub if x["id"]==lid)
 ok("public list hides account name for anonymous ad",item["seller"]=="مستخدم مجهول")
 detail=call("GET",f"/listings/{lid}",None,buyer)[1]
 ok("public detail keeps anonymous label",detail["seller"]=="مستخدم مجهول" and detail["anonymous"] is True)
+contact=call("GET",f"/listings/{lid}/contact",None,buyer)[1]
+ok("anonymous seller name is hidden in contact endpoint too",contact["seller"]=="مستخدم مجهول" and bool(contact.get("phone")))
 own=call("GET",f"/listings/{lid}",None,seller)[1]
 ok("owner still sees own account name and edit controls metadata",own["seller"]=="بائع 01" and own["is_owner"])
 edited=call("POST",f"/listings/{lid}/edit",{"title":"كرسي خشب للبيع","description":"وصف بعد التعديل","anonymous":False},seller)
@@ -68,5 +70,6 @@ css=open(os.path.join(root_dir,"static","market-enhancements.css"),encoding="utf
 ok("primary image chooser moves selected image to first position", "window.lImgs.unshift(x)" in idx and "mainImg(" in idx)
 ok("post form offers named and anonymous publishing", "id=\"lanon\"" in idx and "anonymous:$('lanon').value==='1'" in idx)
 ok("owner editor resubmits edits for review", "إرسال التعديلات للموافقة" in idx and "status='pending'" in open(os.path.join(root_dir,"server.py"),encoding="utf-8").read())
+ok("service-worker cache version is bumped for updated marketplace assets", "laqino-v104" in open(os.path.join(root_dir,"static","sw.js"),encoding="utf-8").read())
 ok("standalone market uses individual cards, not featured shelf", "loadFeatured();" not in market_html and ".grid>.card" in css)
 print("Marketplace ad-management regression checks passed.")
