@@ -32,3 +32,29 @@
 @media(prefers-reduced-motion:reduce){.grid>.card{transition:none}.grid>.card:hover{transform:none}}
 
 .market-edit-images{margin:10px 0;padding:10px;border:1px dashed var(--market-line);border-radius:12px}.market-edit-images>b{display:block;margin-bottom:8px}.market-edit-images [id^="eip"]{display:flex;flex-wrap:wrap;gap:8px}.market-edit-images img{width:82px;height:72px;object-fit:cover;border-radius:8px;background:#eef1f5}.market-edit-images .lt{max-width:100px}.market-edit-images .lt-tools button{min-width:0}
+
+
+/* إعلان الإدارة المميز: إبراز ذهبي واضح على نفس الكارت، دون تغيير شكل الإعلانات العادية */
+.grid>.card.featured-card{
+  border:2px solid #e7ad35!important;
+  border-inline-start:5px solid #d99a18!important;
+  background:linear-gradient(145deg,#fffdf6 0%,#fff4d5 55%,#fff 100%)!important;
+  box-shadow:0 0 0 2px rgba(255,205,91,.28),0 12px 20px -8px rgba(137,89,9,.38),0 26px 38px -22px rgba(15,42,92,.42)!important;
+}
+.grid>.card.featured-card::after{
+  content:"✦ إعلان مميز";
+  position:absolute;top:10px;inset-inline-start:10px;z-index:3;
+  display:flex;align-items:center;min-height:30px;padding:0 11px;border-radius:10px;
+  color:#4b3000;font-size:12px;font-weight:900;letter-spacing:.1px;
+  background:linear-gradient(135deg,#fff0b5 0%,#f8cd63 42%,#d99a18 100%);
+  border:1px solid rgba(142,94,7,.32);
+  box-shadow:0 5px 0 rgba(132,84,5,.16),0 9px 16px rgba(132,84,5,.25),inset 0 1px 0 rgba(255,255,255,.85);
+  text-shadow:0 1px 0 rgba(255,255,255,.55);
+}
+.grid>.card.featured-card .ph{outline:1px solid rgba(218,161,39,.5);outline-offset:-1px}
+@media(hover:hover){.grid>.card.featured-card:hover{transform:translateY(-5px) scale(1.008);box-shadow:0 0 0 3px rgba(255,205,91,.34),0 18px 26px -9px rgba(137,89,9,.45),0 32px 44px -20px rgba(15,42,92,.48)!important}}
+@media(prefers-color-scheme:dark){
+ .grid>.card.featured-card{background:linear-gradient(145deg,#28251b,#322a17)!important;border-color:#c99a36!important;box-shadow:0 0 0 2px #b889302b,0 12px 24px -10px #000b!important}
+ .grid>.card.featured-card::after{background:linear-gradient(135deg,#5e4818,#d4a83e 55%,#8e681c);color:#fff4ce;border-color:#e0ba5a;text-shadow:none}
+}
+@media(prefers-reduced-motion:reduce){.grid>.card.featured-card:hover{transform:none}}
