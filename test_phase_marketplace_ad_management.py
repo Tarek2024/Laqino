@@ -62,6 +62,17 @@ ok("admin can approve edited ad",call("POST",f"/admin/listings/{lid}/review",{"s
 pub2=call("GET","/listings",None,buyer)[1]
 item2=next(x for x in pub2 if x["id"]==lid)
 ok("approved edit shows seller name when anonymous is disabled",item2["seller"]=="بائع 01")
+# Admin featured flow: the API flag must affect public ordering regardless of selected sort.
+status, second=call("POST","/listings",{"category_id":cat,"region_id":rid,"title":"طاولة للبيع","description":"إعلان ثانٍ"},seller)
+ok("second marketplace ad can be created for featured-order test",status==201)
+second_id=second["id"]
+ok("admin can approve second listing",call("POST",f"/admin/listings/{second_id}/review",{"status":"approved"},admin)[0]==200)
+feature_status, feature_result=call("POST",f"/admin/listings/{second_id}/feature",{"days":7},admin)
+ok("admin can feature a published open listing",feature_status==200 and feature_result.get("featured") is True)
+ordered=call("GET","/listings?sort=oldest",None,buyer)[1]
+ok("featured listing is first even when another sort is selected",bool(ordered) and ordered[0]["id"]==second_id and ordered[0]["featured"] is True)
+unfeature_status, unfeature_result=call("POST",f"/admin/listings/{second_id}/feature",{"days":0},admin)
+ok("admin can remove featured status",unfeature_status==200 and unfeature_result.get("featured") is False)
 # Static front-end safeguards: primary-image chooser reorders the selected image first.
 root_dir=os.path.dirname(os.path.abspath(__file__))
 idx=open(os.path.join(root_dir,"static","index.html"),encoding="utf-8").read()
@@ -72,17 +83,20 @@ ok("post form offers named and anonymous publishing", "id=\"lanon\"" in idx and 
 ok("owner editor resubmits edits for review", "إرسال التعديلات للموافقة" in idx and "status='pending'" in open(os.path.join(root_dir,"server.py"),encoding="utf-8").read())
 ok("edit form supports image upload and image ordering", "addEditImgs(this," in idx and "image_file_ids=window._editImgs[id]" in idx and "initEditImgs" in idx)
 sw=open(os.path.join(root_dir,"static","sw.js"),encoding="utf-8").read()
-ok("service-worker cache version is bumped for updated marketplace assets", "laqino-v106" in sw)
+ok("service-worker cache version is bumped for updated marketplace assets", "laqino-v107" in sw)
 ok("marketplace enhancement stylesheet is cached in the app shell", "/market-enhancements.css" in sw)
-ok("versioned stylesheet URL is cached for offline compatibility", "/market-enhancements.css?v=2" in sw)
+ok("versioned stylesheet URL is cached for offline compatibility", "/market-enhancements.css?v=3" in sw)
 ok("edit form can clear product condition when selecting no condition", "body.condition=cond||null" in idx)
 ok("edit form includes category, region, and dynamic fields", "id=" + chr(34) + "ek${x.id}" + chr(34) in idx and "id=" + chr(34) + "er${x.id}" + chr(34) in idx and "data-ek" in idx and "category_id,region_id,fields" in idx)
 ok("standalone market uses individual cards, not featured shelf", "loadFeatured();" not in market_html and ".grid>.card" in css)
 ok("featured listings receive a dedicated card class from server-provided featured flag", 'x.featured ? " featured-card" : ""' in market_html)
 ok("gold featured treatment is scoped to featured cards, not every listing", ".grid>.card.featured-card .gold" in css and "linear-gradient(135deg,#fff0b5" in css and "content:none;" in css)
+ok("featured badge says ad and appears only when server marks listing featured", 'class: "gold", text: "إعلان"' in market_html and 'x.featured ? " featured-card" : ""' in market_html)
+ok("ordinary listings keep neutral styling without decorative frames", ".grid>.card:not(.featured-card)" in css and "border-inline-start:1px solid var(--bd" in css)
+ok("featured listings are ordered before ordinary listings in API results", 'CASE WHEN l.featured_until>" + str(int(time.time())) + " THEN 0 ELSE 1 END," + SORTS[srt]' in open(os.path.join(root_dir,"server.py"),encoding="utf-8").read())
 admin_html=open(os.path.join(root_dir,"static","admin.html"),encoding="utf-8").read()
 ok("admin panel includes active featured list and unfeature control", "api('/admin/featured')" in admin_html and "days:0" in admin_html)
 ok("admin panel allows choosing feature duration and setting featured status", "تمييز إعلان منشور" in admin_html and "days:+document.getElementById" in admin_html)
-ok("service-worker cache version bumped for gold featured design", '"laqino-v106"' in sw)
+ok("service-worker cache version bumped for gold featured design", '"laqino-v107"' in sw)
 
 print("Marketplace ad-management regression checks passed.")
