@@ -212,7 +212,7 @@ function query(offset) {
 function card(x) {
   var ph = x.images.length ? h("img", {src: img(x.id, x.images[0]), alt: "", loading: "lazy"}) : h("span", {text: "بلا صورة"});
   if (x.images.length) { var ld = function () { ph.classList.add("ld"); }; ph.addEventListener("load", ld); ph.addEventListener("error", ld); if (ph.complete && ph.naturalWidth) ld(); }
-  var fresh = x.featured ? h("span", {class: "gold", text: "★ مميز"}) : ((Date.now() / 1000 - x.created_at) < 86400 && !x.closed_kind ? h("span", {class: "fresh", text: "جديد الآن"}) : null);
+  var fresh = x.featured ? h("span", {class: "gold", text: "إعلان"}) : ((Date.now() / 1000 - x.created_at) < 86400 && !x.closed_kind ? h("span", {class: "fresh", text: "جديد الآن"}) : null);
   var tags = [];
   if (x.condition) tags.push(h("span", {class: "tag " + (x.condition === "new" ? "new" : "used"), text: x.condition === "new" ? "جديد" : "مستعمل"}));
   if (x.negotiable) tags.push(h("span", {class: "tag neg", text: "قابل للتفاوض"}));
