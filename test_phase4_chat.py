@@ -70,7 +70,7 @@ anon_seller_row = [x for x in seller_threads if x["id"] == Tan][0]
 anon_buyer_thread = call("GET", f"/chats/{Tan}", None, tk[B2])[1]["thread"]
 anon_seller_thread = call("GET", f"/chats/{Tan}", None, tk[SELLER])[1]["thread"]
 ok("anonymous seller identity hidden in buyer chat list and thread API", anon_buyer_row["other_name"] == "مستخدم مجهول" and anon_buyer_thread["other_name"] == "مستخدم مجهول")
-ok("anonymous seller name remains available to listing owner; buyer identity not changed", anon_seller_row["other_name"] == "u02" and anon_seller_thread["other_name"] == "u02")
+ok("anonymous seller name remains available to listing owner; buyer identity not changed", anon_seller_row["other_name"] == "u03" and anon_seller_thread["other_name"] == "u03")
 
 # ---------- الرسائل والصلاحيات
 ok("non-participant cannot read / write (404)", call("GET", f"/chats/{T1}", None, tk[OTHER])[0] == 404 and call("POST", f"/chats/{T1}/messages", {"text": "x"}, tk[OTHER])[0] == 404 and call("GET", f"/chats/{T1}", None, tk[B2])[0] == 404)
