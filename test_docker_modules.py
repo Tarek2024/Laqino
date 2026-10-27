@@ -23,6 +23,7 @@ ok("Dockerfile copies every local module the server needs (missing: %s)" % (miss
 sw = open(os.path.join(here, "static", "sw.js"), encoding="utf8").read()
 shell = re.search(r"SHELL\s*=\s*\[(.*?)\]", sw, re.S).group(1)
 paths = re.findall(r'"(/[^"]*)"', shell)
-bad = [p for p in paths if p != "/" and not os.path.exists(os.path.join(here, "static", p.lstrip("/")))]
+# Cache-busting query strings are URL parameters, not part of the on-disk filename.
+bad = [p for p in paths if p != "/" and not os.path.exists(os.path.join(here, "static", p.split("?", 1)[0].lstrip("/")))]
 ok("every sw.js SHELL path exists in static/ (bad: %s)" % (bad or "none"), not bad)
 print("ALL PASSED")

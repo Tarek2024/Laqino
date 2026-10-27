@@ -69,3 +69,22 @@
   box-shadow:0 5px 0 rgba(132,84,5,.16),0 9px 16px rgba(132,84,5,.25),inset 0 1px 0 rgba(255,255,255,.85);
 }
 @media(prefers-color-scheme:dark){.grid>.card.featured-card .gold{background:linear-gradient(135deg,#5e4818,#d4a83e 55%,#8e681c);color:#fff4ce;border-color:#e0ba5a}}
+
+
+/* Market/chat polish — isolated styles; no layout changes outside market chat. */
+.market-search-row{display:flex;align-items:center;gap:8px;width:100%}
+.market-search-row #q{flex:1;min-width:0}
+.add-listing-btn{display:inline-flex;align-items:center;justify-content:center;white-space:nowrap;min-height:42px;padding:0 14px;border-radius:12px;background:var(--market-navy,#102c60);color:#fff!important;font-weight:800;text-decoration:none;box-shadow:0 5px 14px #102c6020}
+#mychats{font-weight:800}
+.chat-context{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:14px 16px;margin:12px 0;background:linear-gradient(135deg,#f5f8ff,#fff);border:1px solid var(--market-line,#dce5f5);border-radius:16px;box-shadow:0 6px 20px #102c600b}
+.chat-listing-title{font-size:1.02rem;line-height:1.6;margin:0;color:var(--market-navy,#102c60)}
+.chat-listing-link{flex-shrink:0;padding:9px 12px;border-radius:10px;background:#e8efff;color:var(--market-navy,#102c60);font-weight:800;text-decoration:none}
+.chat-messages{min-height:240px;max-height:58vh;overflow:auto;padding:14px;background:#f5f7fb;border:1px solid #e7ebf3;border-radius:16px;display:flex;flex-direction:column;gap:8px}
+.chat-messages .msg{max-width:86%;padding:10px 13px;border-radius:15px 15px 4px 15px;background:#fff;border:1px solid #e2e8f2;box-shadow:0 2px 5px #102c6008;overflow-wrap:anywhere}
+.chat-messages .msg.mine{align-self:flex-start;background:#e6efff;border-color:#d2e0ff;border-radius:15px 15px 15px 4px}
+.chat-input{width:100%;min-height:76px;resize:vertical;margin-top:10px;padding:12px;border:1px solid #d6deeb;border-radius:13px;background:var(--card,#fff);font:inherit;box-sizing:border-box}
+.chat-actions{display:flex;align-items:center;flex-wrap:wrap;gap:8px;margin:10px 0}
+.chat-actions button{min-height:40px;border-radius:10px;padding:8px 13px}
+.chat-note{padding:6px 2px}
+.home-negotiable{display:inline-flex;align-items:center;padding:3px 8px;border-radius:999px;background:#e8f7ed;color:#17683b;font-size:.78rem;font-weight:800}
+@media(max-width:420px){.market-search-row{gap:6px}.add-listing-btn{padding:0 9px;font-size:.86rem}.chat-context{align-items:flex-start;flex-direction:column}.chat-listing-link{align-self:flex-start}.chat-messages .msg{max-width:94%}}

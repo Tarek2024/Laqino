@@ -108,7 +108,7 @@ def _serve_image(h, c, tid, mid):
 
 def _thread_for(c, u, tid):
     """المحادثة إن كان المستخدم أحد طرفيها، وإلا None (يُعامَل كغير موجود)."""
-    return c.execute("SELECT t.*,l.title listing_title,l.status listing_status FROM chat_threads t JOIN listings l ON l.id=t.listing_id "
+    return c.execute("SELECT t.*,l.title listing_title,l.status listing_status,COALESCE(l.anonymous,0) listing_anonymous FROM chat_threads t JOIN listings l ON l.id=t.listing_id "
                      "WHERE t.id=? AND (t.buyer_id=? OR t.seller_id=?)", (tid, u["id"], u["id"])).fetchone()
 
 
@@ -158,14 +158,14 @@ def handle(h, c, u, method, path, q):
         if method != "GET": return err(404, "غير موجود")
         if not u: return err(401, "سجّل الدخول أولًا")
         out = []
-        for t in c.execute("SELECT t.*,l.title listing_title,l.status listing_status,ub.name buyer_name,us.name seller_name FROM chat_threads t "
+        for t in c.execute("SELECT t.*,l.title listing_title,l.status listing_status,COALESCE(l.anonymous,0) listing_anonymous,ub.name buyer_name,us.name seller_name FROM chat_threads t "
                            "JOIN listings l ON l.id=t.listing_id JOIN users ub ON ub.id=t.buyer_id JOIN users us ON us.id=t.seller_id "
                            "WHERE t.buyer_id=? OR t.seller_id=? ORDER BY t.last_message_at DESC,t.id DESC LIMIT 100", (u["id"], u["id"])).fetchall():
             buyer = t["buyer_id"] == u["id"]; read = t["buyer_read_id"] if buyer else t["seller_read_id"]
             last = c.execute("SELECT body,created_at,sender_id,file_id FROM chat_messages WHERE thread_id=? ORDER BY id DESC LIMIT 1", (t["id"],)).fetchone()
             unread = c.execute("SELECT COUNT(*) FROM chat_messages WHERE thread_id=? AND id>? AND sender_id!=?", (t["id"], read, u["id"])).fetchone()[0]
             out.append({"id": t["id"], "listing_id": t["listing_id"], "listing_title": t["listing_title"], "listing_status": t["listing_status"],
-                        "role": "buyer" if buyer else "seller", "other_name": t["seller_name"] if buyer else t["buyer_name"],
+                        "role": "buyer" if buyer else "seller", "other_name": ("مستخدم مجهول" if buyer and t["listing_anonymous"] else (t["seller_name"] if buyer else t["buyer_name"])) ,
                         "last": {"body": (last["body"] or "📷 صورة")[:80], "image": bool(last["file_id"]), "at": last["created_at"], "mine": last["sender_id"] == u["id"]} if last else None,
                         "unread": unread, "blocked": t["blocked_by"] is not None})
         h.send(200, out); return True
@@ -220,9 +220,11 @@ def handle(h, c, u, method, path, q):
                 col = "buyer_read_id" if buyer else "seller_read_id"
                 c.execute("UPDATE chat_threads SET %s=MAX(%s,?) WHERE id=?" % (col, col), (msgs[-1]["id"], t["id"])); c.commit()
             on = c.execute("SELECT name FROM users WHERE id=?", (other,)).fetchone()
+            other_name = ("مستخدم مجهول" if buyer and t["listing_anonymous"] else (on["name"] if on else ""))
             h.send(200, {"thread": {"id": t["id"], "listing_id": t["listing_id"], "listing_title": t["listing_title"], "listing_status": t["listing_status"],
-                                    "role": "buyer" if buyer else "seller", "other_name": on["name"] if on else "",
-                                    "blocked": t["blocked_by"] is not None, "blocked_by_me": t["blocked_by"] == u["id"]}, "messages": msgs}); return True
+                                    "role": "buyer" if buyer else "seller", "other_name": other_name,
+                                    "anonymous_seller": bool(t["listing_anonymous"]), "blocked": t["blocked_by"] is not None,
+                                    "blocked_by_me": t["blocked_by"] == u["id"]}, "messages": msgs}); return True
         if method != "POST": return err(404, "غير موجود")
         if sub == "messages":
             if t["blocked_by"] is not None: return err(403, "المحادثة موقوفة")
