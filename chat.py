@@ -141,10 +141,10 @@ def handle(h, c, u, method, path, q):
     if m:
         if method != "POST": return err(404, "غير موجود")
         if not u: return err(401, "سجّل الدخول أولًا")
-        r = c.execute("SELECT id,user_id,category_id,contact_mode FROM listings WHERE id=? AND status='approved'", (int(m[1]),)).fetchone()
+        r = c.execute("SELECT id,user_id,category_id,contact_mode,COALESCE(anonymous,0) anonymous FROM listings WHERE id=? AND status='approved'", (int(m[1]),)).fetchone()
         if not r or not market.is_visible_category(c, r["category_id"]): return err(404, "غير موجود")
         if r["user_id"] == u["id"]: return err(400, "هذا إعلانك")
-        if r["contact_mode"] == "phone": return err(403, "البائع لا يستقبل محادثات داخل التطبيق")
+        if r["contact_mode"] == "phone" and not r["anonymous"]: return err(403, "البائع لا يستقبل محادثات داخل التطبيق")
         t = c.execute("SELECT id FROM chat_threads WHERE listing_id=? AND buyer_id=?", (r["id"], u["id"])).fetchone()
         if not t:
             if c.execute("SELECT COUNT(*) FROM chat_threads WHERE buyer_id=? AND created_at>?", (u["id"], now - 86400)).fetchone()[0] >= MAX_NEW_THREADS_DAY:
