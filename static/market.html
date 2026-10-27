@@ -2,7 +2,7 @@
 <html lang="ar" dir="rtl">
 <head>
 <meta charset="utf-8">
-<link rel="stylesheet" href="/market-enhancements.css?v=3">
+<link rel="stylesheet" href="/market-enhancements.css?v=4">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <title>سوق لاقينو | الإعلانات والمنتجات المحلية</title>
 <meta name="description" content="تصفح سوق لاقينو للمنتجات والإعلانات المحلية وتواصل مع أصحاب الإعلانات من خلال المنصة.">
@@ -124,7 +124,14 @@ a.back{display:inline-flex;align-items:center;min-height:44px;padding:0 16px;bor
 .tag.gold{background:#ffeab8;color:#6b4300}
 @media(prefers-color-scheme:dark){.tag.gold{background:#5a4210;color:#ffe6a8}}
 @media(prefers-reduced-motion:reduce){.fc{transition:none}.fc:hover{transform:none}}
-</style><style id="edge-to-edge">/* أندرويد 16 (API 36) يرسم المحتوى خلف شريط الحالة: نزيح الهيدر بقدر الحافة الآمنة */header{padding-top:calc(14px + env(safe-area-inset-top))!important}body{padding-left:env(safe-area-inset-left);padding-right:env(safe-area-inset-right);padding-bottom:env(safe-area-inset-bottom)}</style></head>
+</style><style id="edge-to-edge">/* أندرويد 16 (API 36) يرسم المحتوى خلف شريط الحالة: نزيح الهيدر بقدر الحافة الآمنة */header{padding-top:calc(14px + env(safe-area-inset-top))!important}body{padding-left:env(safe-area-inset-left);padding-right:env(safe-area-inset-right);padding-bottom:env(safe-area-inset-bottom)}</style><style id="market-primary-actions-fix">
+/* Keep the primary marketplace actions visible and aligned on the listing screen. */
+header #mychats,header #myfav{display:inline-flex;align-items:center;justify-content:center;vertical-align:middle}
+header .market-search-row{display:flex;direction:rtl;align-items:stretch;gap:8px;width:100%}
+header .market-search-row #q{flex:1 1 auto;min-width:0;width:auto}
+header .market-search-row #addlisting{display:inline-flex;flex:0 0 auto;align-items:center;justify-content:center;white-space:nowrap;visibility:visible;opacity:1}
+@media(max-width:420px){header .market-search-row{gap:6px}header .market-search-row #addlisting{padding-inline:9px;font-size:.86rem}}
+</style></head>
 <body>
 <header>
   <h1>سوق لاقينو</h1>
