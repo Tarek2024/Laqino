@@ -334,11 +334,11 @@ function shrinkImg(file, cb, fail) {  // تصغير في المتصفح (حتى 
   rd.readAsDataURL(file);
 }
 function chatView(id) {
-  var app = $("app"), last = 0, title = h("h2"), note = h("div", {class: "m"}), list = h("div", {class: "msgs"}), inp = h("textarea", {maxlength: "1000", "aria-label": "اكتب رسالة"}), blockBtn = h("button", {text: "حظر"}), th = null;
+  var app = $("app"), last = 0, title = h("h2", {class: "chat-listing-title"}), listingLink = h("a", {class: "chat-listing-link", text: "عرض الإعلان"}), context = h("div", {class: "chat-context"}), note = h("div", {class: "m chat-note"}), list = h("div", {class: "msgs chat-messages"}), inp = h("textarea", {class: "chat-input", maxlength: "1000", "aria-label": "اكتب رسالة", placeholder: "اكتب رسالتك هنا…"}), blockBtn = h("button", {text: "حظر"}), th = null;
   app.textContent = ""; app.appendChild(h("a", {class: "back", onclick: function () { location.hash = "#/chats"; }, text: "→ محادثاتي"}));
   if (!TOKEN) { app.appendChild(needLogin()); return; }
   function add(ms) { ms.forEach(function (m) { last = Math.max(last, m.id); var b = h("div", {class: "msg" + (m.mine ? " mine" : "")}); if (m.body) b.appendChild(h("span", {text: m.body})); if (m.image) chatImg(id, m.id, b); list.appendChild(b); }); if (ms.length) list.scrollTop = list.scrollHeight; }
-  function state(t) { th = t; title.textContent = t.listing_title + " — " + t.other_name; blockBtn.textContent = t.blocked_by_me ? "رفع الحظر" : "حظر"; blockBtn.disabled = t.blocked && !t.blocked_by_me; note.textContent = t.blocked ? "المحادثة موقوفة" : (t.listing_status !== "approved" ? "الإعلان لم يعد متاحًا" : ""); }
+  function state(t) { th = t; title.textContent = "المحادثة بخصوص: " + t.listing_title; listingLink.setAttribute("href", "/market.html#/l/" + t.listing_id); blockBtn.textContent = t.blocked_by_me ? "رفع الحظر" : "حظر"; blockBtn.disabled = t.blocked && !t.blocked_by_me; note.textContent = t.blocked ? "المحادثة موقوفة" : (t.listing_status !== "approved" ? "الإعلان لم يعد متاحًا" : ""); }
   function load() { return api("/api/chats/" + id + "?after=" + last).then(function (r) { state(r.data.thread); add(r.data.messages); }).catch(function (e) { note.textContent = e.message; }); }
   var send = h("button", {class: "pri", text: "إرسال", onclick: function () { var v = inp.value.trim(); if (!v) return; api("/api/chats/" + id + "/messages", {method: "POST", body: {text: v}}).then(function () { inp.value = ""; note.textContent = ""; return load(); }).catch(function (e) { note.textContent = e.message; }); }});
   blockBtn.addEventListener("click", function () { api("/api/chats/" + id + "/block", {method: "POST", body: {block: !(th && th.blocked_by_me)}}).then(load).catch(function (e) { note.textContent = e.message; }); });
@@ -353,7 +353,7 @@ function chatView(id) {
       api("/api/chats/" + id + "/images", {method: "POST", body: {data: b64, text: cap}}).then(function () { inp.value = ""; note.textContent = ""; return load(); }).catch(function (e) { note.textContent = e.message; }).then(function () { pic.disabled = false; });
     }, function (m) { note.textContent = m; pic.disabled = false; });
   });
-  [title, list, inp, h("div", {class: "row"}, [send, pic, file, blockBtn, rep]), note].forEach(function (e) { app.appendChild(e); });
+  context.appendChild(title); context.appendChild(listingLink); app.appendChild(context); [list, inp, h("div", {class: "row chat-actions"}, [send, pic, file, blockBtn, rep]), note].forEach(function (e) { app.appendChild(e); });
   load(); poll = setInterval(function () { if (!document.hidden) load(); }, 5000);
 }
 function detail(id) {
