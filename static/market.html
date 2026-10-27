@@ -129,7 +129,7 @@ a.back{display:inline-flex;align-items:center;min-height:44px;padding:0 16px;bor
   <h1>سوق لاقينو</h1>
   <button id="mychats" type="button">محادثاتي</button>
   <button id="myfav" type="button">مفضلتي</button>
-  <div class="market-search-row"><input id="q" type="search" placeholder="ابحث في الإعلانات…" aria-label="بحث"><a id="addlisting" class="add-listing-btn" href="/?market-add=1">＋ إضافة إعلان</a></div>
+  <div class="market-search-row" id="marketSearchRow"><input id="q" type="search" placeholder="ابحث في الإعلانات…" aria-label="بحث"><a id="addlisting" class="add-listing-btn" href="/?market-add=1">＋ إضافة إعلان</a></div>
   <div class="row" id="filters">
     <select id="cat" aria-label="التصنيف"><option value="">كل التصنيفات</option></select>
     <select id="reg" aria-label="المحافظة"><option value="">كل المحافظات</option></select>
@@ -385,7 +385,7 @@ function detail(id) {
     document.title = d.title + " — سوق لاقينو"; window.scrollTo(0, 0);
   }).catch(function () { app.textContent = ""; app.appendChild(h("div", {class: "err", text: "الإعلان غير موجود أو غير متاح"})); app.appendChild(h("a", {class: "back", onclick: function () { location.hash = "#/"; }, text: "→ كل الإعلانات"})); });
 }
-function chrome(show) { $("filters").style.display = show ? "" : "none"; $("q").style.display = show ? "" : "none"; }
+function chrome(show) { $("filters").style.display = show ? "" : "none"; $("marketSearchRow").style.display = show ? "flex" : "none"; $("mychats").style.display = show ? "" : "none"; $("myfav").style.display = show ? "" : "none"; }
 function route() { stopPoll(); var m = /^#\/l\/(\d+)$/.exec(location.hash), ch = /^#\/chat\/(\d+)$/.exec(location.hash); if (m) { chrome(false); detail(m[1]); } else if (ch) { chrome(false); chatView(ch[1]); } else if (location.hash === "#/chats") { chrome(false); chatsView(); } else if (location.hash === "#/fav") { chrome(false); favView(); } else { chrome(true); document.title = "سوق لاقينو"; list(true); } }
 function fillCats() {
   api("/api/categories?section=souq").then(function (r) {
