@@ -260,7 +260,8 @@ function contactBox(d) {
     box.appendChild(h("button", {class: "pri", text: "حفظ", onclick: function () { api("/api/listings/" + d.id + "/contact-mode", {method: "POST", body: {mode: sel.value}}).then(function () { out.textContent = "تم الحفظ"; }).catch(function (e) { out.textContent = e.message; }); }}));
     box.appendChild(out); return box;
   }
-  var mode = d.contact_mode || "both";
+  var mode = d.anonymous ? "chat" : (d.contact_mode || "both");
+  if (d.anonymous) box.appendChild(h("div", {class: "m", text: "البائع اختار إخفاء هويته؛ تقدر تتواصل معاه من خلال المحادثة داخل التطبيق."}));
   if (mode !== "phone") box.appendChild(h("button", {class: "pri", text: "راسل البائع", onclick: function () {
     if (!TOKEN) { out.textContent = ""; out.appendChild(needLogin()); return; }
     api("/api/listings/" + d.id + "/chat", {method: "POST"}).then(function (r) { location.hash = "#/chat/" + r.data.thread_id; }).catch(function (e) { out.textContent = e.message; });
