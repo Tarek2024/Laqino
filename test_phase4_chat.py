@@ -21,9 +21,10 @@ tk = {p: user(p) for p in (SELLER, B1, B2, B3, OTHER)}; uid = {p: call("GET", "/
 root = sql("select id from categories where section='souq' and parent_id is null")[0][0]
 call("POST", "/admin/categories", {"section": "souq", "name_ar": "أجهزة", "slug": "dev", "parent_id": root, "is_active": True}, at)
 cat = [x for x in call("GET", "/categories?section=souq")[1] if x["parent_id"]][0]["id"]
-def listing(title, mode=None, approve=True):
+def listing(title, mode=None, approve=True, anonymous=False):
     body = {"category_id": cat, "region_id": 3, "title": title}
     if mode: body["contact_mode"] = mode
+    if anonymous: body["anonymous"] = True
     s, r = call("POST", "/listings", body, tk[SELLER]); assert s == 201, (s, r)
     if approve: call("POST", f"/admin/listings/{r['id']}/review", {"status": "approved"}, at)
     return r["id"]
@@ -58,6 +59,18 @@ s, r = call("POST", f"/listings/{Lc}/chat", None, tk[B1]); T1 = r["thread_id"]
 ok("buyer opens chat (201) and gets same thread again (200)", s == 201 and call("POST", f"/listings/{Lc}/chat", None, tk[B1]) == (200, {"thread_id": T1}))
 T2 = call("POST", f"/listings/{Lc}/chat", None, tk[B2])[1]["thread_id"]; ok("each buyer has an own thread per listing", T2 != T1)
 ok("both/default listings accept chat", call("POST", f"/listings/{Lb}/chat", None, tk[B3])[0] == 201 and call("POST", f"/listings/{Ld}/chat", None, tk[B3])[0] == 201)
+
+# ---------- خصوصية الإعلان مجهول الهوية
+Lan = listing("إعلان مجهول الهوية", "chat", anonymous=True)
+Tan = call("POST", f"/listings/{Lan}/chat", None, tk[B2])[1]["thread_id"]
+buyer_threads = call("GET", "/chats", None, tk[B2])[1]
+anon_buyer_row = [x for x in buyer_threads if x["id"] == Tan][0]
+seller_threads = call("GET", "/chats", None, tk[SELLER])[1]
+anon_seller_row = [x for x in seller_threads if x["id"] == Tan][0]
+anon_buyer_thread = call("GET", f"/chats/{Tan}", None, tk[B2])[1]["thread"]
+anon_seller_thread = call("GET", f"/chats/{Tan}", None, tk[SELLER])[1]["thread"]
+ok("anonymous seller identity hidden in buyer chat list and thread API", anon_buyer_row["other_name"] == "مستخدم مجهول" and anon_buyer_thread["other_name"] == "مستخدم مجهول")
+ok("anonymous seller name remains available to listing owner; buyer identity not changed", anon_seller_row["other_name"] == "u02" and anon_seller_thread["other_name"] == "u02")
 
 # ---------- الرسائل والصلاحيات
 ok("non-participant cannot read / write (404)", call("GET", f"/chats/{T1}", None, tk[OTHER])[0] == 404 and call("POST", f"/chats/{T1}/messages", {"text": "x"}, tk[OTHER])[0] == 404 and call("GET", f"/chats/{T1}", None, tk[B2])[0] == 404)
