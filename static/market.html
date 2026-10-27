@@ -102,6 +102,7 @@ a.back{display:inline-flex;align-items:center;min-height:44px;padding:0 16px;bor
 .lb img{max-width:100%;max-height:100%;border-radius:14px;box-shadow:0 20px 40px rgba(0,0,0,.6)}
 .lb button{position:absolute;top:14px;inset-inline-start:14px;min-height:46px;padding:0 18px;border-radius:14px;border:0;background:#fff;color:#16213a;font-weight:900;cursor:pointer}
 @media(prefers-reduced-motion:reduce){.card,.card .ph img{transition:none}.card:hover{transform:none}}
+</style>
 <style id="lagino-market-featured">
 /* المرحلة 30: الإعلانات المميزة — قسم أعلى السوق بإطار ذهبي (الفئة .fc لا تتقاطع مع .card فلا تتأثر عدّادات الشبكة) */
 .feat{margin:6px 0 0}.feat h2{font-size:20px;font-weight:900;margin:6px 4px 8px;color:var(--lag-ink)}
@@ -218,7 +219,7 @@ function card(x) {
   if (x.condition) tags.push(h("span", {class: "tag " + (x.condition === "new" ? "new" : "used"), text: x.condition === "new" ? "جديد" : "مستعمل"}));
   if (x.negotiable) tags.push(h("span", {class: "tag neg", text: "قابل للتفاوض"}));
   if (x.closed_kind) tags.push(h("span", {class: "tag closed", text: x.closed_kind === "sold" ? "تم البيع" : "تم التأجير"}));
-  return h("div", {class: "card" + (isFeatured(x) ? " featured-card" : ""), role: "link", tabindex: "0", onclick: function () { location.hash = "#/l/" + x.id; }}, [
+  return h("div", {class: "card" + (isFeatured(x) ? " featured-card" : ""), role: "link", tabindex: "0", onclick: function () { location.hash = "#/l/" + x.id; }, onkeydown: function (e) { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); location.hash = "#/l/" + x.id; } }}, [
     h("div", {class: "ph"}, [ph, fresh]),
     h("div", {class: "b"}, [h("p", {class: "t", text: x.title}), h("div", {class: "p", text: money(x.price)}), h("div", {}, tags), h("div", {class: "m", text: ago(x.created_at)})])
   ]);
@@ -227,7 +228,7 @@ function featCard(x) {
   var ph = x.images.length ? h("img", {src: img(x.id, x.images[0]), alt: ""}) : h("span", {text: "بلا صورة"});
   if (x.images.length) { var ld = function () { ph.classList.add("ld"); }; ph.addEventListener("load", ld); ph.addEventListener("error", ld); if (ph.complete && ph.naturalWidth) ld(); }
   var open = function () { location.hash = "#/l/" + x.id; };
-  return h("div", {class: "fc", role: "link", tabindex: "0", "aria-label": "إعلان مميز: " + x.title, onclick: open, onkeydown: function (e) { if (e.key === "Enter") open(); }}, [h("div", {class: "in"}, [
+  return h("div", {class: "fc", role: "link", tabindex: "0", "aria-label": "إعلان مميز: " + x.title, onclick: open, onkeydown: function (e) { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); open(); } }}, [h("div", {class: "in"}, [
     h("div", {class: "ph"}, [ph, h("span", {class: "star", text: "★ مميز"})]),
     h("div", {class: "bd"}, [h("div", {class: "ft", text: x.title}), h("div", {class: "fr"}, [h("div", {class: "fp", text: money(x.price)}), h("div", {class: "fm", text: ago(x.created_at)})])])
   ])]);
@@ -385,7 +386,7 @@ function detail(id) {
     document.title = d.title + " — سوق لاقينو"; window.scrollTo(0, 0);
   }).catch(function () { app.textContent = ""; app.appendChild(h("div", {class: "err", text: "الإعلان غير موجود أو غير متاح"})); app.appendChild(h("a", {class: "back", onclick: function () { location.hash = "#/"; }, text: "→ كل الإعلانات"})); });
 }
-function chrome(show) { $("filters").style.display = show ? "" : "none"; $("q").style.display = show ? "" : "none"; }
+function chrome(show) { var display = show ? "" : "none"; $("filters").style.display = display; $("q").style.display = display; $("mychats").style.display = display; $("myfav").style.display = display; var searchRow = document.querySelector(".market-search-row"); if (searchRow) searchRow.style.display = display; }
 function route() { stopPoll(); var m = /^#\/l\/(\d+)$/.exec(location.hash), ch = /^#\/chat\/(\d+)$/.exec(location.hash); if (m) { chrome(false); detail(m[1]); } else if (ch) { chrome(false); chatView(ch[1]); } else if (location.hash === "#/chats") { chrome(false); chatsView(); } else if (location.hash === "#/fav") { chrome(false); favView(); } else { chrome(true); document.title = "سوق لاقينو"; list(true); } }
 function fillCats() {
   api("/api/categories?section=souq").then(function (r) {
