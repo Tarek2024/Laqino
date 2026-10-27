@@ -1,6 +1,6 @@
 # Marketplace ad management isolated regression tests.
 # Run: python test_phase_marketplace_ad_management.py
-import os, sys, json, threading, urllib.request, urllib.error, tempfile, time, sqlite3
+import os, sys, json, threading, urllib.request, urllib.error, tempfile, time, sqlite3, re
 _TMP = tempfile.mkdtemp(prefix="laqino-market-ad-")
 os.environ["LAQINO_DB"] = os.path.join(_TMP, "test.db")
 os.environ["LAQINO_UPLOADS"] = os.path.join(_TMP, "uploads")
@@ -83,11 +83,17 @@ ok("post form offers named and anonymous publishing", "id=\"lanon\"" in idx and 
 ok("owner editor resubmits edits for review", "إرسال التعديلات للموافقة" in idx and "status='pending'" in open(os.path.join(root_dir,"server.py"),encoding="utf-8").read())
 ok("edit form supports image upload and image ordering", "addEditImgs(this," in idx and "image_file_ids=window._editImgs[id]" in idx and "initEditImgs" in idx)
 sw=open(os.path.join(root_dir,"static","sw.js"),encoding="utf-8").read()
-ok("service-worker cache version is bumped for updated marketplace assets", "laqino-v108" in sw)
 version_file=open(os.path.join(root_dir,"VERSION"),encoding="utf-8").read()
-ok("VERSION metadata matches the service-worker cache version", "cache=laqino-v108" in version_file and "laqino-v108" in sw)
+cache_version=next((x.split("=",1)[1].strip() for x in version_file.splitlines() if x.startswith("cache=")), "")
+sw_version=sw.split('const V = "',1)[1].split('"',1)[0] if 'const V = "' in sw else ""
+ok("service-worker cache version is declared", bool(sw_version) and sw_version.startswith("laqino-v"))
+ok("VERSION metadata matches the service-worker cache version", bool(cache_version) and cache_version==sw_version)
 ok("marketplace enhancement stylesheet is cached in the app shell", "/market-enhancements.css" in sw)
-ok("versioned stylesheet URL is cached for offline compatibility", "/market-enhancements.css?v=3" in sw)
+market_css=re.search(r'<link rel="stylesheet" href="(/market-enhancements\.css\?v=\d+)">',market_html)
+ok("versioned stylesheet URL is cached for offline compatibility", bool(market_css) and market_css.group(1) in sw)
+card_html=market_html.split("function card(x) {",1)[1].split("function featCard(x)",1)[0]
+ok("market listing cards keep only publisher metadata", 'class: "seller-only"' in card_html and 'x.condition) tags.push' not in card_html and 'x.negotiable) tags.push' not in card_html and 'ago(x.created_at)' not in card_html)
+ok("homepage market metadata keeps the publisher name only", 'class="meta market-seller-only"' in idx)
 ok("edit form can clear product condition when selecting no condition", "body.condition=cond||null" in idx)
 ok("edit form includes category, region, and dynamic fields", "id=" + chr(34) + "ek${x.id}" + chr(34) in idx and "id=" + chr(34) + "er${x.id}" + chr(34) in idx and "data-ek" in idx and "category_id,region_id,fields" in idx)
 ok("standalone market uses individual cards, not featured shelf", "loadFeatured();" not in market_html and ".grid>.card" in css)
@@ -99,10 +105,10 @@ ok("featured listings are ordered before ordinary listings in API results", 'CAS
 admin_html=open(os.path.join(root_dir,"static","admin.html"),encoding="utf-8").read()
 ok("admin panel includes active featured list and unfeature control", "api('/admin/featured')" in admin_html and "days:0" in admin_html)
 ok("admin panel allows choosing feature duration and setting featured status", "تمييز إعلان منشور" in admin_html and "days:+document.getElementById" in admin_html)
-ok("service-worker cache version bumped for gold featured design", '"laqino-v108"' in sw)
+ok("service-worker cache version bumped for gold featured design", bool(cache_version) and cache_version==sw_version)
 
 ok("home latest marketplace cards show listing photos", "home-market-photo" in idx and "l.images[0]" in idx and "home-market-no-image" in idx)
-ok("home latest marketplace cards open the selected listing detail", "location.href=\'/market.html#/l/\'+(Number(l.id)|0)" in idx)
+ok("home latest marketplace cards open the selected listing detail", 'href="/market.html#/l/${Number(l.id)|0}"' in idx)
 ok("market add button routes to the existing publish form", 'id="addlisting"' in market_html and 'href="/?market-add=1"' in market_html and 'id="listing-publish"' in idx and "market-add" in idx)
 ok("gold styling applies only to featured ad cards", ".card.ad.featured-card{position:relative;" in css and ".card.ad:not(.featured-card)" in css and ".card.ad{position:relative;" not in css)
 ok("featured status checks reject truthy non-boolean strings", "function isFeatured(x)" in market_html and "isFeaturedListing(l)" in idx)

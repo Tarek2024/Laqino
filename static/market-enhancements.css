@@ -88,3 +88,8 @@
 .chat-note{padding:6px 2px}
 .home-negotiable{display:inline-flex;align-items:center;padding:3px 8px;border-radius:999px;background:#e8f7ed;color:#17683b;font-size:.78rem;font-weight:800}
 @media(max-width:420px){.market-search-row{gap:6px}.add-listing-btn{padding:0 9px;font-size:.86rem}.chat-context{align-items:flex-start;flex-direction:column}.chat-listing-link{align-self:flex-start}.chat-messages .msg{max-width:94%}}
+
+
+/* بطاقات السوق: تقليل الزحام وتحسين وضوح اسم الناشر فقط */
+.grid>.card .seller-only{display:block;margin-top:9px;padding-top:7px;border-top:1px solid var(--bd,#dfe3e8);color:#34425b;font-size:13px;font-weight:700;line-height:1.5;overflow-wrap:anywhere}
+@media(prefers-color-scheme:dark){.grid>.card .seller-only{color:#d0d9e8;border-top-color:var(--bd,#39434d)}}

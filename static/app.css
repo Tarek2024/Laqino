@@ -680,3 +680,9 @@ body.app .market-home-actions{display:flex!important;flex-wrap:wrap;gap:8px;marg
 body.app .market-home-actions button{display:inline-flex!important;align-items:center;justify-content:center;flex:1 1 140px;min-width:0;min-height:44px;font-weight:800;visibility:visible;opacity:1}
 body.app .sbar .market-add{display:inline-flex!important;align-items:center;justify-content:center;flex:0 0 auto;min-width:max-content;min-height:42px;padding-inline:10px;white-space:nowrap;font-weight:800;visibility:visible;opacity:1}
 @media(max-width:360px){body.app .sbar{gap:4px;padding-inline:4px}body.app .sbar .market-add{padding-inline:7px;font-size:.82rem}body.app .sbar button{padding-inline:9px}}
+
+
+/* السوق داخل الرئيسية: إظهار اسم الناشر وحده أسفل الإعلان بنص واضح */
+body.app .market-seller-only{display:flex;align-items:center;gap:0;margin-top:8px;padding-top:8px;border-top:1px solid #dce5f0;color:#34425b;font-size:13px;font-weight:700;line-height:1.5;overflow-wrap:anywhere}
+body.app .market-seller-only:empty{display:none}
+@media(prefers-color-scheme:dark){body.app .market-seller-only{color:#d0d9e8;border-top-color:#394454}}
