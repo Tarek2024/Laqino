@@ -2,7 +2,7 @@
 <html lang="ar" dir="rtl">
 <head>
 <meta charset="utf-8">
-<link rel="stylesheet" href="/market-enhancements.css?v=5">
+<link rel="stylesheet" href="/market-enhancements.css?v=6">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <title>سوق لاقينو | الإعلانات والمنتجات المحلية</title>
 <meta name="description" content="تصفح سوق لاقينو للمنتجات والإعلانات المحلية وتواصل مع أصحاب الإعلانات من خلال المنصة.">
@@ -223,12 +223,11 @@ function card(x) {
   if (x.images.length) { var ld = function () { ph.classList.add("ld"); }; ph.addEventListener("load", ld); ph.addEventListener("error", ld); if (ph.complete && ph.naturalWidth) ld(); }
   var fresh = isFeatured(x) ? h("span", {class: "gold", text: "إعلان"}) : ((Date.now() / 1000 - x.created_at) < 86400 && !x.closed_kind ? h("span", {class: "fresh", text: "جديد الآن"}) : null);
   var tags = [];
-  if (x.condition) tags.push(h("span", {class: "tag " + (x.condition === "new" ? "new" : "used"), text: x.condition === "new" ? "جديد" : "مستعمل"}));
-  if (x.negotiable) tags.push(h("span", {class: "tag neg", text: "قابل للتفاوض"}));
   if (x.closed_kind) tags.push(h("span", {class: "tag closed", text: x.closed_kind === "sold" ? "تم البيع" : "تم التأجير"}));
+  var seller = x.seller ? h("div", {class: "seller-only", text: x.seller}) : null;
   return h("div", {class: "card" + (isFeatured(x) ? " featured-card" : ""), role: "link", tabindex: "0", onclick: function () { location.hash = "#/l/" + x.id; }, onkeydown: function (e) { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); location.hash = "#/l/" + x.id; } }}, [
     h("div", {class: "ph"}, [ph, fresh]),
-    h("div", {class: "b"}, [h("p", {class: "t", text: x.title}), h("div", {class: "p", text: money(x.price)}), h("div", {}, tags), h("div", {class: "m", text: ago(x.created_at)})])
+    h("div", {class: "b"}, [h("p", {class: "t", text: x.title}), h("div", {class: "p", text: money(x.price)}), h("div", {}, tags), seller])
   ]);
 }
 function featCard(x) {
