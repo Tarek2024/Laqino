@@ -13,11 +13,13 @@ jobs:
         with:
           python-version: '3.12'
       - name: Compile changed Python files
-        run: python -m py_compile server.py market.py test_phase_marketplace_ad_management.py
+        run: python -m py_compile server.py market.py test_phase_marketplace_ad_management.py test_phase4_chat.py
       - name: Run isolated marketplace regression tests
         run: python test_phase_marketplace_ad_management.py
       - name: Run existing marketplace favorites and reports regression tests
         run: python test_phase8b_listing_social.py
+      - name: Run chat privacy and compatibility regression tests
+        run: python test_phase4_chat.py
       - uses: actions/setup-node@v4
         with:
           node-version: '20'
