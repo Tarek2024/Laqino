@@ -674,3 +674,19 @@ body.app .profile3d-identity>div{min-width:0}
 body.app .profile3d-avatar{width:68px;height:68px;min-width:68px;object-fit:cover;border-radius:18px;border:2px solid #ffffff70;box-shadow:0 5px 14px #001b2b35;background:#ffffff18}
 body.app .profile3d-identity h3{overflow-wrap:anywhere}
 @media(max-width:380px){body.app .profile3d-head{padding:12px;gap:8px}body.app .profile3d-avatar{width:56px;height:56px;min-width:56px;border-radius:15px}body.app .profile3d-identity{gap:9px}}
+
+/* Responsive homepage layout: wider desktop/tablet without changing mobile layout. */
+body.app .home-market-grid{display:grid;grid-template-columns:minmax(0,1fr);gap:12px;min-width:0}
+body.app .home-market-grid>.home-market-ad{min-width:0;width:100%;margin:0}
+@media(min-width:768px){
+  body.app .find{padding-inline:max(24px,calc((100% - 920px)/2))}
+  body.app .home{max-width:920px}
+  body.app .tiles{grid-template-columns:repeat(4,minmax(0,1fr))}
+  body.app .home-market-grid{grid-template-columns:repeat(2,minmax(0,1fr))}
+}
+@media(min-width:1100px){
+  body.app .find{padding-inline:max(32px,calc((100% - 1120px)/2))}
+  body.app .home{max-width:1120px}
+  body.app .home-market-grid{grid-template-columns:repeat(3,minmax(0,1fr));gap:16px}
+  body.app .home-market-photo{max-height:230px}
+}
