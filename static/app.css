@@ -674,3 +674,9 @@ body.app .profile3d-identity>div{min-width:0}
 body.app .profile3d-avatar{width:68px;height:68px;min-width:68px;object-fit:cover;border-radius:18px;border:2px solid #ffffff70;box-shadow:0 5px 14px #001b2b35;background:#ffffff18}
 body.app .profile3d-identity h3{overflow-wrap:anywhere}
 @media(max-width:380px){body.app .profile3d-head{padding:12px;gap:8px}body.app .profile3d-avatar{width:56px;height:56px;min-width:56px;border-radius:15px}body.app .profile3d-identity{gap:9px}}
+
+/* Marketplace primary actions: keep controls visible and usable on narrow phones. */
+body.app .market-home-actions{display:flex!important;flex-wrap:wrap;gap:8px;margin:8px 0}
+body.app .market-home-actions button{display:inline-flex!important;align-items:center;justify-content:center;flex:1 1 140px;min-width:0;min-height:44px;font-weight:800;visibility:visible;opacity:1}
+body.app .sbar .market-add{display:inline-flex!important;align-items:center;justify-content:center;flex:0 0 auto;min-width:max-content;min-height:42px;padding-inline:10px;white-space:nowrap;font-weight:800;visibility:visible;opacity:1}
+@media(max-width:360px){body.app .sbar{gap:4px;padding-inline:4px}body.app .sbar .market-add{padding-inline:7px;font-size:.82rem}body.app .sbar button{padding-inline:9px}}
