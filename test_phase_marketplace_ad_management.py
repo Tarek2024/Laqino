@@ -111,7 +111,7 @@ ok("home latest marketplace cards show listing photos", "home-market-photo" in i
 ok("home latest marketplace cards open the selected listing detail", 'href="/market.html#/l/${Number(l.id)|0}"' in idx)
 ok("market add button routes to the existing publish form", 'id="addlisting"' in market_html and 'href="/?market-add=1"' in market_html and 'id="listing-publish"' in idx and "market-add" in idx)
 ok("market add button opens a dedicated publish view without the removed featured-ad explainer", "if(publishMode)return" in idx and "market-publish-head" in idx and "market-feature-guide" not in idx and "market-publish-form" in idx)
-ok("leaving the publish view clears its route flag before another tab is opened", "searchParams.delete" in idx and "if(t!==1&&new URLSearchParams(location.search)" in idx)
+ok("leaving the publish view clears its route flag before another tab is opened", "searchParams.delete" in idx and "t!==1||window._lt===1" in idx and "window._lt=null" in idx)
 ok("dedicated publish view reuses existing category and listing fields", 'id="lc"' in idx and 'onchange="lf()"' in idx and 'id="lff"' in idx and "window.lf=async()" in idx)
 ok("publish view avoids fetching marketplace listings and does not scroll to the old bottom form", "publishMode?Promise.resolve([]):api('/listings?" in idx and "target.scrollIntoView({behavior:'smooth',block:'start'})" not in idx)
 ok("chat message text and bubble borders use stronger contrast", ".msgs.chat-messages .msg{" in css and "color:#172744!important" in css and "border:1.5px solid #829bc4!important" in css and ".msgs.chat-messages .msg.mine{" in css)
