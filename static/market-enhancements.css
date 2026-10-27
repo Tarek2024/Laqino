@@ -93,3 +93,60 @@
 /* بطاقات السوق: تقليل الزحام وتحسين وضوح اسم الناشر فقط */
 .grid>.card .seller-only{display:block;margin-top:9px;padding-top:7px;border-top:1px solid var(--bd,#dfe3e8);color:#34425b;font-size:13px;font-weight:700;line-height:1.5;overflow-wrap:anywhere}
 @media(prefers-color-scheme:dark){.grid>.card .seller-only{color:#d0d9e8;border-top-color:var(--bd,#39434d)}}
+
+
+/* Chat readability: stronger text contrast and visible bubble outlines. */
+.msgs.chat-messages{
+  background:#edf2fb!important;
+  border:2px solid #9aafd3!important;
+  box-shadow:inset 0 1px 3px rgba(16,44,96,.08)!important;
+}
+.msgs.chat-messages .msg{
+  color:#172744!important;
+  background:#fff!important;
+  border:1.5px solid #829bc4!important;
+  box-shadow:0 2px 6px rgba(16,44,96,.12)!important;
+  font-weight:500;
+}
+.msgs.chat-messages .msg span{color:inherit!important}
+.msgs.chat-messages .msg.mine{
+  color:#102c60!important;
+  background:#dce9ff!important;
+  border:1.5px solid #4e78bd!important;
+  box-shadow:0 3px 8px rgba(16,44,96,.16)!important;
+}
+.chat-input{
+  color:#172744!important;
+  border:2px solid #829bc4!important;
+  background:#fff!important;
+}
+.chat-input:focus{
+  outline:3px solid rgba(242,140,27,.35);
+  outline-offset:1px;
+  border-color:#24549a!important;
+}
+@media(prefers-color-scheme:dark){
+  .msgs.chat-messages{background:#161f2d!important;border-color:#637da8!important}
+  .msgs.chat-messages .msg{color:#f1f5ff!important;background:#222e40!important;border-color:#829bc4!important}
+  .msgs.chat-messages .msg.mine{color:#fff!important;background:#23477b!important;border-color:#91b7f4!important}
+  .chat-input{color:#f1f5ff!important;background:#1d2736!important;border-color:#829bc4!important}
+}
+
+/* Dedicated publish screen: reuse the existing listing form and preserve its API flow. */
+.market-publish-head{padding-bottom:18px}
+.market-publish-head h2{margin:8px 0;font-size:24px;font-weight:900}
+.market-publish-head p{margin:4px 0 0;max-width:58ch}
+.market-publish-back{display:inline-flex;align-items:center;min-height:38px;padding:0 12px;border-radius:10px;background:rgba(255,255,255,.14);color:#fff!important;text-decoration:none;font-weight:800}
+.market-feature-guide{display:flex;align-items:flex-start;gap:12px;margin:12px 0;padding:16px;border:2px solid #d9a536;border-radius:16px;background:linear-gradient(135deg,#fff8e5,#fffdf7);color:#33270e;box-shadow:0 8px 20px rgba(137,89,9,.12)}
+.market-feature-mark{display:grid;place-items:center;flex:0 0 42px;height:42px;border-radius:12px;background:linear-gradient(135deg,#ffe6a3,#e4ad2c);color:#563700;font-size:24px;font-weight:900}
+.market-feature-guide h3{margin:0 0 4px;font-size:17px;font-weight:900;color:#513a08}
+.market-feature-guide p{margin:0;line-height:1.8;color:#45391f}
+.market-publish-form{padding:16px!important;margin:12px 0 24px}
+.market-publish-form>b{display:block;font-size:20px;font-weight:900;margin-bottom:12px}
+.market-publish-form>label{display:block;margin-bottom:6px;font-weight:800}
+.market-publish-form #lc{width:100%;min-height:48px}
+@media(prefers-color-scheme:dark){
+ .market-feature-guide{background:linear-gradient(135deg,#2c271b,#24211a);border-color:#b98c32;color:#f6e9c7}
+ .market-feature-guide h3{color:#ffe4a0}.market-feature-guide p{color:#f0e5cc}
+ .market-feature-mark{background:linear-gradient(135deg,#5e4818,#d4a83e);color:#fff4ce}
+}
