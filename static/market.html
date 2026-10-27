@@ -220,7 +220,7 @@ function card(x) {
   if (x.closed_kind) tags.push(h("span", {class: "tag closed", text: x.closed_kind === "sold" ? "تم البيع" : "تم التأجير"}));
   return h("div", {class: "card" + (isFeatured(x) ? " featured-card" : ""), role: "link", tabindex: "0", onclick: function () { location.hash = "#/l/" + x.id; }}, [
     h("div", {class: "ph"}, [ph, fresh]),
-    h("div", {class: "b"}, [h("p", {class: "t", text: x.title}), h("div", {class: "p", text: money(x.price)}), h("div", {}, tags), h("div", {class: "m", text: ago(x.created_at)})])
+    h("div", {class: "b"}, [h("p", {class: "t", text: x.title}), h("div", {class: "p", text: money(x.price)}), h("div", {}, tags), h("div", {class: "m listing-meta", text: (x.seller || "بائع") + " · " + ago(x.created_at)})])
   ]);
 }
 function featCard(x) {
