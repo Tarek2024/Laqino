@@ -114,3 +114,55 @@ jobs:
           print(f'Extracted {n} inline scripts from static HTML')
           PY
           for f in /tmp/laqino-inline-js/*.js; do node --check "$f"; done
+
+  baseline-main-regression:
+    name: Baseline regression suite (main)
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: main
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+      - name: Install full-project test dependencies
+        run: |
+          python -m pip install cryptography openpyxl Pillow playwright
+          python -m playwright install --with-deps chromium
+      - name: Compile baseline Python modules and test scripts
+        run: |
+          python - <<'PY'
+          import pathlib, py_compile
+          files = sorted(pathlib.Path('.').glob('*.py'))
+          for path in files:
+              py_compile.compile(str(path), doraise=True)
+          print(f"Compiled {len(files)} Python files on main")
+          PY
+      - name: Run all baseline Python test scripts in isolation
+        shell: bash
+        run: |
+          set +e
+          total=0
+          failed=0
+          : > /tmp/laqino-main-test-failures.txt
+          for f in test_*.py; do
+            [ -f "$f" ] || continue
+            total=$((total+1))
+            echo "::group::BASELINE TEST $f"
+            timeout 180s python "$f"
+            rc=$?
+            echo "::endgroup::"
+            if [ "$rc" -ne 0 ]; then
+              failed=$((failed+1))
+              printf '%s (exit %s)\\n' "$f" "$rc" | tee -a /tmp/laqino-main-test-failures.txt
+            fi
+          done
+          echo "BASELINE_TOTAL=$total BASELINE_FAILED=$failed"
+          if [ "$failed" -ne 0 ]; then
+            cat /tmp/laqino-main-test-failures.txt
+            exit 1
+          fi
