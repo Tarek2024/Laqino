@@ -657,3 +657,12 @@ body.app .profile3d-item p{margin:3px 0 0;color:#536b78;white-space:pre-line}
 body.app .profile-loading{padding:14px;margin-top:12px;border-radius:14px;background:#eef8fa;color:#087f8c;text-align:center;font-weight:700}
 @media(hover:hover){body.app .provider3d:hover{transform:translateY(-3px);box-shadow:0 7px 0 rgba(16,77,98,.06),0 18px 30px rgba(15,42,92,.12)!important}}
 @media(prefers-reduced-motion:reduce){body.app .provider3d{transition:none}}
+
+
+/* Doctor directory cards: responsive layout, preserving existing card styles. */
+body.app .doctor-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,280px),1fr));gap:12px;margin-top:14px;align-items:stretch}
+body.app .doctor-grid>.card{margin:0;min-width:0}
+body.app .doctor-grid .pc{height:100%;cursor:pointer;transition:transform .18s ease,box-shadow .18s ease}
+@media(hover:hover){body.app .doctor-grid .pc:hover{transform:translateY(-2px);box-shadow:0 8px 22px rgba(15,42,92,.10)}}
+@media(max-width:520px){body.app .doctor-grid{grid-template-columns:minmax(0,1fr);gap:9px}}
+@media(prefers-reduced-motion:reduce){body.app .doctor-grid .pc{transition:none}}
