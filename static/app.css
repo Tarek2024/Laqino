@@ -666,3 +666,11 @@ body.app .doctor-grid .pc{height:100%;cursor:pointer;transition:transform .18s e
 @media(hover:hover){body.app .doctor-grid .pc:hover{transform:translateY(-2px);box-shadow:0 8px 22px rgba(15,42,92,.10)}}
 @media(max-width:520px){body.app .doctor-grid{grid-template-columns:minmax(0,1fr);gap:9px}}
 @media(prefers-reduced-motion:reduce){body.app .doctor-grid .pc{transition:none}}
+
+
+/* Shared provider profile identity: image and name stay aligned on mobile. */
+body.app .profile3d-identity{display:flex;align-items:center;gap:12px;min-width:0}
+body.app .profile3d-identity>div{min-width:0}
+body.app .profile3d-avatar{width:68px;height:68px;min-width:68px;object-fit:cover;border-radius:18px;border:2px solid #ffffff70;box-shadow:0 5px 14px #001b2b35;background:#ffffff18}
+body.app .profile3d-identity h3{overflow-wrap:anywhere}
+@media(max-width:380px){body.app .profile3d-head{padding:12px;gap:8px}body.app .profile3d-avatar{width:56px;height:56px;min-width:56px;border-radius:15px}body.app .profile3d-identity{gap:9px}}
