@@ -57,8 +57,10 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: '20'
-      - name: Install test dependency for Web Push coverage
-        run: python -m pip install cryptography
+      - name: Install full-project test dependencies
+        run: |
+          python -m pip install cryptography openpyxl Pillow playwright
+          python -m playwright install --with-deps chromium
       - name: Compile all project Python modules and test scripts
         run: |
           python - <<'PY'
@@ -94,6 +96,7 @@ jobs:
             exit 1
           fi
       - name: Syntax-check all inline scripts in static HTML pages
+        if: always()
         run: |
           python - <<'PY'
           import pathlib, re
