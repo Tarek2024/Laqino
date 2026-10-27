@@ -1151,10 +1151,12 @@ class H(BaseHTTPRequestHandler):
             m = re.fullmatch(r"/api/listings/(\d+)/contact", path)
             if method == "GET" and m:
                 self.need(u); lid = m[1]
-                r = c.execute("SELECT l.user_id,u.name,u.phone FROM listings l JOIN users u ON u.id=l.user_id WHERE l.id=? AND l.status='approved'", (int(lid),)).fetchone()
+                r = c.execute("SELECT l.user_id,l.anonymous,u.name,u.phone FROM listings l JOIN users u ON u.id=l.user_id WHERE l.id=? AND l.status='approved'", (int(lid),)).fetchone()
                 if not r: raise E(404, "غير موجود")
-                if r["user_id"] != u["id"]: contact_guard(c, u, "listing.contact", lid, "تجاوزت الحد المسموح لعرض أرقام البائعين، حاول لاحقًا")
-                return self.send(200, {"seller": ("مستخدم مجهول" if c.execute("SELECT COALESCE(anonymous,0) FROM listings WHERE id=?", (int(lid),)).fetchone()[0] else r["name"]), "phone": r["phone"]})
+                if r["user_id"] != u["id"] and u["role"] not in ("admin", "staff"):
+                    if r["anonymous"]: raise E(403, "صاحب الإعلان اختار إخفاء هويته، تواصل معه من خلال المحادثة داخل التطبيق")
+                    contact_guard(c, u, "listing.contact", lid, "تجاوزت الحد المسموح لعرض أرقام البائعين، حاول لاحقًا")
+                return self.send(200, {"seller": ("مستخدم مجهول" if r["anonymous"] and r["user_id"] != u["id"] and u["role"] not in ("admin", "staff") else r["name"]), "phone": ("" if r["anonymous"] and r["user_id"] != u["id"] and u["role"] not in ("admin", "staff") else r["phone"])})
             m = re.fullmatch(r"/api/listings/(\d+)/delete", path)
             if method == "POST" and m:
                 self.need(u); r = c.execute("SELECT user_id FROM listings WHERE id=?", (int(m[1]),)).fetchone()
