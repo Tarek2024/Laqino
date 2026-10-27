@@ -1782,7 +1782,7 @@ class H(BaseHTTPRequestHandler):
                 for r in rows:
                     hay = " ".join((r["name_norm"], norm_ar(r["specialty"]), norm_ar(r["clinic_name"])))
                     if all(t in hay for t in toks): out.append((0 if toks and r["name_norm"].startswith(toks[0]) else 1, r["name_norm"], r))
-                out.sort(key=lambda x: x[:2]); return self.send(200, [doc_row(r, False) for _, _, r in out[:50]])
+                out.sort(key=lambda x: x[:2]); return self.send(200, [doc_row(r, False) for _, _, r in out])
             m = re.fullmatch(r"/api/doctors/(\d+)/photo", path)
             if method == "GET" and m:  # public, but only for published doctors; unpublished photos stay admin-only (via /api/files)
                 r = c.execute(DSEL + " WHERE d.id=? AND" + PUBW, (int(m[1]),)).fetchone()
