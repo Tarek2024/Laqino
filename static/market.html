@@ -124,12 +124,20 @@ a.back{display:inline-flex;align-items:center;min-height:44px;padding:0 16px;bor
 .tag.gold{background:#ffeab8;color:#6b4300}
 @media(prefers-color-scheme:dark){.tag.gold{background:#5a4210;color:#ffe6a8}}
 @media(prefers-reduced-motion:reduce){.fc{transition:none}.fc:hover{transform:none}}
+</style><style id="market-actions-visible-fix">
+/* تثبيت ظهور أدوات السوق وترتيبها في الشاشات الصغيرة والكبيرة */
+header .market-top-actions{display:flex!important;flex-wrap:wrap;align-items:center;gap:8px;margin:4px 0 8px}
+header .market-top-actions #mychats,header .market-top-actions #myfav{display:inline-flex;align-items:center;justify-content:center;flex:0 0 auto;margin:0;visibility:visible;opacity:1}
+header .market-search-row{display:flex!important;direction:rtl;align-items:stretch;gap:8px;width:100%;margin:8px 0}
+header .market-search-row #q{display:block!important;visibility:visible;opacity:1;flex:1 1 auto;min-width:0;margin-top:0}
+header .market-search-row #addlisting{display:inline-flex!important;visibility:visible;opacity:1;flex:0 0 auto;align-items:center;justify-content:center;white-space:nowrap}
+@media(max-width:380px){header .market-search-row{gap:6px}header .market-search-row #addlisting{padding-inline:8px;font-size:13px}header .market-search-row #q{font-size:14px}}
 </style><style id="edge-to-edge">/* أندرويد 16 (API 36) يرسم المحتوى خلف شريط الحالة: نزيح الهيدر بقدر الحافة الآمنة */header{padding-top:calc(14px + env(safe-area-inset-top))!important}body{padding-left:env(safe-area-inset-left);padding-right:env(safe-area-inset-right);padding-bottom:env(safe-area-inset-bottom)}</style></head>
 <body>
 <header>
   <h1>سوق لاقينو</h1>
-  <button id="mychats" type="button">محادثاتي</button>
-  <button id="myfav" type="button">مفضلتي</button>
+  <div class="market-top-actions"><button id="mychats" type="button">محادثاتي</button>
+  <button id="myfav" type="button">مفضلتي</button></div>
   <div class="market-search-row"><input id="q" type="search" placeholder="ابحث في الإعلانات…" aria-label="بحث"><a id="addlisting" class="add-listing-btn" href="/?market-add=1">＋ إضافة إعلان</a></div>
   <div class="row" id="filters">
     <select id="cat" aria-label="التصنيف"><option value="">كل التصنيفات</option></select>
