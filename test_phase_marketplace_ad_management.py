@@ -102,7 +102,7 @@ ok("admin panel allows choosing feature duration and setting featured status", "
 ok("service-worker cache version bumped for gold featured design", '"laqino-v109"' in sw)
 
 ok("home latest marketplace cards show listing photos", "home-market-photo" in idx and "l.images[0]" in idx and "home-market-no-image" in idx)
-ok("home latest marketplace cards open the selected listing detail", "<a class=" in idx and "/market.html#/l/${Number(l.id)|0}" in idx and "aria-label=" in idx and "flex-direction:column" in idx)
+ok("home latest marketplace cards open the selected listing detail", '<a class=' in idx and '/market.html#/l/${Number(l.id)|0}' in idx and 'aria-label=' in idx and 'flex-direction:column' in idx)
 ok("homepage latest ads use responsive grid and desktop width rules", "home-market-grid" in idx and "repeat(3,minmax(0,1fr))" in open(os.path.join(root_dir,"static","app.css"),encoding="utf-8").read())
 ok("market add button routes to the existing publish form", 'id="addlisting"' in market_html and 'href="/?market-add=1"' in market_html and 'id="listing-publish"' in idx and "market-add" in idx)
 ok("gold styling applies only to featured ad cards", ".card.ad.featured-card{position:relative;" in css and ".card.ad:not(.featured-card)" in css and ".card.ad{position:relative;" not in css)
