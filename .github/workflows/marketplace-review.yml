@@ -102,7 +102,7 @@ jobs:
           n = 0
           for page in pathlib.Path('static').glob('*.html'):
               source = page.read_text(encoding='utf-8')
-              for script in re.findall(r'<script(?:\\s[^>]*)?>([\\s\\S]*?)</script>', source, re.I):
+              for script in re.findall(r'<script(?:\s[^>]*)?>([\s\S]*?)</script>', source, re.I):
                   if not script.strip():
                       continue
                   target = out / f'check-{n}.js'
