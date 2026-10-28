@@ -106,10 +106,10 @@ def handle(h, c, u, method, path, q):
         d=h.body()
         kind=d.get("item_type"); sid=d.get("source_id"); pid=d.get("provider_id"); qty=d.get("quantity",1)
         if kind not in ("product","rx_quote") or isinstance(sid,bool) or not isinstance(sid,int) or sid<=0 or isinstance(pid,bool) or not isinstance(pid,int) or pid<=0 or isinstance(qty,bool) or not isinstance(qty,int) or not 1<=qty<=99:
-            return h.send(400,{"error":"بيانات الصنف غير صالحة"})
+            return _send(h, 400,{"error":"بيانات الصنف غير صالحة"})
         if kind == "product":
             try: info=_item_info(c,kind,sid,pid,cart["region_id"])
-            except ValueError as e: return h.send(409,{"error":str(e)})
+            except ValueError as e: return _send(h, 409,{"error":str(e)})
         else:
             # Restrict prescription quote to the authenticated customer; use prescription id as source_id.
             r=c.execute("""SELECT rr.prescription_id,rr.provider_id,rr.price,rr.status,rr.review,rx.status rx_status,
@@ -117,19 +117,19 @@ def handle(h, c, u, method, path, q):
                            JOIN prescriptions rx ON rx.id=rr.prescription_id JOIN providers p ON p.user_id=rr.provider_id
                            WHERE rr.prescription_id=? AND rr.provider_id=? AND rx.customer_id=?""",(sid,pid,u["id"])).fetchone()
             if not r or r["provider_status"]!="approved" or r["rx_status"]=="closed" or r["status"] not in ("available","quoted","responded") or r["review"] not in (None,"approved") or not r["price"] or float(r["price"])<=0:
-                return h.send(409,{"error":"رد الروشتة غير معتمد أو غير متاح"})
+                return _send(h, 409,{"error":"رد الروشتة غير معتمد أو غير متاح"})
         now=int(time.time())
         try:
             c.execute("INSERT INTO cart_items(cart_id,item_type,source_id,provider_id,quantity,created_at,updated_at) VALUES(?,?,?,?,?,?,?) ON CONFLICT(cart_id,item_type,source_id,provider_id) DO UPDATE SET quantity=excluded.quantity,updated_at=excluded.updated_at",
                       (cart["id"],kind,sid,pid,qty,now,now))
             c.execute("UPDATE carts SET updated_at=? WHERE id=?",(now,cart["id"])); c.commit()
         except sqlite3.Error:
-            c.rollback(); return h.send(409,{"error":"تعذر تحديث السلة، حاول مرة أخرى"})
-        return h.send(200,{"ok":True,"cart_id":cart["id"]})
+            c.rollback(); return _send(h, 409,{"error":"تعذر تحديث السلة، حاول مرة أخرى"})
+        return _send(h, 200,{"ok":True,"cart_id":cart["id"]})
     import re
     m=re.fullmatch(r"/api/cart/items/(\d+)",path)
     if method == "DELETE" and m:
         cur=c.execute("DELETE FROM cart_items WHERE id=? AND cart_id=?",(int(m[1]),cart["id"]))
         c.execute("UPDATE carts SET updated_at=? WHERE id=?",(int(time.time()),cart["id"])); c.commit()
-        return h.send(200,{"ok":True,"removed":bool(cur.rowcount)})
-    return h.send(405,{"error":"طريقة غير مدعومة"})
+        return _send(h, 200,{"ok":True,"removed":bool(cur.rowcount)})
+    return _send(h, 405,{"error":"طريقة غير مدعومة"})
