@@ -12,10 +12,10 @@
 - The entire cart becomes exactly one ordinary delivery order, assigned to one courier and delivered once to the customer.
 - A private `cart_checkout_stops` record is created for each pharmacy; the courier sees each pickup address and item list, and confirms each pickup separately.
 - The shared order cannot advance from pickup to customer delivery until every pharmacy stop has been marked picked up.
-- All child orders and the checkout idempotency record are committed in one SQLite `BEGIN IMMEDIATE` transaction, or none are committed.
-- Stable child request keys and a unique parent key make retries return the existing order group instead of creating duplicates.
+- The shared order, all pharmacy pickup stops, and the checkout idempotency record are committed in one SQLite `BEGIN IMMEDIATE` transaction, or none are committed.
+- A stable shared-order request key and unique checkout key make retries return the existing order instead of creating duplicates.
 - All products and prescription quotes are revalidated at checkout, including provider approval, current availability/freshness, quote approval, customer ownership, and regional coverage.
-- The same existing open-order cap is applied across the whole checkout before creating any child order.
+- The same existing open-order cap is applied once to the shared checkout before creating the delivery order.
 - After commit, the single shared order is handed once to the existing `push_new_order` callback. It retains normal `searching` status and normal fare negotiation/approval; delivery fee and commission are for the one shared route, not per pharmacy.
 - Pharmacies receive an initial shared-cart request notification, a courier-on-the-way notification after assignment, and a pickup-completed notification for their own stop only.
 - Courier stop endpoints enforce courier assignment and approved-courier role; pharmacy stop listings are restricted to the authenticated pharmacy.
