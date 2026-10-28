@@ -135,6 +135,8 @@ def _checkout_item(c, item, customer_id, cart_region):
         raise ValueError("نوع الصنف غير مدعوم")
     if cart_region and r["provider_region"] not in gsearch._related(c, cart_region):
         raise ValueError("إحدى الصيدليات خارج نطاق منطقة العميل")
+    if not c.execute("SELECT 1 FROM regions WHERE id=? AND is_active=1", (r["provider_region"],)).fetchone():
+        raise ValueError("منطقة إحدى الصيدليات غير مفعّلة للتوصيل")
     return {"provider_id": int(r["provider_id"]), "provider_region": int(r["provider_region"]),
             "pharmacy": str(r["pharmacy"]), "address": str(r["address"] or ""),
             "title": title, "price": price, "quantity": int(item["quantity"])}
