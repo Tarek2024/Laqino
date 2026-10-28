@@ -384,17 +384,6 @@ def handle(h, c, u, method, path, q):
             FROM cart_checkout_stops s JOIN delivery_orders o ON o.id=s.order_id
             LEFT JOIN users cu ON cu.id=o.courier_id WHERE s.provider_id=? ORDER BY s.id DESC LIMIT 50""",(u["id"],))]
         return _send(h,200,{"items":rows})
-    # Block the ordinary single-pickup status button until every shared-cart stop is confirmed.
-    sm = re.fullmatch(r"/api/courier/orders/(\\d+)/status",path)
-    if sm and method == "POST" and u and u.get("role") == "courier":
-        try: target = h.body().get("to")
-        except Exception: target = None
-        if target == "picked_up":
-            oid = int(sm[1])
-            exists = c.execute("SELECT 1 FROM sqlite_master WHERE type='table' AND name='cart_checkout_stops'").fetchone()
-            n = c.execute("SELECT COUNT(*) FROM cart_checkout_stops WHERE order_id=?",(oid,)).fetchone()[0] if exists else 0
-            if n and c.execute("SELECT COUNT(*) FROM cart_checkout_stops WHERE order_id=? AND status!='picked_up'",(oid,)).fetchone()[0]:
-                return _send(h,409,{"error":"لازم تأكد استلام كل الصيدليات في الرحلة المجمعة الأول"})
     if not (path == "/api/cart" or path == "/api/cart/items" or re.fullmatch(r"/api/cart/items/\\d+",path) or path == "/api/cart/checkout"):
         return False
     install(c)
