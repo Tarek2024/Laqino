@@ -5,6 +5,7 @@ delivery orders yet: checkout stays deliberately unavailable until atomic
 multi-pharmacy dispatch is wired to the existing delivery lifecycle.
 """
 import json, time, sqlite3, re
+import gsearch, products
 
 SCHEMA = """
 CREATE TABLE IF NOT EXISTS carts (
@@ -58,6 +59,8 @@ def _cart(c, uid, region_id=None):
 
 def _item_info(c, kind, source_id, provider_id, region_id):
     if kind == "product":
+        if not products.enabled(c):
+            raise ValueError("قسم المنتجات غير مفعّل حاليًا")
         r = c.execute("""SELECT o.id,o.provider_id,o.title,o.price,o.available,o.status,o.confirmed_at,
                          p.name_ar pharmacy,p.region_id provider_region,p.status provider_status
                          FROM product_offers o JOIN providers p ON p.user_id=o.provider_id
@@ -66,14 +69,9 @@ def _item_info(c, kind, source_id, provider_id, region_id):
             raise ValueError("العرض غير متاح حاليًا")
         if int(time.time()) - int(r["confirmed_at"] or 0) > 14*86400:
             raise ValueError("يجب على الصيدلية تأكيد توفر المنتج من جديد")
-        if region_id and r["provider_region"] != region_id:
-            # Region coverage is validated again during checkout; don't silently change the customer's region.
-            parent = c.execute("""WITH RECURSIVE ancestors(id,parent_id) AS
-                                  (SELECT id,parent_id FROM regions WHERE id=?
-                                   UNION ALL SELECT r.id,r.parent_id FROM regions r JOIN ancestors a ON r.id=a.parent_id)
-                                  SELECT 1 FROM ancestors WHERE id=? LIMIT 1""", (region_id,r["provider_region"])).fetchone()
-            if not parent:
-                raise ValueError("الصيدلية خارج نطاق منطقة العميل")
+        if region_id and r["provider_region"] not in gsearch._related(c, region_id):
+            # Match the same regional relation used by the existing product search.
+            raise ValueError("الصيدلية خارج نطاق منطقة العميل")
         return dict(id=r["id"],item_type=kind,source_id=r["id"],provider_id=r["provider_id"],
                     pharmacy=r["pharmacy"],title=r["title"],unit_price=round(float(r["price"]),2))
     raise ValueError("نوع الصنف غير مدعوم في هذا المسار")
@@ -109,17 +107,21 @@ def handle(h, c, u, method, path, q):
         kind=d.get("item_type"); sid=d.get("source_id"); pid=d.get("provider_id"); qty=d.get("quantity",1)
         if kind not in ("product","rx_quote") or isinstance(sid,bool) or not isinstance(sid,int) or sid<=0 or isinstance(pid,bool) or not isinstance(pid,int) or pid<=0 or isinstance(qty,bool) or not isinstance(qty,int) or not 1<=qty<=99:
             return _send(h, 400,{"error":"بيانات الصنف غير صالحة"})
+        if kind == "rx_quote" and qty != 1:
+            return _send(h, 400,{"error":"كمية الروشتة يجب أن تكون 1"})
         if kind == "product":
             try: info=_item_info(c,kind,sid,pid,cart["region_id"])
             except ValueError as e: return _send(h, 409,{"error":str(e)})
         else:
             # Restrict prescription quote to the authenticated customer; use prescription id as source_id.
             r=c.execute("""SELECT rr.prescription_id,rr.provider_id,rr.price,rr.status,rr.review,rx.status rx_status,
-                           p.status provider_status FROM prescription_responses rr
+                           p.status provider_status,p.region_id provider_region FROM prescription_responses rr
                            JOIN prescriptions rx ON rx.id=rr.prescription_id JOIN providers p ON p.user_id=rr.provider_id
                            WHERE rr.prescription_id=? AND rr.provider_id=? AND rx.customer_id=?""",(sid,pid,u["id"])).fetchone()
             if not r or r["provider_status"]!="approved" or r["rx_status"]=="closed" or r["status"] not in ("available","quoted","responded") or r["review"] not in (None,"approved") or not r["price"] or float(r["price"])<=0:
                 return _send(h, 409,{"error":"رد الروشتة غير معتمد أو غير متاح"})
+            if cart["region_id"] and r["provider_region"] not in gsearch._related(c, cart["region_id"]):
+                return _send(h, 409,{"error":"الصيدلية خارج نطاق منطقة العميل"})
         now=int(time.time())
         try:
             c.execute("INSERT INTO cart_items(cart_id,item_type,source_id,provider_id,quantity,created_at,updated_at) VALUES(?,?,?,?,?,?,?) ON CONFLICT(cart_id,item_type,source_id,provider_id) DO UPDATE SET quantity=excluded.quantity,updated_at=excluded.updated_at",
