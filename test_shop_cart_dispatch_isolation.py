@@ -36,6 +36,10 @@ class CartDispatchIntegrationTests(unittest.TestCase):
             CREATE TABLE prescriptions(id INTEGER PRIMARY KEY, customer_id INTEGER, status TEXT);
             CREATE TABLE prescription_responses(prescription_id INTEGER, provider_id INTEGER, price REAL,
                 status TEXT, review TEXT);
+            CREATE TABLE medicine_inquiries(id INTEGER PRIMARY KEY, customer_id INTEGER, region_id INTEGER,
+                medicine_name TEXT, status TEXT);
+            CREATE TABLE inquiry_responses(inquiry_id INTEGER, provider_id INTEGER, status TEXT, price REAL,
+                note TEXT, updated_at INTEGER, PRIMARY KEY(inquiry_id,provider_id));
             CREATE TABLE delivery_orders(
                 id INTEGER PRIMARY KEY, customer_id INTEGER NOT NULL, region_id INTEGER NOT NULL,
                 pickup_text TEXT NOT NULL, dropoff_text TEXT NOT NULL, details TEXT, fee REAL NOT NULL,
@@ -60,6 +64,10 @@ class CartDispatchIntegrationTests(unittest.TestCase):
             INSERT INTO product_offers(id,provider_id,title,price,available,status,confirmed_at)
                 VALUES(101,20,'منتج ألف',25,1,'approved',strftime('%s','now')),
                       (102,30,'منتج باء',40,1,'approved',strftime('%s','now'));
+            INSERT INTO medicine_inquiries(id,customer_id,region_id,medicine_name,status)
+                VALUES(501,1,10,'دواء من البحث','open');
+            INSERT INTO inquiry_responses(inquiry_id,provider_id,status,price,note,updated_at)
+                VALUES(501,30,'available',35,'متوفر',strftime('%s','now'));
         """)
         self.user = {"id": 1, "role": "customer"}
         shop.bind(self.dispatch, self.audit,
@@ -199,6 +207,35 @@ class CartDispatchIntegrationTests(unittest.TestCase):
         self.assertEqual(h.responses[0][0],429)
         self.assertEqual(self.c.execute("SELECT COUNT(*) FROM delivery_orders").fetchone()[0],5)
         self.assertEqual(self.pushed,[])
+
+    def test_medicine_search_reply_can_be_added_and_checked_out_with_prescription_items(self):
+        self.add_item(101,20)
+        now = int(time.time())
+        cart = shop._cart(self.c, 1)
+        self.c.execute("""INSERT INTO cart_items(cart_id,item_type,source_id,provider_id,quantity,created_at,updated_at)
+                          VALUES(?,'inquiry_quote',501,30,1,?,?)""", (cart["id"],now,now))
+        self.c.commit()
+        h = Handler({"request_key":"inquiry-cart-1","dropoff_text":"عنوان العميل"})
+        shop.handle(h,self.c,self.user,"POST","/api/cart/checkout",{})
+        self.assertEqual(h.responses[0][0],201)
+        oid = h.responses[0][1]["orders"][0]["id"]
+        stops = self.c.execute("SELECT provider_id,items_json FROM cart_checkout_stops WHERE order_id=? ORDER BY provider_id",(oid,)).fetchall()
+        self.assertEqual(len(stops),2)
+        self.assertEqual({r["provider_id"] for r in stops},{20,30})
+        self.assertIn("دواء من البحث", " ".join(r["items_json"] for r in stops))
+        self.assertEqual(len(self.pushed),1)
+
+    def test_inquiry_reply_must_belong_to_customer_and_be_available(self):
+        h = Handler({"item_type":"inquiry_quote","source_id":501,"provider_id":30,"quantity":1})
+        handled = shop.handle(h,self.c,self.user,"POST","/api/cart/items",{})
+        self.assertTrue(handled)
+        self.assertEqual(h.responses[0][0],200)
+        self.c.execute("UPDATE inquiry_responses SET status='unavailable' WHERE inquiry_id=501 AND provider_id=30")
+        self.c.commit()
+        h2 = Handler({"request_key":"inquiry-stale","dropoff_text":"عنوان العميل"})
+        shop.handle(h2,self.c,self.user,"POST","/api/cart/checkout",{})
+        self.assertEqual(h2.responses[0][0],409)
+        self.assertEqual(self.c.execute("SELECT COUNT(*) FROM delivery_orders").fetchone()[0],1)
 
     def test_rx_quote_quantity_cannot_multiply_whole_prescription_price(self):
         h = Handler({"item_type":"rx_quote","source_id":99,"provider_id":88,"quantity":2})
