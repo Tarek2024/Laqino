@@ -1494,7 +1494,12 @@ class H(BaseHTTPRequestHandler):
                     if not c.execute("UPDATE delivery_orders SET status='searching',courier_id=NULL,fare_status='none',updated_at=?,search_started_at=? WHERE id=? AND courier_id=? AND status IN('assigned','heading_pickup')", (now, now, oid, u["id"])).rowcount: raise E(409, "تغيّرت حالة الطلب، حدّث الصفحة")  # لا نُحيي طلبًا ألغاه العميل في نفس اللحظة
                     c.execute("DELETE FROM order_offers WHERE order_id=?", (oid,)); ev(oid, o["status"], "searching"); c.commit(); push_new_order(oid); return self.send(200, {"status": "searching"})  # push: وإلا لا يعلم بقية المناديب بالطلب المُعاد
                 to = (provider_delivery.NEXT if o["origin_type"] == provider_delivery.KIND else NEXT).get(o["status"])
-                if not to or self.body().get("to") != to: raise E(409, "انتقال غير مسموح")
+                status_data = self.body()
+                if not to or status_data.get("to") != to: raise E(409, "انتقال غير مسموح")
+                if to == "picked_up" and c.execute("SELECT 1 FROM sqlite_master WHERE type='table' AND name='cart_checkout_stops'").fetchone():
+                    stops = c.execute("SELECT COUNT(*) FROM cart_checkout_stops WHERE order_id=?", (oid,)).fetchone()[0]
+                    pending_stops = c.execute("SELECT COUNT(*) FROM cart_checkout_stops WHERE order_id=? AND status!='picked_up'", (oid,)).fetchone()[0]
+                    if stops and pending_stops: raise E(409, "لازم تأكد استلام كل الصيدليات في الرحلة المجمعة الأول")
                 if o["fare_status"] != "approved": raise E(409, "لا يمكن بدء التوصيل قبل موافقة العميل على الأجرة")
                 if not c.execute("UPDATE delivery_orders SET status=?,updated_at=? WHERE id=? AND courier_id=? AND status=?", (to, int(time.time()), oid, u["id"], o["status"])).rowcount: raise E(409, "تغيّرت حالة الطلب، حدّث الصفحة")  # لا نكتب فوق إلغاء/اعتراض حدث بالتوازي
                 ev(oid, o["status"], to)
