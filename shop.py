@@ -1,7 +1,7 @@
 """Laqino pharmacy-first shared cart.
 
 Additive module only, disabled unless settings.cart_enabled='1'. Checkout creates
-one ordinary delivery order per pharmacy in a single transaction and dispatches
+one shared delivery order with one private pickup stop per pharmacy in a single transaction and dispatches
 only through the existing server push/offer/accept/commission lifecycle.
 """
 import json, time, sqlite3, re, secrets
@@ -292,7 +292,7 @@ def _checkout(h, c, u, cart, d):
         c.execute("UPDATE cart_checkouts SET order_ids=?,status='created' WHERE id=?", (json.dumps(ids),checkout_id))
         c.execute("DELETE FROM cart_items WHERE cart_id=?", (cart["id"],))
         c.execute("UPDATE carts SET status='checked_out',updated_at=? WHERE id=?", (now,cart["id"]))
-        _H["audit"](c,u["id"],"cart.checkout",str(checkout_id),{"order_ids":ids,"pharmacy_count":len(ids)})
+        _H["audit"](c,u["id"],"cart.checkout",str(checkout_id),{"order_ids":ids,"pharmacy_count":len(stops)})
         c.commit()
     except ValueError as e:
         if c.in_transaction: c.rollback()
