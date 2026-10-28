@@ -115,6 +115,10 @@ check("activation is recorded in audit log",
 check("generated account cannot log in using the chosen password before setup", call(
     "POST", "/login", {"phone": new_phone, "password": "CustomerPass123"}
 )[0] == 401)
+wrong_code = "00000000" if created["setup_code"] != "00000000" else "00000001"
+check("incorrect setup code is rejected", call("POST", "/password/reset", {
+    "phone": new_phone, "code": wrong_code, "new_password": "CustomerPass123"
+})[0] == 400)
 status, reset = call("POST", "/password/reset", {
     "phone": new_phone, "code": created["setup_code"], "new_password": "CustomerPass123"
 })
