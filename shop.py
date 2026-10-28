@@ -353,6 +353,13 @@ def handle(h, c, u, method, path, q):
                 existing = c.execute("SELECT status FROM cart_checkout_stops WHERE id=? AND order_id=?",(sid,oid)).fetchone()
                 if not existing: return _send(h,404,{"error":"نقطة الاستلام غير موجودة"})
                 if existing["status"] != "picked_up": return _send(h,409,{"error":"تعذر تحديث نقطة الاستلام"})
+            stop = c.execute("SELECT provider_id,checkout_id,pharmacy FROM cart_checkout_stops WHERE id=?",(sid,)).fetchone()
+            if cur.rowcount and stop and c.execute("SELECT 1 FROM sqlite_master WHERE type='table' AND name='notifications'").fetchone():
+                c.execute("""INSERT INTO notifications(user_id,kind,title,body,link,ref_type,ref_id,created_at)
+                    SELECT ?, 'cart.pharmacy.picked_up', 'تم استلام طلبك من الصيدلية',
+                           ?, 'pharmacy', 'cart_stop', ?, ?
+                    WHERE NOT EXISTS(SELECT 1 FROM notifications WHERE user_id=? AND kind='cart.pharmacy.picked_up' AND ref_type='cart_stop' AND ref_id=?)""",
+                    (stop["provider_id"],"المندوب استلم طلب السلة المجمعة رقم "+str(stop["checkout_id"]),sid,now,stop["provider_id"],sid))
             c.commit()
             remaining = c.execute("SELECT COUNT(*) FROM cart_checkout_stops WHERE order_id=? AND status!='picked_up'",(oid,)).fetchone()[0]
             if remaining == 0:
