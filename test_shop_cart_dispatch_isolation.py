@@ -95,7 +95,7 @@ class CartDispatchIntegrationTests(unittest.TestCase):
         self.assertFalse(shop.handle(h,self.c,self.user,"POST","/api/delivery/orders",{}))
         self.assertEqual(h.responses,[])
 
-    def test_checkout_creates_one_normal_delivery_order_per_pharmacy_and_pushes_after_commit(self):
+    def test_checkout_creates_one_shared_delivery_order_with_private_pharmacy_stops(self):
         self.add_item(101,20)
         self.add_item(102,30,2)
         h = Handler({"request_key":"checkout-multi","dropoff_text":"عنوان العميل"})
@@ -103,15 +103,19 @@ class CartDispatchIntegrationTests(unittest.TestCase):
         self.assertTrue(handled)
         status, payload = h.responses[0]
         self.assertEqual(status,201)
-        self.assertEqual(len(payload["orders"]),2)
-        self.assertEqual(len(self.pushed),2)
+        self.assertEqual(len(payload["orders"]),1)
+        self.assertEqual(payload["orders"][0]["pharmacy_count"],2)
+        self.assertEqual(len(self.pushed),1)
         orders = self.c.execute("SELECT * FROM delivery_orders WHERE id!=77 ORDER BY id").fetchall()
-        self.assertEqual(len(orders),2)
+        self.assertEqual(len(orders),1)
+        self.assertIn("صيدلية ألف",orders[0]["pickup_text"])
+        self.assertIn("صيدلية باء",orders[0]["pickup_text"])
+        self.assertEqual(self.c.execute("SELECT COUNT(*) FROM cart_checkout_stops").fetchone()[0],2)
         self.assertTrue(all(o["status"]=="searching" and o["courier_id"] is None for o in orders))
         self.assertTrue(all(o["fare_status"]=="none" and o["origin_type"] is None for o in orders))
         self.assertTrue(all(o["fee"]==0 and o["commission"]==5 for o in orders))
         self.assertEqual({o["region_id"] for o in orders},{10})
-        self.assertEqual(self.c.execute("SELECT COUNT(*) FROM order_events WHERE to_status='searching'").fetchone()[0],2)
+        self.assertEqual(self.c.execute("SELECT COUNT(*) FROM order_events WHERE to_status='searching'").fetchone()[0],1)
         self.assertEqual(self.c.execute("SELECT COUNT(*) FROM cart_items").fetchone()[0],0)
         self.assertEqual(self.c.execute("SELECT status FROM carts").fetchone()[0],"checked_out")
         old = self.c.execute("SELECT status,courier_id,request_key FROM delivery_orders WHERE id=77").fetchone()
@@ -154,7 +158,7 @@ class CartDispatchIntegrationTests(unittest.TestCase):
         self.assertEqual(self.pushed,[])
         self.assertFalse(self.c.in_transaction)
 
-    def test_open_order_cap_is_checked_for_all_pharmacy_orders(self):
+    def test_open_order_cap_counts_one_shared_cart_as_one_delivery_job(self):
         for i in range(2,6):
             self.c.execute("""INSERT INTO delivery_orders(customer_id,region_id,pickup_text,dropoff_text,fee,status,
                 created_at,updated_at,request_key,fare_status) VALUES(1,10,'x','y',0,'searching',1,1,?,'none')""",
