@@ -73,24 +73,26 @@ def bind(push_new_order, audit, count_orders_sql, max_open_orders, resolve_regio
 
 def install(c):
     c.executescript(SCHEMA)
-    # Notify each pharmacy when the one shared courier job is accepted/heading to pickups.
-    c.execute("""CREATE TRIGGER IF NOT EXISTS shop_cart_courier_assigned
-        AFTER UPDATE OF status ON delivery_orders
-        WHEN OLD.status IS NOT NEW.status AND NEW.status IN ('assigned','heading_pickup')
-        BEGIN
-          INSERT INTO notifications(user_id,kind,title,body,link,ref_type,ref_id,created_at)
-          SELECT s.provider_id,'cart.pharmacy.courier','المندوب في طريقه لاستلام طلبك',
-                 'طلب السلة المجمعة رقم ' || s.checkout_id || ' — ' || s.pickup_text,
-                 'pharmacy','cart_stop',s.id,CAST(strftime('%s','now') AS INTEGER)
-          FROM cart_checkout_stops s
-          WHERE s.order_id=NEW.id
-            AND EXISTS(SELECT 1 FROM sqlite_master WHERE type='table' AND name='notifications')
-            AND NOT EXISTS(SELECT 1 FROM notifications n WHERE n.user_id=s.provider_id
-                           AND n.kind='cart.pharmacy.courier' AND n.ref_type='cart_stop' AND n.ref_id=s.id);
-          UPDATE cart_checkout_stops SET status='notified',
-              notified_at=COALESCE(notified_at,CAST(strftime('%s','now') AS INTEGER))
-          WHERE order_id=NEW.id AND status='waiting';
-        END""")
+    if c.execute("SELECT 1 FROM sqlite_master WHERE type='table' AND name='delivery_orders'").fetchone() and c.execute("SELECT 1 FROM sqlite_master WHERE type='table' AND name='notifications'").fetchone():
+        # Notify each pharmacy when the one shared courier job is accepted/heading to pickups.
+        c.execute("""CREATE TRIGGER IF NOT EXISTS shop_cart_courier_assigned
+            AFTER UPDATE OF status ON delivery_orders
+            WHEN OLD.status IS NOT NEW.status AND NEW.status IN ('assigned','heading_pickup')
+            BEGIN
+              INSERT INTO notifications(user_id,kind,title,body,link,ref_type,ref_id,created_at)
+              SELECT s.provider_id,'cart.pharmacy.courier','المندوب في طريقه لاستلام طلبك',
+                     'طلب السلة المجمعة رقم ' || s.checkout_id || ' — ' || s.pickup_text,
+                     'pharmacy','cart_stop',s.id,CAST(strftime('%s','now') AS INTEGER)
+              FROM cart_checkout_stops s
+              WHERE s.order_id=NEW.id
+                AND EXISTS(SELECT 1 FROM sqlite_master WHERE type='table' AND name='notifications')
+                AND NOT EXISTS(SELECT 1 FROM notifications n WHERE n.user_id=s.provider_id
+                               AND n.kind='cart.pharmacy.courier' AND n.ref_type='cart_stop' AND n.ref_id=s.id);
+              UPDATE cart_checkout_stops SET status='notified',
+                  notified_at=COALESCE(notified_at,CAST(strftime('%s','now') AS INTEGER))
+              WHERE order_id=NEW.id AND status='waiting';
+            END""")
+
     c.commit()
 
 def _cart(c, uid, region_id=None):
