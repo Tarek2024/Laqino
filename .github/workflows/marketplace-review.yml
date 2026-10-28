@@ -13,7 +13,9 @@ jobs:
         with:
           python-version: '3.12'
       - name: Compile changed Python files
-        run: python -m py_compile server.py market.py test_phase_marketplace_ad_management.py test_phase4_chat.py
+        run: python -m py_compile server.py market.py test_phase_marketplace_ad_management.py test_phase4_chat.py test_registration_account_recovery.py
+      - name: Run registration recovery and account activation regression tests
+        run: python test_registration_account_recovery.py
       - name: Run isolated marketplace regression tests
         run: python test_phase_marketplace_ad_management.py
       - name: Run existing marketplace favorites and reports regression tests

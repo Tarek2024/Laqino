@@ -1978,8 +1978,32 @@ class H(BaseHTTPRequestHandler):
             if method == "GET" and path == "/api/admin/orders":
                 self.need(u, "admin", "staff"); st = q.get("status", [None])[0]
                 return self.send(200, [dict(r) for r in c.execute("SELECT o.id,o.status,o.fee,o.commission,o.pickup_text,o.dropoff_text,o.created_at,cu.name customer,co.name courier,(SELECT detail FROM audit_log WHERE action='order.dispute' AND target=CAST(o.id AS TEXT) ORDER BY id DESC LIMIT 1) dispute FROM delivery_orders o JOIN users cu ON cu.id=o.customer_id LEFT JOIN users co ON co.id=o.courier_id WHERE (?1 IS NULL OR o.status=?1) ORDER BY o.id DESC LIMIT 100", (st,))])
+            if method == "POST" and path == "/api/admin/users/activate":
+                self.need(u, "admin")
+                d = self.body(); ph = str(d.get("phone", "")).strip(); nm = str(d.get("name", "")).strip()
+                if not PHONE.match(ph): raise E(400, "رقم الهاتف غير صحيح")
+                if not nm or len(nm) > 100: raise E(400, "اكتب اسم العميل (حتى 100 حرف)")
+                # Admin must verify phone ownership out-of-band before using this recovery path.
+                if c.execute("SELECT 1 FROM users WHERE phone=?", (ph,)).fetchone():
+                    raise E(409, "يوجد حساب بهذا الرقم بالفعل؛ ابحث عنه واستخدم استعادة كلمة المرور عند الحاجة")
+                now = int(time.time()); sl = secrets.token_hex(16)
+                # Never expose a generated password; the customer sets their own password with a one-time code.
+                unknown_pw = secrets.token_urlsafe(48)
+                code = "%08d" % secrets.randbelow(10 ** 8); rsl = secrets.token_hex(16)
+                try:
+                    c.execute("INSERT INTO users(phone,name,pw_hash,salt,role,created_at) VALUES(?,?,?,?, 'customer', ?)",
+                              (ph, nm, hp(unknown_pw, sl), sl, now))
+                except sqlite3.IntegrityError:
+                    raise E(409, "يوجد حساب بهذا الرقم بالفعل")
+                uid = c.execute("SELECT id FROM users WHERE phone=?", (ph,)).fetchone()["id"]
+                c.execute("INSERT INTO password_resets(user_id,code_hash,salt,expires,attempts,issued_by,created_at) VALUES(?,?,?,?,0,?,?)",
+                          (uid, hp(code, rsl), rsl, now + 1800, u["id"], now))
+                c.execute("DELETE FROM phone_verifications WHERE phone=? AND purpose='register'", (ph,))
+                audit(c, u["id"], "account.admin_activated", ph, {"user_id": uid, "password_setup": "one_time_code"})
+                c.commit()
+                return self.send(201, {"ok": True, "user_id": uid, "name": nm, "phone": ph, "setup_code": code, "expires_in": 1800})
             if method == "GET" and path == "/api/admin/users":
-                self.need(u, "admin"); t = "%" + q.get("q", [""])[0] + "%"
+                self.need(u, "admin"); t = "%" + q.get("q", [""])[0].strip() + "%"
                 return self.send(200, [dict(r) for r in c.execute("SELECT id,name,phone,role,created_at FROM users WHERE name LIKE ? OR phone LIKE ? ORDER BY id DESC LIMIT 50", (t, t))])
             if method == "GET" and path == "/api/admin/verifications":  # pending requests; the code itself is NOT shown: the admin must read it from the WhatsApp message
                 self.need(u, "admin", "staff")
