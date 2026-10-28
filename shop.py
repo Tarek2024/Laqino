@@ -328,8 +328,8 @@ def _checkout(h, c, u, cart, d):
 
 def handle(h, c, u, method, path, q):
     # Courier-only stop API: one delivery order, multiple private pharmacy pickups.
-    cm = re.fullmatch(r"/api/cart/courier-stops/(\\d+)", path)
-    pm = re.fullmatch(r"/api/cart/courier-stops/(\\d+)/(\\d+)/picked-up", path)
+    cm = re.fullmatch(r"/api/cart/courier-stops/(\d+)", path)
+    pm = re.fullmatch(r"/api/cart/courier-stops/(\d+)/(\d+)/picked-up", path)
     if cm or pm:
         if not u: return _send(h,401,{"error":"سجّل الدخول أولًا"})
         if u["role"] != "courier": return _send(h,403,{"error":"الخدمة للمندوب المعتمد فقط"})
@@ -386,7 +386,7 @@ def handle(h, c, u, method, path, q):
             FROM cart_checkout_stops s JOIN delivery_orders o ON o.id=s.order_id
             LEFT JOIN users cu ON cu.id=o.courier_id WHERE s.provider_id=? ORDER BY s.id DESC LIMIT 50""",(u["id"],))]
         return _send(h,200,{"items":rows})
-    if not (path == "/api/cart" or path == "/api/cart/items" or re.fullmatch(r"/api/cart/items/\\d+",path) or path == "/api/cart/checkout"):
+    if not (path == "/api/cart" or path == "/api/cart/items" or re.fullmatch(r"/api/cart/items/\d+",path) or path == "/api/cart/checkout"):
         return False
     install(c)
     if not enabled(c):
