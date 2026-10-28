@@ -58,8 +58,13 @@ class CartDispatchIntegrationTests(unittest.TestCase):
                       (102,30,'منتج باء',40,1,'approved',strftime('%s','now'));
         """)
         self.user = {"id": 1, "role": "customer"}
-        shop.bind(self.pushed.append, self.audit, 
+        shop.bind(self.dispatch, self.audit,
                   "SELECT COUNT(*) FROM delivery_orders WHERE customer_id=? AND status IN ('searching','assigned','heading_pickup','picked_up','heading_customer','arrived','awaiting_confirmation')", 5)
+
+    def dispatch(self, oid):
+        # The real callback starts the existing push loop; checkout must commit first.
+        self.assertFalse(self.c.in_transaction)
+        self.pushed.append(oid)
 
     def audit(self, *args):
         self.audits.append(args)
