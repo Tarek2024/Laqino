@@ -59,7 +59,12 @@ class CartDispatchIntegrationTests(unittest.TestCase):
         """)
         self.user = {"id": 1, "role": "customer"}
         shop.bind(self.dispatch, self.audit,
-                  "SELECT COUNT(*) FROM delivery_orders WHERE customer_id=? AND status IN ('searching','assigned','heading_pickup','picked_up','heading_customer','arrived','awaiting_confirmation')", 5)
+                  "SELECT COUNT(*) FROM delivery_orders WHERE customer_id=? AND status IN ('searching','assigned','heading_pickup','picked_up','heading_customer','arrived','awaiting_confirmation')", 5, self.resolve_region)
+
+    def resolve_region(self, c, lat, lng):
+        if lat > 40:
+            return ({"id":99,"name_ar":"منطقة أخرى"},None,"test")
+        return ({"id":10,"name_ar":"الرياض"},None,"test")
 
     def dispatch(self, oid):
         # The real callback starts the existing push loop; checkout must commit first.
@@ -137,6 +142,17 @@ class CartDispatchIntegrationTests(unittest.TestCase):
         self.assertEqual(self.c.execute("SELECT COUNT(*) FROM delivery_orders").fetchone()[0],1)
         self.assertEqual(self.c.execute("SELECT COUNT(*) FROM cart_checkouts").fetchone()[0],0)
         self.assertEqual(self.pushed,[])
+
+    def test_region_mismatch_requires_confirmation_and_rolls_back(self):
+        self.add_item(101,20)
+        h=Handler({"request_key":"region-mismatch","dropoff_text":"عنوان العميل","dropoff_lat":50,"dropoff_lng":31})
+        shop.handle(h,self.c,self.user,"POST","/api/cart/checkout",{})
+        self.assertEqual(h.responses[0][0],409)
+        self.assertIn("REGION_MISMATCH",h.responses[0][1]["error"])
+        self.assertEqual(self.c.execute("SELECT COUNT(*) FROM delivery_orders").fetchone()[0],1)
+        self.assertEqual(self.c.execute("SELECT COUNT(*) FROM cart_checkouts").fetchone()[0],0)
+        self.assertEqual(self.pushed,[])
+        self.assertFalse(self.c.in_transaction)
 
     def test_open_order_cap_is_checked_for_all_pharmacy_orders(self):
         for i in range(2,6):
