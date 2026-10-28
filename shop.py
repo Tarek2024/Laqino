@@ -39,6 +39,21 @@ CREATE TABLE IF NOT EXISTS cart_checkouts (
  UNIQUE(customer_id,request_key)
 );
 CREATE INDEX IF NOT EXISTS ix_cart_checkouts_cart ON cart_checkouts(cart_id,id);
+CREATE TABLE IF NOT EXISTS cart_checkout_stops (
+ id INTEGER PRIMARY KEY,
+ checkout_id INTEGER NOT NULL REFERENCES cart_checkouts(id) ON DELETE CASCADE,
+ order_id INTEGER NOT NULL REFERENCES delivery_orders(id) ON DELETE CASCADE,
+ provider_id INTEGER NOT NULL REFERENCES providers(user_id),
+ pharmacy TEXT NOT NULL,
+ pickup_text TEXT NOT NULL,
+ items_json TEXT NOT NULL,
+ status TEXT NOT NULL DEFAULT 'waiting' CHECK(status IN ('waiting','notified','picked_up','cancelled')),
+ notified_at INTEGER,
+ picked_up_at INTEGER,
+ UNIQUE(checkout_id,provider_id)
+);
+CREATE INDEX IF NOT EXISTS ix_cart_stops_order ON cart_checkout_stops(order_id,id);
+CREATE INDEX IF NOT EXISTS ix_cart_stops_provider ON cart_checkout_stops(provider_id,status,id);
 """
 
 def _send(h, *args, **kwargs):
@@ -188,9 +203,10 @@ def _checkout(h, c, u, cart, d):
             return _send(h, 400, {"error":"السلة فارغة"})
         # Respect the same open-order cap as the ordinary delivery endpoint.
         open_count = int(c.execute(_H["count_orders_sql"], (u["id"],)).fetchone()[0])
-        if open_count + len(groups) > _H["max_open_orders"]:
+        # One shared checkout is exactly one courier job, regardless of pharmacy count.
+        if open_count + 1 > _H["max_open_orders"]:
             c.rollback()
-            return _send(h, 429, {"error":"عدد طلبات التوصيل المفتوحة لا يسمح بطلب من كل الصيدليات الآن"})
+            return _send(h, 429, {"error":"عدد طلبات التوصيل المفتوحة لا يسمح بطلب مجمّع جديد الآن"})
         now = int(time.time())
         settings = {r["key"]:r["value"] for r in c.execute("SELECT key,value FROM settings")}
         comm_type = settings.get("commission_type","fixed")
@@ -217,26 +233,42 @@ def _checkout(h, c, u, cart, d):
                 selected_name = selected["name_ar"] if selected else str(cart["region_id"])
                 c.rollback()
                 return _send(h,409,{"error":"REGION_MISMATCH|%s|%s|%s|%s" % (cart["region_id"],gps_region["id"],selected_name,gps_region["name_ar"])})
+        # One ordinary delivery order represents the entire shared-cart route.
+        # Each pharmacy remains a private pickup stop linked to that single order.
+        stops = []
+        all_details = []
         for provider_id, group in sorted(groups.items()):
             pickup = ("صيدلية " + group["pharmacy"] + ((" — " + group["address"]) if group["address"] else ""))[:300]
-            details = "طلب من السلة المشتركة: " + "؛ ".join(
+            lines = [{"title":line["title"],"quantity":line["quantity"],"unit_price":line["price"],
+                      "line_total":round(line["price"]*line["quantity"],2)} for line in group["lines"]]
+            stops.append({"provider_id":provider_id,"pharmacy":group["pharmacy"],"pickup_text":pickup,"lines":lines})
+            all_details.append("%s: %s" % (group["pharmacy"], "؛ ".join(
                 ("%s × %s (%.2f ج)" % (line["title"],line["quantity"],line["price"]*line["quantity"]))
-                for line in group["lines"])
-            details = details[:1000]
-            commission = round(comm_value * (0 if comm_type == "percent" else 1), 2)
-            child_key = "cart%d-p%d" % (checkout_id,provider_id)
-            order_cur = c.execute("""INSERT INTO delivery_orders
-                (customer_id,region_id,pickup_text,dropoff_text,details,fee,commission,created_at,updated_at,
-                 search_started_at,delivery_code,request_key,dropoff_lat,dropoff_lng,fare_status,comm_type,comm_value)
-                VALUES(?,?,?,?,?,0,?,?,?,?,?,?,?,?, 'none',?,?)""",
-                (u["id"],group["provider_region"],pickup,dropoff,details,commission,now,now,now,
-                 "%06d" % secrets.randbelow(10**6),child_key,dla,dln,comm_type,comm_value))
-            oid = order_cur.lastrowid
-            c.execute("INSERT INTO order_events(order_id,actor_id,from_status,to_status,at) VALUES(?,?,?,?,?)",
-                      (oid,u["id"],None,"searching",now))
-            created.append({"id":oid,"status":"searching","provider_id":provider_id,"pharmacy":group["pharmacy"],
-                            "region_id":group["provider_region"]})
-        ids = [o["id"] for o in created]
+                for line in group["lines"])))
+        pickup_text = "استلام مجمّع من %d صيدلية: " % len(stops) + " ← ".join(
+            "%d) %s" % (i+1, stop["pickup_text"]) for i,stop in enumerate(stops))
+        pickup_text = pickup_text[:300]
+        details = ("طلب من السلة المشتركة — %d صيدلية: " % len(stops) + " | ".join(all_details))[:1000]
+        commission = round(comm_value * (0 if comm_type == "percent" else 1), 2)
+        child_key = "cart%d-shared" % checkout_id
+        order_cur = c.execute("""INSERT INTO delivery_orders
+            (customer_id,region_id,pickup_text,dropoff_text,details,fee,commission,created_at,updated_at,
+             search_started_at,delivery_code,request_key,dropoff_lat,dropoff_lng,fare_status,comm_type,comm_value)
+            VALUES(?,?,?,?,?,0,?,?,?,?,?,?,?,?, 'none',?,?)""",
+            (u["id"],cart["region_id"],pickup_text,dropoff,details,commission,now,now,now,
+             "%06d" % secrets.randbelow(10**6),child_key,dla,dln,comm_type,comm_value))
+        oid = order_cur.lastrowid
+        c.execute("INSERT INTO order_events(order_id,actor_id,from_status,to_status,at) VALUES(?,?,?,?,?)",
+                  (oid,u["id"],None,"searching",now))
+        for stop in stops:
+            c.execute("""INSERT INTO cart_checkout_stops
+                (checkout_id,order_id,provider_id,pharmacy,pickup_text,items_json,status)
+                VALUES(?,?,?,?,?,?,'waiting')""",
+                (checkout_id,oid,stop["provider_id"],stop["pharmacy"],stop["pickup_text"],json.dumps(stop["lines"],ensure_ascii=False)))
+        created.append({"id":oid,"status":"searching","checkout_id":checkout_id,"pharmacy_count":len(stops),
+                        "pharmacies":[{"provider_id":s["provider_id"],"pharmacy":s["pharmacy"]} for s in stops],
+                        "region_id":cart["region_id"]})
+        ids = [oid]
         c.execute("UPDATE cart_checkouts SET order_ids=?,status='created' WHERE id=?", (json.dumps(ids),checkout_id))
         c.execute("DELETE FROM cart_items WHERE cart_id=?", (cart["id"],))
         c.execute("UPDATE carts SET status='checked_out',updated_at=? WHERE id=?", (now,cart["id"]))
@@ -257,11 +289,22 @@ def _checkout(h, c, u, cart, d):
     except Exception:
         if c.in_transaction: c.rollback()
         return _send(h,500,{"error":"تعذر إنشاء طلبات التوصيل، لم يتم إنشاء أي طلب"})
-    # Dispatch only after the entire checkout is committed. Reuse the same push loop as normal orders.
-    for order in created:
-        try: _H["push"](order["id"])
-        except Exception: pass
-    return _send(h,201,{"checkout_id":checkout_id,"orders":created,"delivery_fee":"يحددها تدفق التوصيل الحالي لكل طلب"})
+    # Notify each pharmacy that its items are included; courier assignment notifications are
+    # emitted when the single shared order is accepted/assigned.
+    try:
+        for stop in stops:
+            c.execute("""INSERT INTO notifications(user_id,kind,title,body,link,ref_type,ref_id,created_at)
+                         SELECT ?, 'cart.pharmacy.requested', 'طلب سلة مشتركة جديد',
+                                ?, 'pharmacy', 'cart_checkout', ?, ? 
+                         WHERE EXISTS(SELECT 1 FROM sqlite_master WHERE type='table' AND name='notifications')""",
+                      (stop["provider_id"],"طلب سلة مشتركة — استلام من: "+stop["pickup_text"],checkout_id,int(time.time())))
+        c.commit()
+    except sqlite3.Error:
+        c.rollback()
+    # Dispatch exactly one courier job after the checkout and stop records are committed.
+    try: _H["push"](created[0]["id"])
+    except Exception: pass
+    return _send(h,201,{"checkout_id":checkout_id,"orders":created,"delivery_fee":"تُحدّد مرة واحدة للرحلة المجمعة"})
 
 def handle(h, c, u, method, path, q):
     if not (path == "/api/cart" or path == "/api/cart/items" or re.fullmatch(r"/api/cart/items/\d+",path) or path == "/api/cart/checkout"):
