@@ -4,7 +4,7 @@ Additive module only. Disabled unless settings.cart_enabled='1'. It does not cre
 delivery orders yet: checkout stays deliberately unavailable until atomic
 multi-pharmacy dispatch is wired to the existing delivery lifecycle.
 """
-import json, time, sqlite3
+import json, time, sqlite3, re
 
 SCHEMA = """
 CREATE TABLE IF NOT EXISTS carts (
@@ -28,6 +28,10 @@ CREATE TABLE IF NOT EXISTS cart_items (
 );
 CREATE INDEX IF NOT EXISTS ix_cart_items_cart ON cart_items(cart_id,id);
 """
+
+def _send(h, *args, **kwargs):
+    h.send(*args, **kwargs)
+    return True
 
 def enabled(c):
     row = c.execute("SELECT value FROM settings WHERE key='cart_enabled'").fetchone()
@@ -73,7 +77,7 @@ def _item_info(c, kind, source_id, provider_id, region_id):
     raise ValueError("نوع الصنف غير مدعوم في هذا المسار")
 
 def handle(h, c, u, method, path, q):
-    if not (path == "/api/cart" or path == "/api/cart/items" or __import__("re").fullmatch(r"/api/cart/items/\d+",path) or path == "/api/cart/checkout"):
+    if not (path == "/api/cart" or path == "/api/cart/items" or re.fullmatch(r"/api/cart/items/\d+",path) or path == "/api/cart/checkout"):
         return False
     install(c)
     if not enabled(c):
@@ -97,7 +101,7 @@ def handle(h, c, u, method, path, q):
         for r in rows:
             if r["unit_price"] is None: continue
             d=dict(r); d["line_total"]=round(float(r["unit_price"])*d["quantity"],2); total += d["line_total"]; items.append(d)
-        return h.send(200, {"id":cart["id"],"region_id":cart["region_id"],"items":items,"total":round(total,2)})
+        return _send(h, 200, {"id":cart["id"],"region_id":cart["region_id"],"items":items,"total":round(total,2)})
     if method == "POST" and path == "/api/cart/items":
         d=h.body()
         kind=d.get("item_type"); sid=d.get("source_id"); pid=d.get("provider_id"); qty=d.get("quantity",1)
