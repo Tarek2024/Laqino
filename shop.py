@@ -73,6 +73,24 @@ def bind(push_new_order, audit, count_orders_sql, max_open_orders, resolve_regio
 
 def install(c):
     c.executescript(SCHEMA)
+    # Notify each pharmacy when the one shared courier job is accepted/heading to pickups.
+    c.execute("""CREATE TRIGGER IF NOT EXISTS shop_cart_courier_assigned
+        AFTER UPDATE OF status ON delivery_orders
+        WHEN OLD.status IS NOT NEW.status AND NEW.status IN ('assigned','heading_pickup')
+        BEGIN
+          INSERT INTO notifications(user_id,kind,title,body,link,ref_type,ref_id,created_at)
+          SELECT s.provider_id,'cart.pharmacy.courier','المندوب في طريقه لاستلام طلبك',
+                 'طلب السلة المجمعة رقم ' || s.checkout_id || ' — ' || s.pickup_text,
+                 'pharmacy','cart_stop',s.id,CAST(strftime('%s','now') AS INTEGER)
+          FROM cart_checkout_stops s
+          WHERE s.order_id=NEW.id
+            AND EXISTS(SELECT 1 FROM sqlite_master WHERE type='table' AND name='notifications')
+            AND NOT EXISTS(SELECT 1 FROM notifications n WHERE n.user_id=s.provider_id
+                           AND n.kind='cart.pharmacy.courier' AND n.ref_type='cart_stop' AND n.ref_id=s.id);
+          UPDATE cart_checkout_stops SET status='notified',
+              notified_at=COALESCE(notified_at,CAST(strftime('%s','now') AS INTEGER))
+          WHERE order_id=NEW.id AND status='waiting';
+        END""")
     c.commit()
 
 def _cart(c, uid, region_id=None):
@@ -307,7 +325,70 @@ def _checkout(h, c, u, cart, d):
     return _send(h,201,{"checkout_id":checkout_id,"orders":created,"delivery_fee":"تُحدّد مرة واحدة للرحلة المجمعة"})
 
 def handle(h, c, u, method, path, q):
-    if not (path == "/api/cart" or path == "/api/cart/items" or re.fullmatch(r"/api/cart/items/\d+",path) or path == "/api/cart/checkout"):
+    # Courier-only stop API: one delivery order, multiple private pharmacy pickups.
+    cm = re.fullmatch(r"/api/cart/courier-stops/(\\d+)", path)
+    pm = re.fullmatch(r"/api/cart/courier-stops/(\\d+)/(\\d+)/picked-up", path)
+    if cm or pm:
+        if not u: return _send(h,401,{"error":"سجّل الدخول أولًا"})
+        if u["role"] != "courier": return _send(h,403,{"error":"الخدمة للمندوب المعتمد فقط"})
+        install(c)
+        cr = c.execute("SELECT status FROM couriers WHERE user_id=?", (u["id"],)).fetchone()
+        if not cr or cr["status"] != "approved": return _send(h,403,{"error":"حساب المندوب غير معتمد"})
+        oid = int(cm[1] if cm else pm[1])
+        order = c.execute("SELECT id,status,courier_id FROM delivery_orders WHERE id=?", (oid,)).fetchone()
+        if not order or order["courier_id"] != u["id"]: return _send(h,404,{"error":"الطلب غير مسند إليك"})
+        if cm and method == "GET":
+            rows = [dict(x) for x in c.execute("""SELECT id,provider_id,pharmacy,pickup_text,status,notified_at,picked_up_at
+                FROM cart_checkout_stops WHERE order_id=? ORDER BY id""",(oid,))]
+            for row in rows:
+                itemrow = c.execute("SELECT items_json FROM cart_checkout_stops WHERE id=?",(row["id"],)).fetchone()
+                row["items"] = json.loads(itemrow["items_json"]) if itemrow else []
+            return _send(h,200,{"order_id":oid,"stops":rows})
+        if pm and method == "POST":
+            sid, now = int(pm[2]), int(time.time())
+            if order["status"] != "heading_pickup": return _send(h,409,{"error":"ابدأ مرحلة الاستلام أولًا"})
+            cur = c.execute("""UPDATE cart_checkout_stops SET status='picked_up',picked_up_at=?
+                WHERE id=? AND order_id=? AND status IN ('waiting','notified')""",(now,sid,oid))
+            if not cur.rowcount:
+                existing = c.execute("SELECT status FROM cart_checkout_stops WHERE id=? AND order_id=?",(sid,oid)).fetchone()
+                if not existing: return _send(h,404,{"error":"نقطة الاستلام غير موجودة"})
+                if existing["status"] != "picked_up": return _send(h,409,{"error":"تعذر تحديث نقطة الاستلام"})
+            c.commit()
+            remaining = c.execute("SELECT COUNT(*) FROM cart_checkout_stops WHERE order_id=? AND status!='picked_up'",(oid,)).fetchone()[0]
+            if remaining == 0:
+                c.execute("BEGIN IMMEDIATE")
+                latest = c.execute("SELECT status,courier_id FROM delivery_orders WHERE id=?",(oid,)).fetchone()
+                if latest and latest["courier_id"] == u["id"] and latest["status"] == "heading_pickup":
+                    now = int(time.time())
+                    c.execute("UPDATE delivery_orders SET status='picked_up',updated_at=? WHERE id=? AND status='heading_pickup'",(now,oid))
+                    c.execute("INSERT INTO order_events(order_id,actor_id,from_status,to_status,at) VALUES(?,?,?,?,?)",(oid,u["id"],"heading_pickup","picked_up",now))
+                c.commit()
+            return _send(h,200,{"ok":True,"remaining_stops":remaining,"order_status":c.execute("SELECT status FROM delivery_orders WHERE id=?",(oid,)).fetchone()[0]})
+        return _send(h,405,{"error":"طريقة غير مدعومة"})
+    # Pharmacy sees only its own stops and whether the courier is on the shared job.
+    if path == "/api/cart/provider-stops":
+        if not u: return _send(h,401,{"error":"سجّل الدخول أولًا"})
+        install(c)
+        provider = c.execute("SELECT user_id FROM providers WHERE user_id=? AND status='approved'",(u["id"],)).fetchone()
+        if not provider: return _send(h,403,{"error":"حساب الصيدلية غير معتمد"})
+        if method != "GET": return _send(h,405,{"error":"طريقة غير مدعومة"})
+        rows = [dict(x) for x in c.execute("""SELECT s.id,s.checkout_id,s.pharmacy,s.pickup_text,s.status,s.notified_at,s.picked_up_at,
+            o.id order_id,o.status order_status,CASE WHEN o.status IN ('assigned','heading_pickup','picked_up','heading_customer','arrived','awaiting_confirmation') THEN cu.name END courier_name
+            FROM cart_checkout_stops s JOIN delivery_orders o ON o.id=s.order_id
+            LEFT JOIN users cu ON cu.id=o.courier_id WHERE s.provider_id=? ORDER BY s.id DESC LIMIT 50""",(u["id"],))]
+        return _send(h,200,{"items":rows})
+    # Block the ordinary single-pickup status button until every shared-cart stop is confirmed.
+    sm = re.fullmatch(r"/api/courier/orders/(\\d+)/status",path)
+    if sm and method == "POST" and u and u.get("role") == "courier":
+        try: target = h.body().get("to")
+        except Exception: target = None
+        if target == "picked_up":
+            oid = int(sm[1])
+            exists = c.execute("SELECT 1 FROM sqlite_master WHERE type='table' AND name='cart_checkout_stops'").fetchone()
+            n = c.execute("SELECT COUNT(*) FROM cart_checkout_stops WHERE order_id=?",(oid,)).fetchone()[0] if exists else 0
+            if n and c.execute("SELECT COUNT(*) FROM cart_checkout_stops WHERE order_id=? AND status!='picked_up'",(oid,)).fetchone()[0]:
+                return _send(h,409,{"error":"لازم تأكد استلام كل الصيدليات في الرحلة المجمعة الأول"})
+    if not (path == "/api/cart" or path == "/api/cart/items" or re.fullmatch(r"/api/cart/items/\\d+",path) or path == "/api/cart/checkout"):
         return False
     install(c)
     if not enabled(c):
