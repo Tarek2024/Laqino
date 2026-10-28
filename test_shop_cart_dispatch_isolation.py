@@ -23,7 +23,10 @@ class CartDispatchIntegrationTests(unittest.TestCase):
         self.pushed = []
         self.audits = []
         self.c.executescript("""
-            CREATE TABLE users(id INTEGER PRIMARY KEY, region_id INTEGER);
+            CREATE TABLE users(id INTEGER PRIMARY KEY, region_id INTEGER, name TEXT);
+            CREATE TABLE couriers(user_id INTEGER PRIMARY KEY, status TEXT);
+            CREATE TABLE notifications(id INTEGER PRIMARY KEY, user_id INTEGER, kind TEXT, title TEXT, body TEXT,
+                link TEXT, ref_type TEXT, ref_id INTEGER, created_at INTEGER, read_at INTEGER);
             CREATE TABLE regions(id INTEGER PRIMARY KEY, parent_id INTEGER, is_active INTEGER DEFAULT 1, name_ar TEXT);
             CREATE TABLE providers(user_id INTEGER PRIMARY KEY REFERENCES users(id), name_ar TEXT, address TEXT,
                 region_id INTEGER, status TEXT);
@@ -44,7 +47,8 @@ class CartDispatchIntegrationTests(unittest.TestCase):
             CREATE UNIQUE INDEX ux_order_reqkey ON delivery_orders(customer_id,request_key) WHERE request_key IS NOT NULL;
             CREATE TABLE order_events(id INTEGER PRIMARY KEY, order_id INTEGER, actor_id INTEGER,
                 from_status TEXT, to_status TEXT, at INTEGER);
-            INSERT INTO users(id,region_id) VALUES(1,10),(20,10),(30,10);
+            INSERT INTO users(id,region_id,name) VALUES(1,10,'عميل'),(20,10,'مندوب تجريبي'),(30,10,'صيدلية ألف'),(40,10,'مندوب الرحلة');
+            INSERT INTO couriers(user_id,status) VALUES(40,'approved');
             INSERT INTO regions(id,parent_id,is_active,name_ar) VALUES(10,NULL,1,'الرياض');
             INSERT INTO providers(user_id,name_ar,address,region_id,status)
                 VALUES(20,'صيدلية ألف','شارع 1',10,'approved'),(30,'صيدلية باء','شارع 2',10,'approved');
@@ -120,6 +124,30 @@ class CartDispatchIntegrationTests(unittest.TestCase):
         self.assertEqual(self.c.execute("SELECT status FROM carts").fetchone()[0],"checked_out")
         old = self.c.execute("SELECT status,courier_id,request_key FROM delivery_orders WHERE id=77").fetchone()
         self.assertEqual(tuple(old),("searching",None,"existing-order"))
+
+    def test_one_courier_can_confirm_each_pharmacy_stop_before_delivery(self):
+        self.add_item(101,20)
+        self.add_item(102,30)
+        h = Handler({"request_key":"multi-stop-flow","dropoff_text":"عنوان العميل"})
+        shop.handle(h,self.c,self.user,"POST","/api/cart/checkout",{})
+        self.assertEqual(h.responses[0][0],201)
+        oid = h.responses[0][1]["orders"][0]["id"]
+        # Simulate the existing dispatch lifecycle assigning the shared job and moving to pickup.
+        self.c.execute("UPDATE delivery_orders SET courier_id=40,status='heading_pickup' WHERE id=?",(oid,))
+        self.c.commit()
+        self.assertEqual(self.c.execute("SELECT COUNT(*) FROM notifications WHERE kind='cart.pharmacy.courier'").fetchone()[0],2)
+        courier = {"id":40,"role":"courier"}
+        gh = Handler()
+        shop.handle(gh,self.c,courier,"GET",f"/api/cart/courier-stops/{oid}",{})
+        self.assertEqual(gh.responses[0][0],200)
+        stops = gh.responses[0][1]["stops"]
+        self.assertEqual(len(stops),2)
+        for stop in stops:
+            ph = Handler()
+            shop.handle(ph,self.c,courier,"POST",f"/api/cart/courier-stops/{oid}/{stop['id']}/picked-up",{})
+            self.assertEqual(ph.responses[0][0],200)
+        self.assertEqual(self.c.execute("SELECT status FROM delivery_orders WHERE id=?",(oid,)).fetchone()[0],"picked_up")
+        self.assertEqual(self.c.execute("SELECT COUNT(*) FROM notifications WHERE kind='cart.pharmacy.picked_up'").fetchone()[0],2)
 
     def test_same_idempotency_key_returns_existing_orders_without_second_dispatch(self):
         self.add_item(101,20)
