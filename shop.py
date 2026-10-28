@@ -163,8 +163,8 @@ def _checkout_item(c, item, customer_id, cart_region):
         if not r or r["provider_status"] != "approved" or r["inquiry_status"] != "open" or r["status"] != "available":
             raise ValueError("رد البحث عن الدواء لم يعد متاحًا")
         price = float(r["price"]) if r["price"] is not None else 0.0
-        if price < 0 or price != price or price == float("inf"):
-            raise ValueError("سعر الدواء غير صالح")
+        if price <= 0 or price != price or price == float("inf"):
+            raise ValueError("لازم يكون سعر الدواء مؤكدًا قبل إضافته للسلة")
         title = str(r["medicine_name"])
     elif item["item_type"] == "rx_quote":
         if int(item["quantity"]) != 1:
