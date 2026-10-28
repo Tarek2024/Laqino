@@ -284,6 +284,7 @@ def init(admin_phone=None, admin_pw=None):
     notif.install(c)
     exchange.install(c)  # سوق الصيدليات (إضافة بعد الخطوة 7): exchange_deals/images/reports (idempotent)
     provider_delivery.bind(push_new_order, audit, default_delivery_region, COUNT_SQL["orders"]); provider_delivery.install(c)  # Phase 40: زر «اطلب دليفري» للصيدليات
+    shop.bind(push_new_order, audit, COUNT_SQL["orders"], LIMITS["orders"])  # Shared cart reuses the exact existing courier push/dispatch lifecycle
     products.install(c)  # Phase 2: product_offers + medical sub-categories (idempotent)
     shop.install(c)  # Isolated shared-cart tables; customer feature flag defaults OFF
     rx.install(c)  # RX schema extensions (idempotent, additive migrations)
