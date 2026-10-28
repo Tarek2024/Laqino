@@ -149,6 +149,23 @@ def _checkout_item(c, item, customer_id, cart_region):
         if price < 0 or price != price or price == float("inf"):
             raise ValueError("سعر المنتج غير صالح")
         title = str(r["title"])
+    elif item["item_type"] == "inquiry_quote":
+        if int(item["quantity"]) != 1:
+            raise ValueError("كمية طلب البحث يجب أن تكون 1")
+        r = c.execute("""SELECT ir.inquiry_id,ir.provider_id,ir.price,ir.status,
+                           mi.status inquiry_status,mi.medicine_name,p.name_ar pharmacy,p.address,
+                           p.region_id provider_region,p.status provider_status
+                         FROM inquiry_responses ir
+                         JOIN medicine_inquiries mi ON mi.id=ir.inquiry_id
+                         JOIN providers p ON p.user_id=ir.provider_id
+                         WHERE ir.inquiry_id=? AND ir.provider_id=? AND mi.customer_id=?""",
+                      (item["source_id"],item["provider_id"],customer_id)).fetchone()
+        if not r or r["provider_status"] != "approved" or r["inquiry_status"] != "open" or r["status"] != "available":
+            raise ValueError("رد البحث عن الدواء لم يعد متاحًا")
+        price = float(r["price"]) if r["price"] is not None else 0.0
+        if price < 0 or price != price or price == float("inf"):
+            raise ValueError("سعر الدواء غير صالح")
+        title = str(r["medicine_name"])
     elif item["item_type"] == "rx_quote":
         if int(item["quantity"]) != 1:
             raise ValueError("كمية الروشتة يجب أن تكون 1")
@@ -412,11 +429,16 @@ def handle(h, c, u, method, path, q):
     cart = _cart(c,u["id"])
     if method == "GET" and path == "/api/cart":
         rows = c.execute("""SELECT i.id,i.item_type,i.source_id,i.provider_id,i.quantity,p.name_ar pharmacy,
-                            CASE WHEN i.item_type='product' THEN o.title ELSE 'روشتة #'||i.source_id END title,
-                            CASE WHEN i.item_type='product' THEN o.price ELSE rr.price END unit_price
+                            CASE WHEN i.item_type='product' THEN o.title
+                                 WHEN i.item_type='inquiry_quote' THEN mi.medicine_name
+                                 ELSE 'روشتة #'||i.source_id END title,
+                            CASE WHEN i.item_type='product' THEN o.price
+                                 WHEN i.item_type='inquiry_quote' THEN ir.price ELSE rr.price END unit_price
                             FROM cart_items i JOIN providers p ON p.user_id=i.provider_id
                             LEFT JOIN product_offers o ON i.item_type='product' AND o.id=i.source_id AND o.provider_id=i.provider_id
                             LEFT JOIN prescription_responses rr ON i.item_type='rx_quote' AND rr.prescription_id=i.source_id AND rr.provider_id=i.provider_id
+                            LEFT JOIN inquiry_responses ir ON i.item_type='inquiry_quote' AND ir.inquiry_id=i.source_id AND ir.provider_id=i.provider_id
+                            LEFT JOIN medicine_inquiries mi ON i.item_type='inquiry_quote' AND mi.id=i.source_id AND mi.customer_id=?
                             WHERE i.cart_id=? ORDER BY p.name_ar,i.id""", (cart["id"],)).fetchall()
         items=[]; total=0
         for r in rows:
@@ -426,14 +448,14 @@ def handle(h, c, u, method, path, q):
     if method == "POST" and path == "/api/cart/items":
         d=h.body()
         kind=d.get("item_type"); sid=d.get("source_id"); pid=d.get("provider_id"); qty=d.get("quantity",1)
-        if kind not in ("product","rx_quote") or isinstance(sid,bool) or not isinstance(sid,int) or sid<=0 or isinstance(pid,bool) or not isinstance(pid,int) or pid<=0 or isinstance(qty,bool) or not isinstance(qty,int) or not 1<=qty<=99:
+        if kind not in ("product","rx_quote","inquiry_quote") or isinstance(sid,bool) or not isinstance(sid,int) or sid<=0 or isinstance(pid,bool) or not isinstance(pid,int) or pid<=0 or isinstance(qty,bool) or not isinstance(qty,int) or not 1<=qty<=99:
             return _send(h, 400,{"error":"بيانات الصنف غير صالحة"})
-        if kind == "rx_quote" and qty != 1:
-            return _send(h, 400,{"error":"كمية الروشتة يجب أن تكون 1"})
+        if kind in ("rx_quote","inquiry_quote") and qty != 1:
+            return _send(h, 400,{"error":"كمية الروشتة أو طلب البحث يجب أن تكون 1"})
         if kind == "product":
             try: info=_item_info(c,kind,sid,pid,cart["region_id"])
             except ValueError as e: return _send(h, 409,{"error":str(e)})
-        else:
+        elif kind == "rx_quote":
             # Restrict prescription quote to the authenticated customer; use prescription id as source_id.
             r=c.execute("""SELECT rr.prescription_id,rr.provider_id,rr.price,rr.status,rr.review,rx.status rx_status,
                            p.status provider_status,p.region_id provider_region FROM prescription_responses rr
@@ -441,6 +463,17 @@ def handle(h, c, u, method, path, q):
                            WHERE rr.prescription_id=? AND rr.provider_id=? AND rx.customer_id=?""",(sid,pid,u["id"])).fetchone()
             if not r or r["provider_status"]!="approved" or r["rx_status"]=="closed" or r["status"] not in ("available","quoted","responded") or r["review"] not in (None,"approved") or not r["price"] or float(r["price"])<=0:
                 return _send(h, 409,{"error":"رد الروشتة غير معتمد أو غير متاح"})
+            if cart["region_id"] and r["provider_region"] not in gsearch._related(c, cart["region_id"]):
+                return _send(h, 409,{"error":"الصيدلية خارج نطاق منطقة العميل"})
+        else:
+            # Only the customer who opened the medicine inquiry can add its reply.
+            r=c.execute("""SELECT ir.inquiry_id,ir.provider_id,ir.price,ir.status,mi.status inquiry_status,
+                           p.status provider_status,p.region_id provider_region
+                           FROM inquiry_responses ir JOIN medicine_inquiries mi ON mi.id=ir.inquiry_id
+                           JOIN providers p ON p.user_id=ir.provider_id
+                           WHERE ir.inquiry_id=? AND ir.provider_id=? AND mi.customer_id=?""",(sid,pid,u["id"])).fetchone()
+            if not r or r["provider_status"]!="approved" or r["inquiry_status"]!="open" or r["status"]!="available":
+                return _send(h, 409,{"error":"رد البحث عن الدواء غير متاح"})
             if cart["region_id"] and r["provider_region"] not in gsearch._related(c, cart["region_id"]):
                 return _send(h, 409,{"error":"الصيدلية خارج نطاق منطقة العميل"})
         now=int(time.time())
