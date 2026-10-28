@@ -1,8 +1,8 @@
-"""Laqino shared cart groundwork (isolated rollout).
+"""Laqino pharmacy-first shared cart.
 
-Additive module only. Disabled unless settings.cart_enabled='1'. It does not create
-delivery orders yet: checkout stays deliberately unavailable until atomic
-multi-pharmacy dispatch is wired to the existing delivery lifecycle.
+Additive module only, disabled unless settings.cart_enabled='1'. Checkout creates
+one ordinary delivery order per pharmacy in a single transaction and dispatches
+only through the existing server push/offer/accept/commission lifecycle.
 """
 import json, time, sqlite3, re, secrets
 import gsearch, products
@@ -111,10 +111,12 @@ def _checkout_item(c, item, customer_id, cart_region):
         if int(time.time()) - int(r["confirmed_at"] or 0) > 14*86400:
             raise ValueError("يجب على الصيدلية تأكيد توفر أحد المنتجات من جديد")
         price = float(r["price"])
-        if price < 0:
+        if price < 0 or price != price or price == float("inf"):
             raise ValueError("سعر المنتج غير صالح")
         title = str(r["title"])
     elif item["item_type"] == "rx_quote":
+        if int(item["quantity"]) != 1:
+            raise ValueError("كمية الروشتة يجب أن تكون 1")
         r = c.execute("""SELECT rr.prescription_id,rr.provider_id,rr.price,rr.status,rr.review,
                            rx.status rx_status,p.name_ar pharmacy,p.address,p.region_id provider_region,
                            p.status provider_status
