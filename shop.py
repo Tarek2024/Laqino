@@ -52,9 +52,9 @@ def enabled(c):
 # These callbacks reuse the existing server dispatch/notification and audit path.
 _H = {}
 
-def bind(push_new_order, audit, count_orders_sql, max_open_orders):
+def bind(push_new_order, audit, count_orders_sql, max_open_orders, resolve_region=None):
     _H.update(push=push_new_order, audit=audit, count_orders_sql=count_orders_sql,
-              max_open_orders=int(max_open_orders))
+              max_open_orders=int(max_open_orders), resolve_region=resolve_region)
 
 def install(c):
     c.executescript(SCHEMA)
@@ -208,6 +208,12 @@ def _checkout(h, c, u, cart, d):
             raise ValueError("موقع التسليم غير صالح")
         if (dla is None) != (dln is None) or (dla is not None and (not -90 <= dla <= 90 or not -180 <= dln <= 180)):
             raise ValueError("إحداثيات التسليم غير صالحة")
+        if dla is not None and _H.get("resolve_region"):
+            gps_region, _distance, _source = _H["resolve_region"](c,dla,dln)
+            if gps_region and int(gps_region["id"]) != int(cart["region_id"]) and not bool(d.get("confirm_region_mismatch")):
+                selected = c.execute("SELECT name_ar FROM regions WHERE id=?", (cart["region_id"],)).fetchone()
+                selected_name = selected["name_ar"] if selected else str(cart["region_id"])
+                return _send(h,409,{"error":"REGION_MISMATCH|%s|%s|%s|%s" % (cart["region_id"],gps_region["id"],selected_name,gps_region["name_ar"])})
         for provider_id, group in sorted(groups.items()):
             pickup = ("صيدلية " + group["pharmacy"] + ((" — " + group["address"]) if group["address"] else ""))[:300]
             details = "طلب من السلة المشتركة: " + "؛ ".join(
