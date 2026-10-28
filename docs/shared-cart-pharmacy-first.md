@@ -9,21 +9,26 @@
 
 ## Checkout behavior now implemented
 - The customer submits a `request_key` and delivery address.
-- Each pharmacy in the cart becomes one normal delivery order, with pickup at that pharmacy and dropoff at the customer.
+- The entire cart becomes exactly one ordinary delivery order, assigned to one courier and delivered once to the customer.
+- A private `cart_checkout_stops` record is created for each pharmacy; the courier sees each pickup address and item list, and confirms each pickup separately.
+- The shared order cannot advance from pickup to customer delivery until every pharmacy stop has been marked picked up.
 - All child orders and the checkout idempotency record are committed in one SQLite `BEGIN IMMEDIATE` transaction, or none are committed.
 - Stable child request keys and a unique parent key make retries return the existing order group instead of creating duplicates.
 - All products and prescription quotes are revalidated at checkout, including provider approval, current availability/freshness, quote approval, customer ownership, and regional coverage.
 - The same existing open-order cap is applied across the whole checkout before creating any child order.
-- After commit, each child order is handed to the existing `push_new_order` callback. Orders retain normal `searching` status and normal fare negotiation/approval; delivery fee is per pharmacy order and is not included in product subtotal.
+- After commit, the single shared order is handed once to the existing `push_new_order` callback. It retains normal `searching` status and normal fare negotiation/approval; delivery fee and commission are for the one shared route, not per pharmacy.
+- Pharmacies receive an initial shared-cart request notification, a courier-on-the-way notification after assignment, and a pickup-completed notification for their own stop only.
+- Courier stop endpoints enforce courier assignment and approved-courier role; pharmacy stop listings are restricted to the authenticated pharmacy.
 - The cart is emptied after successful checkout. A later visit starts a fresh cart.
 - Prescription quotes have quantity one; they cannot multiply a whole-prescription quote.
 
 ## Regression coverage added
-- Multi-pharmacy checkout creates one normal order per pharmacy and emits a push per child order.
+- Multi-pharmacy checkout creates one normal order for the shared route, private stops per pharmacy, and emits one dispatch push.
 - Existing searching orders remain unchanged.
 - Same idempotency key returns the same order group and does not re-dispatch.
 - A stale/rejected offer rolls back the entire checkout.
-- Open-order cap is checked for the whole cart.
+- Open-order cap counts the shared cart as one delivery job.
+- Courier pickup progression is gated until all pharmacy stops are confirmed.
 - Prescription quantity guard and default-off/additive schema checks.
 
 ## Remaining release gate
