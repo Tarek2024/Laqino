@@ -2,25 +2,29 @@
 
 ## Safety boundary
 - Branch: `feature/cart-pharmacy-isolated`
-- This is an additive module. It is not merged into `main`.
+- This remains isolated and is not merged into `main`.
 - Runtime feature flag: `settings.cart_enabled`, default OFF.
-- No existing delivery routes or legacy tables are rewritten.
-- Cart checkout intentionally returns HTTP 409 until a transaction-safe adapter can create one delivery order per pharmacy and use the existing dispatch/commission lifecycle.
+- Existing delivery endpoints and lifecycle remain the source of truth for dispatch, courier offers/acceptance, fare negotiation/customer approval, status transitions, wallet checks, and commission charging.
+- The cart adapter creates ordinary `delivery_orders` rows; it does not implement a parallel courier-selection system.
 
-## Current implementation in this branch
-- Additive `carts` and `cart_items` tables.
-- Customer-only cart read/add/remove endpoints, guarded by the disabled-by-default flag.
-- Product offers must be approved, available, pharmacy-approved, and freshly confirmed.
-- Prescription quote insertion verifies that the prescription belongs to the authenticated customer and that the pharmacy is approved and the quote is approved/available.
-- No phone numbers or private provider contact fields are returned.
+## Checkout behavior now implemented
+- The customer submits a `request_key` and delivery address.
+- Each pharmacy in the cart becomes one normal delivery order, with pickup at that pharmacy and dropoff at the customer.
+- All child orders and the checkout idempotency record are committed in one SQLite `BEGIN IMMEDIATE` transaction, or none are committed.
+- Stable child request keys and a unique parent key make retries return the existing order group instead of creating duplicates.
+- All products and prescription quotes are revalidated at checkout, including provider approval, current availability/freshness, quote approval, customer ownership, and regional coverage.
+- The same existing open-order cap is applied across the whole checkout before creating any child order.
+- After commit, each child order is handed to the existing `push_new_order` callback. Orders retain normal `searching` status and normal fare negotiation/approval; delivery fee is per pharmacy order and is not included in product subtotal.
+- The cart is emptied after successful checkout. A later visit starts a fresh cart.
+- Prescription quotes have quantity one; they cannot multiply a whole-prescription quote.
 
-## Required before checkout can be enabled
-1. A server-side, idempotent checkout key for the entire cart submission and stable child keys per pharmacy.
-2. Revalidate all offers, stock freshness, prescription approval, quantities, customer region and provider coverage in one SQLite transaction.
-3. Create one delivery order per pharmacy using the existing delivery-order schema and existing push/offer/accept/status/commission machinery; never duplicate dispatch logic.
-4. Commit all pharmacy orders or none; make retries return the same order group.
-5. Add regression tests for duplicate submissions, concurrent checkout, stale prices, partial prescription quotes, region mismatch, wallet/commission exactly-once, and all legacy phase tests.
-6. Only then add admin controls to enable checkout and customer-facing UI.
+## Regression coverage added
+- Multi-pharmacy checkout creates one normal order per pharmacy and emits a push per child order.
+- Existing searching orders remain unchanged.
+- Same idempotency key returns the same order group and does not re-dispatch.
+- A stale/rejected offer rolls back the entire checkout.
+- Open-order cap is checked for the whole cart.
+- Prescription quantity guard and default-off/additive schema checks.
 
-## Test gate
-Do not merge or deploy this branch until the new API integration tests and existing `test_phase22_delivery_cycle.py`, prescription, products, and release smoke tests pass against temporary databases. This repository connector does not execute the test suite, so no test pass is claimed here.
+## Remaining release gate
+The new integration is not yet declared production-ready. Wait for GitHub Actions to complete the full project regression suite and inspect any failures. Add/run end-to-end tests against the real server DB schema for concurrent duplicate checkout, courier accept/reject, fare proposal and customer approval, courier wallet eligibility, and exactly-once commission settlement before merging or enabling `cart_enabled`.
