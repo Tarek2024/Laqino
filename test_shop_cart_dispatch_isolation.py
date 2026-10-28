@@ -24,7 +24,7 @@ class CartDispatchIntegrationTests(unittest.TestCase):
         self.audits = []
         self.c.executescript("""
             CREATE TABLE users(id INTEGER PRIMARY KEY, region_id INTEGER);
-            CREATE TABLE regions(id INTEGER PRIMARY KEY, parent_id INTEGER, is_active INTEGER DEFAULT 1);
+            CREATE TABLE regions(id INTEGER PRIMARY KEY, parent_id INTEGER, is_active INTEGER DEFAULT 1, name_ar TEXT);
             CREATE TABLE providers(user_id INTEGER PRIMARY KEY REFERENCES users(id), name_ar TEXT, address TEXT,
                 region_id INTEGER, status TEXT);
             CREATE TABLE settings(key TEXT PRIMARY KEY, value TEXT NOT NULL);
@@ -45,7 +45,7 @@ class CartDispatchIntegrationTests(unittest.TestCase):
             CREATE TABLE order_events(id INTEGER PRIMARY KEY, order_id INTEGER, actor_id INTEGER,
                 from_status TEXT, to_status TEXT, at INTEGER);
             INSERT INTO users(id,region_id) VALUES(1,10),(20,10),(30,10);
-            INSERT INTO regions(id,parent_id,is_active) VALUES(10,NULL,1);
+            INSERT INTO regions(id,parent_id,is_active,name_ar) VALUES(10,NULL,1,'الرياض');
             INSERT INTO providers(user_id,name_ar,address,region_id,status)
                 VALUES(20,'صيدلية ألف','شارع 1',10,'approved'),(30,'صيدلية باء','شارع 2',10,'approved');
             INSERT INTO settings(key,value) VALUES('cart_enabled','1'),('products_enabled','1'),
