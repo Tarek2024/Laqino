@@ -19,7 +19,7 @@ CREATE TABLE IF NOT EXISTS carts (
 CREATE TABLE IF NOT EXISTS cart_items (
  id INTEGER PRIMARY KEY,
  cart_id INTEGER NOT NULL REFERENCES carts(id) ON DELETE CASCADE,
- item_type TEXT NOT NULL CHECK(item_type IN ('product','rx_quote')),
+ item_type TEXT NOT NULL CHECK(item_type IN ('product','rx_quote','inquiry_quote')),
  source_id INTEGER NOT NULL,
  provider_id INTEGER NOT NULL REFERENCES providers(user_id),
  quantity INTEGER NOT NULL CHECK(quantity BETWEEN 1 AND 99),
