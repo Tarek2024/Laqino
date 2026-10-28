@@ -3,7 +3,7 @@ import notif, account
 from http.server import ThreadingHTTPServer, BaseHTTPRequestHandler
 from urllib.parse import urlparse, parse_qs, quote
 import market
-import gsearch, products, provider_delivery, rx, chat, svc, overview, fcm, exchange, lsocial, bulk_import
+import gsearch, products, provider_delivery, rx, chat, svc, overview, fcm, exchange, lsocial, bulk_import, shop
 DB = os.environ.get("LAQINO_DB", "laqino.db")
 UP = os.environ.get("LAQINO_UPLOADS", "uploads")
 ROOT = os.path.realpath(os.path.join(os.path.dirname(os.path.abspath(__file__)), "static"))
@@ -285,6 +285,7 @@ def init(admin_phone=None, admin_pw=None):
     exchange.install(c)  # سوق الصيدليات (إضافة بعد الخطوة 7): exchange_deals/images/reports (idempotent)
     provider_delivery.bind(push_new_order, audit, default_delivery_region, COUNT_SQL["orders"]); provider_delivery.install(c)  # Phase 40: زر «اطلب دليفري» للصيدليات
     products.install(c)  # Phase 2: product_offers + medical sub-categories (idempotent)
+    shop.install(c)  # Isolated shared-cart tables; customer feature flag defaults OFF
     rx.install(c)  # RX schema extensions (idempotent, additive migrations)
     try: c.execute("ALTER TABLE listings ADD COLUMN featured_until INTEGER")  # المرحلة 30: تمييز الإعلان حتى تاريخ (NULL = غير مميز). بعد market.migrate لأنه قد يعيد بناء الجدول
     except sqlite3.OperationalError: pass
@@ -782,6 +783,7 @@ class H(BaseHTTPRequestHandler):
             if notif.handle(self, c, u, method, path, q): return
             if gsearch.handle(self, c, u, method, path, q): return
             if products.handle(self, c, u, method, path, q): return
+            if shop.handle(self, c, u, method, path, q): return
             if provider_delivery.handle(self, c, u, method, path, q): return
             if exchange.handle(self, c, u, method, path, q): return
             if rx.handle(self, c, u, method, path, q): return
