@@ -48,10 +48,12 @@ def _cart(c, uid, region_id=None):
         if row["status"] != "open":
             c.execute("UPDATE carts SET status='open',updated_at=? WHERE id=?", (now,row["id"]))
             row = c.execute("SELECT * FROM carts WHERE id=?", (row["id"],)).fetchone()
+            c.commit()
         return row
     user = c.execute("SELECT region_id FROM users WHERE id=?", (uid,)).fetchone()
     rid = region_id or (user["region_id"] if user else None)
     cur = c.execute("INSERT INTO carts(customer_id,region_id,created_at,updated_at) VALUES(?,?,?,?)", (uid,rid,now,now))
+    c.commit()
     return c.execute("SELECT * FROM carts WHERE id=?", (cur.lastrowid,)).fetchone()
 
 def _item_info(c, kind, source_id, provider_id, region_id):
@@ -126,7 +128,6 @@ def handle(h, c, u, method, path, q):
         except sqlite3.Error:
             c.rollback(); return _send(h, 409,{"error":"تعذر تحديث السلة، حاول مرة أخرى"})
         return _send(h, 200,{"ok":True,"cart_id":cart["id"]})
-    import re
     m=re.fullmatch(r"/api/cart/items/(\d+)",path)
     if method == "DELETE" and m:
         cur=c.execute("DELETE FROM cart_items WHERE id=? AND cart_id=?",(int(m[1]),cart["id"]))
