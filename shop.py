@@ -213,6 +213,7 @@ def _checkout(h, c, u, cart, d):
             if gps_region and int(gps_region["id"]) != int(cart["region_id"]) and not bool(d.get("confirm_region_mismatch")):
                 selected = c.execute("SELECT name_ar FROM regions WHERE id=?", (cart["region_id"],)).fetchone()
                 selected_name = selected["name_ar"] if selected else str(cart["region_id"])
+                c.rollback()
                 return _send(h,409,{"error":"REGION_MISMATCH|%s|%s|%s|%s" % (cart["region_id"],gps_region["id"],selected_name,gps_region["name_ar"])})
         for provider_id, group in sorted(groups.items()):
             pickup = ("صيدلية " + group["pharmacy"] + ((" — " + group["address"]) if group["address"] else ""))[:300]
