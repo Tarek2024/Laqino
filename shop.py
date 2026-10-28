@@ -70,23 +70,7 @@ def _item_info(c, kind, source_id, provider_id, region_id):
                 raise ValueError("الصيدلية خارج نطاق منطقة العميل")
         return dict(id=r["id"],item_type=kind,source_id=r["id"],provider_id=r["provider_id"],
                     pharmacy=r["pharmacy"],title=r["title"],unit_price=round(float(r["price"]),2))
-    # Only an approved, current prescription quote may be placed in the cart.
-    r = c.execute("""SELECT rr.prescription_id,rr.provider_id,rr.price,rr.status,rr.updated_at,rr.review,
-                     p.name_ar pharmacy,p.region_id provider_region,p.status provider_status,
-                     rx.customer_id,rx.status rx_status
-                     FROM prescription_responses rr JOIN providers p ON p.user_id=rr.provider_id
-                     JOIN prescriptions rx ON rx.id=rr.prescription_id
-                     WHERE rr.prescription_id=? AND rr.provider_id=? AND rx.customer_id=?""",
-                  (source_id,provider_id,region_id if False else -1)).fetchone()
-    # Customer ownership is checked by caller in the dedicated query below; don't leak quote data here.
-    if not r:
-        raise ValueError("رد الروشتة غير متاح أو غير تابع لحسابك")
-    if r["status"] not in ("available","quoted","responded") or r["provider_status"] != "approved" or r["rx_status"] == "closed" or r["review"] not in (None,"approved"):
-        raise ValueError("رد الروشتة غير معتمد أو غير متاح")
-    if not r["price"] or float(r["price"]) <= 0:
-        raise ValueError("لا يوجد سعر صالح لهذا الرد")
-    return dict(id=source_id,item_type=kind,source_id=source_id,provider_id=provider_id,
-                pharmacy=r["pharmacy"],title="روشتة #%s" % source_id,unit_price=round(float(r["price"]),2))
+    raise ValueError("نوع الصنف غير مدعوم في هذا المسار")
 
 def handle(h, c, u, method, path, q):
     if not (path == "/api/cart" or path == "/api/cart/items" or __import__("re").fullmatch(r"/api/cart/items/\d+",path) or path == "/api/cart/checkout"):
