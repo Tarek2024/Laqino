@@ -140,10 +140,13 @@ def _checkout_item(c, item, customer_id, cart_region):
             "title": title, "price": price, "quantity": int(item["quantity"])}
 
 def _checkout(h, c, u, cart, d):
-    request_key = str(d.get("request_key", "")).strip()
+    if not isinstance(d, dict):
+        return _send(h, 400, {"error":"بيانات إتمام الطلب غير صالحة"})
+    request_key = d.get("request_key")
     dropoff = str(d.get("dropoff_text", "")).strip()[:300]
-    if not request_key or len(request_key) > 64:
-        return _send(h, 400, {"error":"مفتاح الطلب مطلوب (request_key حتى 64 حرفًا)"})
+    if not isinstance(request_key, str) or not 8 <= len(request_key.strip()) <= 64:
+        return _send(h, 400, {"error":"مفتاح الطلب مطلوب من 8 إلى 64 حرفًا"})
+    request_key = request_key.strip()
     if len(dropoff) < 3:
         return _send(h, 400, {"error":"عنوان التسليم مطلوب"})
     if not cart["region_id"] or not c.execute("SELECT 1 FROM regions WHERE id=? AND is_active=1", (cart["region_id"],)).fetchone():
