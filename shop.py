@@ -338,7 +338,15 @@ def handle(h, c, u, method, path, q):
         if not cr or cr["status"] != "approved": return _send(h,403,{"error":"حساب المندوب غير معتمد"})
         oid = int(cm[1] if cm else pm[1])
         order = c.execute("SELECT id,status,courier_id FROM delivery_orders WHERE id=?", (oid,)).fetchone()
-        if not order or order["courier_id"] != u["id"]: return _send(h,404,{"error":"الطلب غير مسند إليك"})
+        if not order: return _send(h,404,{"error":"الطلب غير موجود"})
+        assigned = order["courier_id"] == u["id"]
+        offered = False
+        if cm and method == "GET" and order["status"] == "searching" and not assigned:
+            has_offers = c.execute("SELECT 1 FROM sqlite_master WHERE type='table' AND name='order_offers'").fetchone()
+            if has_offers:
+                offered = bool(c.execute("SELECT 1 FROM order_offers WHERE order_id=? AND courier_id=? AND status='offered'",(oid,u["id"])).fetchone())
+        if not assigned and not offered: return _send(h,404,{"error":"الطلب غير مسند إليك"})
+        if pm and not assigned: return _send(h,404,{"error":"الطلب غير مسند إليك"})
         if cm and method == "GET":
             rows = [dict(x) for x in c.execute("""SELECT id,provider_id,pharmacy,pickup_text,status,notified_at,picked_up_at
                 FROM cart_checkout_stops WHERE order_id=? ORDER BY id""",(oid,))]
