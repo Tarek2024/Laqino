@@ -5,12 +5,13 @@ import shop
 
 
 class Handler:
-    def __init__(self):
+    def __init__(self, payload=None):
         self.responses = []
+        self.payload = payload or {}
     def send(self, status, payload=None, *args, **kwargs):
         self.responses.append((status, payload))
     def body(self):
-        return {}
+        return self.payload
 
 
 class CartDispatchIsolationTests(unittest.TestCase):
@@ -55,6 +56,15 @@ class CartDispatchIsolationTests(unittest.TestCase):
         self.assertTrue(handled)
         self.assertEqual(h.responses[0][0], 404)
         self.assertEqual(before, after)
+
+    def test_rx_quote_quantity_cannot_multiply_whole_prescription_price(self):
+        self.c.execute("INSERT INTO settings(key,value) VALUES('cart_enabled','1')")
+        self.c.commit()
+        h = Handler({"item_type":"rx_quote","source_id":99,"provider_id":88,"quantity":2})
+        handled = shop.handle(h, self.c, self.user, "POST", "/api/cart/items", {})
+        self.assertTrue(handled)
+        self.assertEqual(h.responses[0][0], 400)
+        self.assertEqual(h.responses[0][1]["error"], "كمية الروشتة يجب أن تكون 1")
 
     def test_enabled_but_unfinished_checkout_is_blocked_without_dispatch(self):
         self.c.execute("INSERT INTO settings(key,value) VALUES('cart_enabled','1')")
