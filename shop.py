@@ -1,0 +1,492 @@
+"""Laqino pharmacy-first shared cart.
+
+Additive module only, disabled unless settings.cart_enabled='1'. Checkout creates
+one shared delivery order with one private pickup stop per pharmacy in a single transaction and dispatches
+only through the existing server push/offer/accept/commission lifecycle.
+"""
+import json, time, sqlite3, re, secrets
+import gsearch, products
+
+SCHEMA = """
+CREATE TABLE IF NOT EXISTS carts (
+ id INTEGER PRIMARY KEY,
+ customer_id INTEGER NOT NULL UNIQUE REFERENCES users(id) ON DELETE CASCADE,
+ region_id INTEGER REFERENCES regions(id),
+ status TEXT NOT NULL DEFAULT 'open' CHECK(status IN ('open','checked_out','abandoned')),
+ created_at INTEGER NOT NULL,
+ updated_at INTEGER NOT NULL
+);
+CREATE TABLE IF NOT EXISTS cart_items (
+ id INTEGER PRIMARY KEY,
+ cart_id INTEGER NOT NULL REFERENCES carts(id) ON DELETE CASCADE,
+ item_type TEXT NOT NULL CHECK(item_type IN ('product','rx_quote','inquiry_quote')),
+ source_id INTEGER NOT NULL,
+ provider_id INTEGER NOT NULL REFERENCES providers(user_id),
+ quantity INTEGER NOT NULL CHECK(quantity BETWEEN 1 AND 99),
+ created_at INTEGER NOT NULL,
+ updated_at INTEGER NOT NULL,
+ UNIQUE(cart_id,item_type,source_id,provider_id)
+);
+CREATE INDEX IF NOT EXISTS ix_cart_items_cart ON cart_items(cart_id,id);
+CREATE TABLE IF NOT EXISTS cart_checkouts (
+ id INTEGER PRIMARY KEY,
+ customer_id INTEGER NOT NULL REFERENCES users(id),
+ cart_id INTEGER NOT NULL REFERENCES carts(id),
+ request_key TEXT NOT NULL,
+ order_ids TEXT NOT NULL DEFAULT '[]',
+ status TEXT NOT NULL DEFAULT 'created' CHECK(status IN ('creating','created')),
+ created_at INTEGER NOT NULL,
+ UNIQUE(customer_id,request_key)
+);
+CREATE INDEX IF NOT EXISTS ix_cart_checkouts_cart ON cart_checkouts(cart_id,id);
+CREATE TABLE IF NOT EXISTS cart_checkout_stops (
+ id INTEGER PRIMARY KEY,
+ checkout_id INTEGER NOT NULL REFERENCES cart_checkouts(id) ON DELETE CASCADE,
+ order_id INTEGER NOT NULL REFERENCES delivery_orders(id) ON DELETE CASCADE,
+ provider_id INTEGER NOT NULL REFERENCES providers(user_id),
+ pharmacy TEXT NOT NULL,
+ pickup_text TEXT NOT NULL,
+ items_json TEXT NOT NULL,
+ status TEXT NOT NULL DEFAULT 'waiting' CHECK(status IN ('waiting','notified','picked_up','cancelled')),
+ notified_at INTEGER,
+ picked_up_at INTEGER,
+ UNIQUE(checkout_id,provider_id)
+);
+CREATE INDEX IF NOT EXISTS ix_cart_stops_order ON cart_checkout_stops(order_id,id);
+CREATE INDEX IF NOT EXISTS ix_cart_stops_provider ON cart_checkout_stops(provider_id,status,id);
+"""
+
+def _send(h, *args, **kwargs):
+    h.send(*args, **kwargs)
+    return True
+
+def enabled(c):
+    row = c.execute("SELECT value FROM settings WHERE key='cart_enabled'").fetchone()
+    return bool(row and str(row[0]) == "1")
+
+# These callbacks reuse the existing server dispatch/notification and audit path.
+_H = {}
+
+def bind(push_new_order, audit, count_orders_sql, max_open_orders, resolve_region=None):
+    _H.update(push=push_new_order, audit=audit, count_orders_sql=count_orders_sql,
+              max_open_orders=int(max_open_orders), resolve_region=resolve_region)
+
+def install(c):
+    c.executescript(SCHEMA)
+    if c.execute("SELECT 1 FROM sqlite_master WHERE type='table' AND name='delivery_orders'").fetchone() and c.execute("SELECT 1 FROM sqlite_master WHERE type='table' AND name='notifications'").fetchone():
+        # Notify each pharmacy when the one shared courier job is accepted/heading to pickups.
+        c.execute("""CREATE TRIGGER IF NOT EXISTS shop_cart_courier_assigned
+            AFTER UPDATE OF status ON delivery_orders
+            WHEN OLD.status IS NOT NEW.status AND NEW.status IN ('assigned','heading_pickup')
+            BEGIN
+              INSERT INTO notifications(user_id,kind,title,body,link,ref_type,ref_id,created_at)
+              SELECT s.provider_id,'cart.pharmacy.courier','المندوب في طريقه لاستلام طلبك',
+                     'طلب السلة المجمعة رقم ' || s.checkout_id || ' — ' || s.pickup_text,
+                     'pharmacy','cart_stop',s.id,CAST(strftime('%s','now') AS INTEGER)
+              FROM cart_checkout_stops s
+              WHERE s.order_id=NEW.id
+                AND EXISTS(SELECT 1 FROM sqlite_master WHERE type='table' AND name='notifications')
+                AND NOT EXISTS(SELECT 1 FROM notifications n WHERE n.user_id=s.provider_id
+                               AND n.kind='cart.pharmacy.courier' AND n.ref_type='cart_stop' AND n.ref_id=s.id);
+              UPDATE cart_checkout_stops SET status='notified',
+                  notified_at=COALESCE(notified_at,CAST(strftime('%s','now') AS INTEGER))
+              WHERE order_id=NEW.id AND status='waiting';
+            END""")
+
+    c.commit()
+
+def _cart(c, uid, region_id=None):
+    now = int(time.time())
+    row = c.execute("SELECT * FROM carts WHERE customer_id=?", (uid,)).fetchone()
+    if row:
+        if row["status"] != "open":
+            # A checked-out cart starts a fresh empty cart on the customer's next visit.
+            c.execute("DELETE FROM cart_items WHERE cart_id=?", (row["id"],))
+            c.execute("UPDATE carts SET status='open',region_id=COALESCE(?,region_id),updated_at=? WHERE id=?", (region_id,now,row["id"]))
+            c.commit()
+            row = c.execute("SELECT * FROM carts WHERE id=?", (row["id"],)).fetchone()
+        return row
+    user = c.execute("SELECT region_id FROM users WHERE id=?", (uid,)).fetchone()
+    rid = region_id or (user["region_id"] if user else None)
+    cur = c.execute("INSERT INTO carts(customer_id,region_id,created_at,updated_at) VALUES(?,?,?,?)", (uid,rid,now,now))
+    c.commit()
+    return c.execute("SELECT * FROM carts WHERE id=?", (cur.lastrowid,)).fetchone()
+
+def _item_info(c, kind, source_id, provider_id, region_id):
+    if kind == "product":
+        if not products.enabled(c):
+            raise ValueError("قسم المنتجات غير مفعّل حاليًا")
+        r = c.execute("""SELECT o.id,o.provider_id,o.title,o.price,o.available,o.status,o.confirmed_at,
+                         p.name_ar pharmacy,p.region_id provider_region,p.status provider_status
+                         FROM product_offers o JOIN providers p ON p.user_id=o.provider_id
+                         WHERE o.id=? AND o.provider_id=?""", (source_id,provider_id)).fetchone()
+        if not r or r["status"] != "approved" or not r["available"] or r["provider_status"] != "approved":
+            raise ValueError("العرض غير متاح حاليًا")
+        if int(time.time()) - int(r["confirmed_at"] or 0) > 14*86400:
+            raise ValueError("يجب على الصيدلية تأكيد توفر المنتج من جديد")
+        if region_id and r["provider_region"] not in gsearch._related(c, region_id):
+            # Match the same regional relation used by the existing product search.
+            raise ValueError("الصيدلية خارج نطاق منطقة العميل")
+        return dict(id=r["id"],item_type=kind,source_id=r["id"],provider_id=r["provider_id"],
+                    pharmacy=r["pharmacy"],title=r["title"],unit_price=round(float(r["price"]),2))
+    raise ValueError("نوع الصنف غير مدعوم في هذا المسار")
+
+
+def _checkout_item(c, item, customer_id, cart_region):
+    """Revalidate every cart line at checkout; never trust prices/status cached by the client."""
+    if item["item_type"] == "product":
+        if not products.enabled(c):
+            raise ValueError("قسم المنتجات غير مفعّل حاليًا")
+        r = c.execute("""SELECT o.id,o.provider_id,o.title,o.price,o.available,o.status,o.confirmed_at,
+                         p.name_ar pharmacy,p.address,p.region_id provider_region,p.status provider_status
+                         FROM product_offers o JOIN providers p ON p.user_id=o.provider_id
+                         WHERE o.id=? AND o.provider_id=?""", (item["source_id"],item["provider_id"])).fetchone()
+        if not r or r["status"] != "approved" or not r["available"] or r["provider_status"] != "approved":
+            raise ValueError("أحد المنتجات لم يعد متاحًا")
+        if int(time.time()) - int(r["confirmed_at"] or 0) > 14*86400:
+            raise ValueError("يجب على الصيدلية تأكيد توفر أحد المنتجات من جديد")
+        price = float(r["price"])
+        if price < 0 or price != price or price == float("inf"):
+            raise ValueError("سعر المنتج غير صالح")
+        title = str(r["title"])
+    elif item["item_type"] == "inquiry_quote":
+        if int(item["quantity"]) != 1:
+            raise ValueError("كمية طلب البحث يجب أن تكون 1")
+        r = c.execute("""SELECT ir.inquiry_id,ir.provider_id,ir.price,ir.status,
+                           mi.status inquiry_status,mi.medicine_name,p.name_ar pharmacy,p.address,
+                           p.region_id provider_region,p.status provider_status
+                         FROM inquiry_responses ir
+                         JOIN medicine_inquiries mi ON mi.id=ir.inquiry_id
+                         JOIN providers p ON p.user_id=ir.provider_id
+                         WHERE ir.inquiry_id=? AND ir.provider_id=? AND mi.customer_id=?""",
+                      (item["source_id"],item["provider_id"],customer_id)).fetchone()
+        if not r or r["provider_status"] != "approved" or r["inquiry_status"] != "open" or r["status"] != "available":
+            raise ValueError("رد البحث عن الدواء لم يعد متاحًا")
+        price = float(r["price"]) if r["price"] is not None else 0.0
+        if price <= 0 or price != price or price == float("inf"):
+            raise ValueError("لازم يكون سعر الدواء مؤكدًا قبل إضافته للسلة")
+        title = str(r["medicine_name"])
+    elif item["item_type"] == "rx_quote":
+        if int(item["quantity"]) != 1:
+            raise ValueError("كمية الروشتة يجب أن تكون 1")
+        r = c.execute("""SELECT rr.prescription_id,rr.provider_id,rr.price,rr.status,rr.review,
+                           rx.status rx_status,p.name_ar pharmacy,p.address,p.region_id provider_region,
+                           p.status provider_status
+                         FROM prescription_responses rr
+                         JOIN prescriptions rx ON rx.id=rr.prescription_id
+                         JOIN providers p ON p.user_id=rr.provider_id
+                         WHERE rr.prescription_id=? AND rr.provider_id=? AND rx.customer_id=?""",
+                      (item["source_id"],item["provider_id"],customer_id)).fetchone()
+        if (not r or r["provider_status"] != "approved" or r["rx_status"] == "closed"
+            or r["status"] not in ("available","quoted","responded")
+            or r["review"] not in (None,"approved") or not r["price"] or float(r["price"]) <= 0):
+            raise ValueError("أحد عروض الروشتة لم يعد معتمدًا أو متاحًا")
+        price = float(r["price"])
+        title = "روشتة #%s" % item["source_id"]
+    else:
+        raise ValueError("نوع الصنف غير مدعوم")
+    if cart_region and r["provider_region"] not in gsearch._related(c, cart_region):
+        raise ValueError("إحدى الصيدليات خارج نطاق منطقة العميل")
+    if not c.execute("SELECT 1 FROM regions WHERE id=? AND is_active=1", (r["provider_region"],)).fetchone():
+        raise ValueError("منطقة إحدى الصيدليات غير مفعّلة للتوصيل")
+    return {"provider_id": int(r["provider_id"]), "provider_region": int(r["provider_region"]),
+            "pharmacy": str(r["pharmacy"]), "address": str(r["address"] or ""),
+            "title": title, "price": price, "quantity": int(item["quantity"])}
+
+def _checkout(h, c, u, cart, d):
+    if not isinstance(d, dict):
+        return _send(h, 400, {"error":"بيانات إتمام الطلب غير صالحة"})
+    request_key = d.get("request_key")
+    dropoff = str(d.get("dropoff_text", "")).strip()[:300]
+    if not isinstance(request_key, str) or not 8 <= len(request_key.strip()) <= 64:
+        return _send(h, 400, {"error":"مفتاح الطلب مطلوب من 8 إلى 64 حرفًا"})
+    request_key = request_key.strip()
+    if len(dropoff) < 3:
+        return _send(h, 400, {"error":"عنوان التسليم مطلوب"})
+    if not cart["region_id"] or not c.execute("SELECT 1 FROM regions WHERE id=? AND is_active=1", (cart["region_id"],)).fetchone():
+        return _send(h, 409, {"error":"اختَر منطقة توصيل مفعّلة قبل إتمام الطلب"})
+    try:
+        c.commit()
+        c.execute("BEGIN IMMEDIATE")
+        dup = c.execute("SELECT id,order_ids,status FROM cart_checkouts WHERE customer_id=? AND request_key=?",
+                        (u["id"],request_key)).fetchone()
+        if dup:
+            ids = json.loads(dup["order_ids"] or "[]")
+            orders = []
+            for oid in ids:
+                row = c.execute("SELECT id,status,region_id FROM delivery_orders WHERE id=? AND customer_id=?", (oid,u["id"])).fetchone()
+                if row: orders.append(dict(row))
+            c.commit()
+            return _send(h, 200, {"checkout_id":dup["id"],"orders":orders,"duplicate":True})
+        current = c.execute("SELECT * FROM carts WHERE id=? AND customer_id=? AND status='open'", (cart["id"],u["id"])).fetchone()
+        if not current:
+            c.rollback()
+            return _send(h, 409, {"error":"السلة تغيّرت، حدّثها وحاول مرة أخرى"})
+        rows = c.execute("SELECT * FROM cart_items WHERE cart_id=? ORDER BY id", (cart["id"],)).fetchall()
+        if not rows:
+            c.rollback()
+            return _send(h, 400, {"error":"السلة فارغة"})
+        # Validate every line again and group one delivery per pharmacy.
+        groups = {}
+        for item in rows:
+            info = _checkout_item(c,item,u["id"],cart["region_id"])
+            group = groups.setdefault(info["provider_id"], {"provider_region":info["provider_region"],
+                "pharmacy":info["pharmacy"],"address":info["address"],"lines":[]})
+            if group["provider_region"] != info["provider_region"]:
+                raise ValueError("بيانات منطقة الصيدلية غير متسقة")
+            group["lines"].append(info)
+        if not groups:
+            c.rollback()
+            return _send(h, 400, {"error":"السلة فارغة"})
+        # Respect the same open-order cap as the ordinary delivery endpoint.
+        open_count = int(c.execute(_H["count_orders_sql"], (u["id"],)).fetchone()[0])
+        # One shared checkout is exactly one courier job, regardless of pharmacy count.
+        if open_count + 1 > _H["max_open_orders"]:
+            c.rollback()
+            return _send(h, 429, {"error":"عدد طلبات التوصيل المفتوحة لا يسمح بطلب مجمّع جديد الآن"})
+        now = int(time.time())
+        settings = {r["key"]:r["value"] for r in c.execute("SELECT key,value FROM settings")}
+        comm_type = settings.get("commission_type","fixed")
+        try: comm_value = float(settings.get("commission_value",0) or 0)
+        except (TypeError,ValueError): comm_value = 0.0
+        if comm_value < 0 or comm_value != comm_value or comm_value == float("inf"):
+            raise ValueError("إعداد عمولة لاقينو غير صالح")
+        cur = c.execute("INSERT INTO cart_checkouts(customer_id,cart_id,request_key,order_ids,status,created_at) VALUES(?,?,?,'[]','creating',?)",
+                        (u["id"],cart["id"],request_key,now))
+        checkout_id = cur.lastrowid
+        created = []
+        dla = d.get("dropoff_lat"); dln = d.get("dropoff_lng")
+        try:
+            dla = float(dla) if dla not in (None,"") else None
+            dln = float(dln) if dln not in (None,"") else None
+        except (TypeError,ValueError):
+            raise ValueError("موقع التسليم غير صالح")
+        if (dla is None) != (dln is None) or (dla is not None and (not -90 <= dla <= 90 or not -180 <= dln <= 180)):
+            raise ValueError("إحداثيات التسليم غير صالحة")
+        if dla is not None and _H.get("resolve_region"):
+            gps_region, _distance, _source = _H["resolve_region"](c,dla,dln)
+            if gps_region and int(gps_region["id"]) != int(cart["region_id"]) and not bool(d.get("confirm_region_mismatch")):
+                selected = c.execute("SELECT name_ar FROM regions WHERE id=?", (cart["region_id"],)).fetchone()
+                selected_name = selected["name_ar"] if selected else str(cart["region_id"])
+                c.rollback()
+                return _send(h,409,{"error":"REGION_MISMATCH|%s|%s|%s|%s" % (cart["region_id"],gps_region["id"],selected_name,gps_region["name_ar"])})
+        # One ordinary delivery order represents the entire shared-cart route.
+        # Each pharmacy remains a private pickup stop linked to that single order.
+        stops = []
+        all_details = []
+        for provider_id, group in sorted(groups.items()):
+            pickup = ("صيدلية " + group["pharmacy"] + ((" — " + group["address"]) if group["address"] else ""))[:300]
+            lines = [{"title":line["title"],"quantity":line["quantity"],"unit_price":line["price"],
+                      "line_total":round(line["price"]*line["quantity"],2)} for line in group["lines"]]
+            stops.append({"provider_id":provider_id,"pharmacy":group["pharmacy"],"pickup_text":pickup,"lines":lines})
+            all_details.append("%s: %s" % (group["pharmacy"], "؛ ".join(
+                ("%s × %s (%.2f ج)" % (line["title"],line["quantity"],line["price"]*line["quantity"]))
+                for line in group["lines"])))
+        pickup_text = "استلام مجمّع من %d صيدلية: " % len(stops) + " ← ".join(
+            "%d) %s" % (i+1, stop["pickup_text"]) for i,stop in enumerate(stops))
+        pickup_text = pickup_text[:300]
+        details = ("طلب من السلة المشتركة — %d صيدلية: " % len(stops) + " | ".join(all_details))[:1000]
+        commission = round(comm_value * (0 if comm_type == "percent" else 1), 2)
+        child_key = "cart%d-shared" % checkout_id
+        order_cur = c.execute("""INSERT INTO delivery_orders
+            (customer_id,region_id,pickup_text,dropoff_text,details,fee,commission,created_at,updated_at,
+             search_started_at,delivery_code,request_key,dropoff_lat,dropoff_lng,fare_status,comm_type,comm_value)
+            VALUES(?,?,?,?,?,0,?,?,?,?,?,?,?,?, 'none',?,?)""",
+            (u["id"],cart["region_id"],pickup_text,dropoff,details,commission,now,now,now,
+             "%06d" % secrets.randbelow(10**6),child_key,dla,dln,comm_type,comm_value))
+        oid = order_cur.lastrowid
+        c.execute("INSERT INTO order_events(order_id,actor_id,from_status,to_status,at) VALUES(?,?,?,?,?)",
+                  (oid,u["id"],None,"searching",now))
+        for stop in stops:
+            c.execute("""INSERT INTO cart_checkout_stops
+                (checkout_id,order_id,provider_id,pharmacy,pickup_text,items_json,status)
+                VALUES(?,?,?,?,?,?,'waiting')""",
+                (checkout_id,oid,stop["provider_id"],stop["pharmacy"],stop["pickup_text"],json.dumps(stop["lines"],ensure_ascii=False)))
+        created.append({"id":oid,"status":"searching","checkout_id":checkout_id,"pharmacy_count":len(stops),
+                        "pharmacies":[{"provider_id":s["provider_id"],"pharmacy":s["pharmacy"]} for s in stops],
+                        "region_id":cart["region_id"]})
+        ids = [oid]
+        c.execute("UPDATE cart_checkouts SET order_ids=?,status='created' WHERE id=?", (json.dumps(ids),checkout_id))
+        c.execute("DELETE FROM cart_items WHERE cart_id=?", (cart["id"],))
+        c.execute("UPDATE carts SET status='checked_out',updated_at=? WHERE id=?", (now,cart["id"]))
+        _H["audit"](c,u["id"],"cart.checkout",str(checkout_id),{"order_ids":ids,"pharmacy_count":len(stops)})
+        c.commit()
+    except ValueError as e:
+        if c.in_transaction: c.rollback()
+        return _send(h, 409, {"error":str(e)})
+    except sqlite3.IntegrityError:
+        if c.in_transaction: c.rollback()
+        # A simultaneous retry is resolved through the durable parent idempotency key.
+        dup = c.execute("SELECT id,order_ids FROM cart_checkouts WHERE customer_id=? AND request_key=?",
+                        (u["id"],request_key)).fetchone()
+        if dup:
+            ids=json.loads(dup["order_ids"] or "[]")
+            return _send(h,200,{"checkout_id":dup["id"],"orders":[dict(r) for oid in ids if (r:=c.execute("SELECT id,status,region_id FROM delivery_orders WHERE id=? AND customer_id=?",(oid,u["id"])).fetchone())],"duplicate":True})
+        return _send(h,409,{"error":"تعذر تأكيد الطلب بأمان، حدّث السلة وحاول مرة أخرى"})
+    except Exception:
+        if c.in_transaction: c.rollback()
+        return _send(h,500,{"error":"تعذر إنشاء طلبات التوصيل، لم يتم إنشاء أي طلب"})
+    # Notify each pharmacy that its items are included; courier assignment notifications are
+    # emitted when the single shared order is accepted/assigned.
+    try:
+        for stop in stops:
+            c.execute("""INSERT INTO notifications(user_id,kind,title,body,link,ref_type,ref_id,created_at)
+                         SELECT ?, 'cart.pharmacy.requested', 'طلب سلة مشتركة جديد',
+                                ?, 'pharmacy', 'cart_checkout', ?, ? 
+                         WHERE EXISTS(SELECT 1 FROM sqlite_master WHERE type='table' AND name='notifications')""",
+                      (stop["provider_id"],"طلب سلة مشتركة — استلام من: "+stop["pickup_text"],checkout_id,int(time.time())))
+        c.commit()
+    except sqlite3.Error:
+        c.rollback()
+    # Dispatch exactly one courier job after the checkout and stop records are committed.
+    try: _H["push"](created[0]["id"])
+    except Exception: pass
+    return _send(h,201,{"checkout_id":checkout_id,"orders":created,"delivery_fee":"تُحدّد مرة واحدة للرحلة المجمعة"})
+
+def handle(h, c, u, method, path, q):
+    # Courier-only stop API: one delivery order, multiple private pharmacy pickups.
+    cm = re.fullmatch(r"/api/cart/courier-stops/(\d+)", path)
+    pm = re.fullmatch(r"/api/cart/courier-stops/(\d+)/(\d+)/picked-up", path)
+    if cm or pm:
+        if not u: return _send(h,401,{"error":"سجّل الدخول أولًا"})
+        if u["role"] != "courier": return _send(h,403,{"error":"الخدمة للمندوب المعتمد فقط"})
+        install(c)
+        cr = c.execute("SELECT status FROM couriers WHERE user_id=?", (u["id"],)).fetchone()
+        if not cr or cr["status"] != "approved": return _send(h,403,{"error":"حساب المندوب غير معتمد"})
+        oid = int(cm[1] if cm else pm[1])
+        order = c.execute("SELECT id,status,courier_id FROM delivery_orders WHERE id=?", (oid,)).fetchone()
+        if not order: return _send(h,404,{"error":"الطلب غير موجود"})
+        assigned = order["courier_id"] == u["id"]
+        offered = False
+        if cm and method == "GET" and order["status"] == "searching" and not assigned:
+            has_offers = c.execute("SELECT 1 FROM sqlite_master WHERE type='table' AND name='order_offers'").fetchone()
+            if has_offers:
+                offered = bool(c.execute("SELECT 1 FROM order_offers WHERE order_id=? AND courier_id=? AND status='offered'",(oid,u["id"])).fetchone())
+        if not assigned and not offered: return _send(h,404,{"error":"الطلب غير مسند إليك"})
+        if pm and not assigned: return _send(h,404,{"error":"الطلب غير مسند إليك"})
+        if cm and method == "GET":
+            rows = [dict(x) for x in c.execute("""SELECT id,provider_id,pharmacy,pickup_text,status,notified_at,picked_up_at
+                FROM cart_checkout_stops WHERE order_id=? ORDER BY id""",(oid,))]
+            for row in rows:
+                itemrow = c.execute("SELECT items_json FROM cart_checkout_stops WHERE id=?",(row["id"],)).fetchone()
+                row["items"] = json.loads(itemrow["items_json"]) if itemrow else []
+            return _send(h,200,{"order_id":oid,"stops":rows})
+        if pm and method == "POST":
+            sid, now = int(pm[2]), int(time.time())
+            if order["status"] != "heading_pickup": return _send(h,409,{"error":"ابدأ مرحلة الاستلام أولًا"})
+            cur = c.execute("""UPDATE cart_checkout_stops SET status='picked_up',picked_up_at=?
+                WHERE id=? AND order_id=? AND status IN ('waiting','notified')""",(now,sid,oid))
+            if not cur.rowcount:
+                existing = c.execute("SELECT status FROM cart_checkout_stops WHERE id=? AND order_id=?",(sid,oid)).fetchone()
+                if not existing: return _send(h,404,{"error":"نقطة الاستلام غير موجودة"})
+                if existing["status"] != "picked_up": return _send(h,409,{"error":"تعذر تحديث نقطة الاستلام"})
+            stop = c.execute("SELECT provider_id,checkout_id,pharmacy FROM cart_checkout_stops WHERE id=?",(sid,)).fetchone()
+            if cur.rowcount and stop and c.execute("SELECT 1 FROM sqlite_master WHERE type='table' AND name='notifications'").fetchone():
+                c.execute("""INSERT INTO notifications(user_id,kind,title,body,link,ref_type,ref_id,created_at)
+                    SELECT ?, 'cart.pharmacy.picked_up', 'تم استلام طلبك من الصيدلية',
+                           ?, 'pharmacy', 'cart_stop', ?, ?
+                    WHERE NOT EXISTS(SELECT 1 FROM notifications WHERE user_id=? AND kind='cart.pharmacy.picked_up' AND ref_type='cart_stop' AND ref_id=?)""",
+                    (stop["provider_id"],"المندوب استلم طلب السلة المجمعة رقم "+str(stop["checkout_id"]),sid,now,stop["provider_id"],sid))
+            c.commit()
+            remaining = c.execute("SELECT COUNT(*) FROM cart_checkout_stops WHERE order_id=? AND status!='picked_up'",(oid,)).fetchone()[0]
+            if remaining == 0:
+                c.execute("BEGIN IMMEDIATE")
+                latest = c.execute("SELECT status,courier_id FROM delivery_orders WHERE id=?",(oid,)).fetchone()
+                if latest and latest["courier_id"] == u["id"] and latest["status"] == "heading_pickup":
+                    now = int(time.time())
+                    c.execute("UPDATE delivery_orders SET status='picked_up',updated_at=? WHERE id=? AND status='heading_pickup'",(now,oid))
+                    c.execute("INSERT INTO order_events(order_id,actor_id,from_status,to_status,at) VALUES(?,?,?,?,?)",(oid,u["id"],"heading_pickup","picked_up",now))
+                c.commit()
+            return _send(h,200,{"ok":True,"remaining_stops":remaining,"order_status":c.execute("SELECT status FROM delivery_orders WHERE id=?",(oid,)).fetchone()[0]})
+        return _send(h,405,{"error":"طريقة غير مدعومة"})
+    # Pharmacy sees only its own stops and whether the courier is on the shared job.
+    if path == "/api/cart/provider-stops":
+        if not u: return _send(h,401,{"error":"سجّل الدخول أولًا"})
+        install(c)
+        provider = c.execute("SELECT user_id FROM providers WHERE user_id=? AND status='approved'",(u["id"],)).fetchone()
+        if not provider: return _send(h,403,{"error":"حساب الصيدلية غير معتمد"})
+        if method != "GET": return _send(h,405,{"error":"طريقة غير مدعومة"})
+        rows = [dict(x) for x in c.execute("""SELECT s.id,s.checkout_id,s.pharmacy,s.pickup_text,s.status,s.notified_at,s.picked_up_at,
+            o.id order_id,o.status order_status,CASE WHEN o.status IN ('assigned','heading_pickup','picked_up','heading_customer','arrived','awaiting_confirmation') THEN cu.name END courier_name
+            FROM cart_checkout_stops s JOIN delivery_orders o ON o.id=s.order_id
+            LEFT JOIN users cu ON cu.id=o.courier_id WHERE s.provider_id=? ORDER BY s.id DESC LIMIT 50""",(u["id"],))]
+        return _send(h,200,{"items":rows})
+    if not (path == "/api/cart" or path == "/api/cart/items" or re.fullmatch(r"/api/cart/items/\d+",path) or path == "/api/cart/checkout"):
+        return False
+    install(c)
+    if not enabled(c):
+        h.send(404, {"error":"السلة غير مفعّلة بعد"}); return True
+    if not u:
+        h.send(401, {"error":"سجّل الدخول أولًا"}); return True
+    if u["role"] not in ("customer",):
+        h.send(403, {"error":"السلة متاحة لحساب العميل فقط"}); return True
+    if path == "/api/cart/checkout":
+        if method != "POST": return _send(h,405,{"error":"طريقة غير مدعومة"})
+        if not _H.get("push") or not _H.get("audit") or not _H.get("count_orders_sql") or not _H.get("max_open_orders"):
+            return _send(h,503,{"error":"ربط الدليفري غير جاهز على الخادم"})
+        cart = _cart(c,u["id"])
+        return _checkout(h,c,u,cart,h.body())
+    cart = _cart(c,u["id"])
+    if method == "GET" and path == "/api/cart":
+        rows = c.execute("""SELECT i.id,i.item_type,i.source_id,i.provider_id,i.quantity,p.name_ar pharmacy,
+                            CASE WHEN i.item_type='product' THEN o.title
+                                 WHEN i.item_type='inquiry_quote' THEN mi.medicine_name
+                                 ELSE 'روشتة #'||i.source_id END title,
+                            CASE WHEN i.item_type='product' THEN o.price
+                                 WHEN i.item_type='inquiry_quote' THEN ir.price ELSE rr.price END unit_price
+                            FROM cart_items i JOIN providers p ON p.user_id=i.provider_id
+                            LEFT JOIN product_offers o ON i.item_type='product' AND o.id=i.source_id AND o.provider_id=i.provider_id
+                            LEFT JOIN prescription_responses rr ON i.item_type='rx_quote' AND rr.prescription_id=i.source_id AND rr.provider_id=i.provider_id
+                            LEFT JOIN inquiry_responses ir ON i.item_type='inquiry_quote' AND ir.inquiry_id=i.source_id AND ir.provider_id=i.provider_id
+                            LEFT JOIN medicine_inquiries mi ON i.item_type='inquiry_quote' AND mi.id=i.source_id AND mi.customer_id=?
+                            WHERE i.cart_id=? ORDER BY p.name_ar,i.id""", (cart["id"],)).fetchall()
+        items=[]; total=0
+        for r in rows:
+            if r["unit_price"] is None: continue
+            d=dict(r); d["line_total"]=round(float(r["unit_price"])*d["quantity"],2); total += d["line_total"]; items.append(d)
+        return _send(h, 200, {"id":cart["id"],"region_id":cart["region_id"],"items":items,"total":round(total,2)})
+    if method == "POST" and path == "/api/cart/items":
+        d=h.body()
+        kind=d.get("item_type"); sid=d.get("source_id"); pid=d.get("provider_id"); qty=d.get("quantity",1)
+        if kind not in ("product","rx_quote","inquiry_quote") or isinstance(sid,bool) or not isinstance(sid,int) or sid<=0 or isinstance(pid,bool) or not isinstance(pid,int) or pid<=0 or isinstance(qty,bool) or not isinstance(qty,int) or not 1<=qty<=99:
+            return _send(h, 400,{"error":"بيانات الصنف غير صالحة"})
+        if kind in ("rx_quote","inquiry_quote") and qty != 1:
+            return _send(h, 400,{"error":"كمية الروشتة أو طلب البحث يجب أن تكون 1"})
+        if kind == "product":
+            try: info=_item_info(c,kind,sid,pid,cart["region_id"])
+            except ValueError as e: return _send(h, 409,{"error":str(e)})
+        elif kind == "rx_quote":
+            # Restrict prescription quote to the authenticated customer; use prescription id as source_id.
+            r=c.execute("""SELECT rr.prescription_id,rr.provider_id,rr.price,rr.status,rr.review,rx.status rx_status,
+                           p.status provider_status,p.region_id provider_region FROM prescription_responses rr
+                           JOIN prescriptions rx ON rx.id=rr.prescription_id JOIN providers p ON p.user_id=rr.provider_id
+                           WHERE rr.prescription_id=? AND rr.provider_id=? AND rx.customer_id=?""",(sid,pid,u["id"])).fetchone()
+            if not r or r["provider_status"]!="approved" or r["rx_status"]=="closed" or r["status"] not in ("available","quoted","responded") or r["review"] not in (None,"approved") or not r["price"] or float(r["price"])<=0:
+                return _send(h, 409,{"error":"رد الروشتة غير معتمد أو غير متاح"})
+            if cart["region_id"] and r["provider_region"] not in gsearch._related(c, cart["region_id"]):
+                return _send(h, 409,{"error":"الصيدلية خارج نطاق منطقة العميل"})
+        else:
+            # Only the customer who opened the medicine inquiry can add its reply.
+            r=c.execute("""SELECT ir.inquiry_id,ir.provider_id,ir.price,ir.status,mi.status inquiry_status,
+                           p.status provider_status,p.region_id provider_region
+                           FROM inquiry_responses ir JOIN medicine_inquiries mi ON mi.id=ir.inquiry_id
+                           JOIN providers p ON p.user_id=ir.provider_id
+                           WHERE ir.inquiry_id=? AND ir.provider_id=? AND mi.customer_id=?""",(sid,pid,u["id"])).fetchone()
+            if not r or r["provider_status"]!="approved" or r["inquiry_status"]!="open" or r["status"]!="available":
+                return _send(h, 409,{"error":"رد البحث عن الدواء غير متاح"})
+            if cart["region_id"] and r["provider_region"] not in gsearch._related(c, cart["region_id"]):
+                return _send(h, 409,{"error":"الصيدلية خارج نطاق منطقة العميل"})
+        now=int(time.time())
+        try:
+            c.execute("INSERT INTO cart_items(cart_id,item_type,source_id,provider_id,quantity,created_at,updated_at) VALUES(?,?,?,?,?,?,?) ON CONFLICT(cart_id,item_type,source_id,provider_id) DO UPDATE SET quantity=excluded.quantity,updated_at=excluded.updated_at",
+                      (cart["id"],kind,sid,pid,qty,now,now))
+            c.execute("UPDATE carts SET updated_at=? WHERE id=?",(now,cart["id"])); c.commit()
+        except sqlite3.Error:
+            c.rollback(); return _send(h, 409,{"error":"تعذر تحديث السلة، حاول مرة أخرى"})
+        return _send(h, 200,{"ok":True,"cart_id":cart["id"]})
+    m=re.fullmatch(r"/api/cart/items/(\d+)",path)
+    if method == "DELETE" and m:
+        cur=c.execute("DELETE FROM cart_items WHERE id=? AND cart_id=?",(int(m[1]),cart["id"]))
+        c.execute("UPDATE carts SET updated_at=? WHERE id=?",(int(time.time()),cart["id"])); c.commit()
+        return _send(h, 200,{"ok":True,"removed":bool(cur.rowcount)})
+    return _send(h, 405,{"error":"طريقة غير مدعومة"})

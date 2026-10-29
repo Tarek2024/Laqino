@@ -3,7 +3,7 @@ import notif, account
 from http.server import ThreadingHTTPServer, BaseHTTPRequestHandler
 from urllib.parse import urlparse, parse_qs, quote
 import market
-import gsearch, products, provider_delivery, rx, chat, svc, overview, fcm, exchange, lsocial, bulk_import
+import gsearch, products, provider_delivery, rx, chat, svc, overview, fcm, exchange, lsocial, bulk_import, shop
 DB = os.environ.get("LAQINO_DB", "laqino.db")
 UP = os.environ.get("LAQINO_UPLOADS", "uploads")
 ROOT = os.path.realpath(os.path.join(os.path.dirname(os.path.abspath(__file__)), "static"))
@@ -284,7 +284,9 @@ def init(admin_phone=None, admin_pw=None):
     notif.install(c)
     exchange.install(c)  # سوق الصيدليات (إضافة بعد الخطوة 7): exchange_deals/images/reports (idempotent)
     provider_delivery.bind(push_new_order, audit, default_delivery_region, COUNT_SQL["orders"]); provider_delivery.install(c)  # Phase 40: زر «اطلب دليفري» للصيدليات
+    shop.bind(push_new_order, audit, COUNT_SQL["orders"], LIMITS["orders"], resolve_region)  # Shared cart reuses existing dispatch and region-confirmation helpers
     products.install(c)  # Phase 2: product_offers + medical sub-categories (idempotent)
+    shop.install(c)  # Isolated shared-cart tables; customer feature flag defaults OFF
     rx.install(c)  # RX schema extensions (idempotent, additive migrations)
     try: c.execute("ALTER TABLE listings ADD COLUMN featured_until INTEGER")  # المرحلة 30: تمييز الإعلان حتى تاريخ (NULL = غير مميز). بعد market.migrate لأنه قد يعيد بناء الجدول
     except sqlite3.OperationalError: pass
@@ -782,6 +784,7 @@ class H(BaseHTTPRequestHandler):
             if notif.handle(self, c, u, method, path, q): return
             if gsearch.handle(self, c, u, method, path, q): return
             if products.handle(self, c, u, method, path, q): return
+            if shop.handle(self, c, u, method, path, q): return
             if provider_delivery.handle(self, c, u, method, path, q): return
             if exchange.handle(self, c, u, method, path, q): return
             if rx.handle(self, c, u, method, path, q): return
@@ -1491,19 +1494,29 @@ class H(BaseHTTPRequestHandler):
                     if not c.execute("UPDATE delivery_orders SET status='searching',courier_id=NULL,fare_status='none',updated_at=?,search_started_at=? WHERE id=? AND courier_id=? AND status IN('assigned','heading_pickup')", (now, now, oid, u["id"])).rowcount: raise E(409, "تغيّرت حالة الطلب، حدّث الصفحة")  # لا نُحيي طلبًا ألغاه العميل في نفس اللحظة
                     c.execute("DELETE FROM order_offers WHERE order_id=?", (oid,)); ev(oid, o["status"], "searching"); c.commit(); push_new_order(oid); return self.send(200, {"status": "searching"})  # push: وإلا لا يعلم بقية المناديب بالطلب المُعاد
                 to = (provider_delivery.NEXT if o["origin_type"] == provider_delivery.KIND else NEXT).get(o["status"])
-                if not to or self.body().get("to") != to: raise E(409, "انتقال غير مسموح")
+                status_data = self.body()
+                if not to or status_data.get("to") != to: raise E(409, "انتقال غير مسموح")
+                if to == "picked_up" and c.execute("SELECT 1 FROM sqlite_master WHERE type='table' AND name='cart_checkout_stops'").fetchone():
+                    stops = c.execute("SELECT COUNT(*) FROM cart_checkout_stops WHERE order_id=?", (oid,)).fetchone()[0]
+                    pending_stops = c.execute("SELECT COUNT(*) FROM cart_checkout_stops WHERE order_id=? AND status!='picked_up'", (oid,)).fetchone()[0]
+                    if stops and pending_stops: raise E(409, "لازم تأكد استلام كل الصيدليات في الرحلة المجمعة الأول")
                 if o["fare_status"] != "approved": raise E(409, "لا يمكن بدء التوصيل قبل موافقة العميل على الأجرة")
                 if not c.execute("UPDATE delivery_orders SET status=?,updated_at=? WHERE id=? AND courier_id=? AND status=?", (to, int(time.time()), oid, u["id"], o["status"])).rowcount: raise E(409, "تغيّرت حالة الطلب، حدّث الصفحة")  # لا نكتب فوق إلغاء/اعتراض حدث بالتوازي
                 ev(oid, o["status"], to)
                 if to in ("awaiting_confirmation", "completed"): charge_commission(c, oid)  # الطلبات العادية تُحصّل عند التأكيد؛ طلب الصيدلية عند الاستلام
                 c.commit(); return self.send(200, {"status": to})
             if method == "GET" and path == "/api/features":  # أعلام عامة للواجهة (المنتجات مطفية افتراضيًا عند الإطلاق)
-                return self.send(200, {"products": products.enabled(c)})
+                return self.send(200, {"products": products.enabled(c), "cart": shop.enabled(c)})
             if method == "POST" and path == "/api/admin/features":
                 self.need(u, "admin"); d = self.body()
                 if not isinstance(d.get("products"), bool): raise E(400, "قيمة غير صالحة")
                 c.execute("INSERT INTO settings VALUES(?,?) ON CONFLICT(key) DO UPDATE SET value=excluded.value", ("products_enabled", "1" if d["products"] else "0"))
-                audit(c, u["id"], "settings.products_enabled", None, {"products": d["products"]}); c.commit(); return self.send(200, {"products": d["products"]})
+                result = {"products": d["products"]}
+                if "cart" in d:
+                    if not isinstance(d["cart"], bool): raise E(400, "قيمة السلة غير صالحة")
+                    c.execute("INSERT INTO settings VALUES(?,?) ON CONFLICT(key) DO UPDATE SET value=excluded.value", ("cart_enabled", "1" if d["cart"] else "0"))
+                    result["cart"] = d["cart"]
+                audit(c, u["id"], "settings.features", None, result); c.commit(); return self.send(200, result)
             if path == "/api/home-sections":
                 defaults = [
                     {"key":"med","name":"الخدمات الطبية","description":"أدوية وصيدليات وأطباء ومعامل","visible":True,"order":1},
