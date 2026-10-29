@@ -12,6 +12,10 @@ The shared cart is a cross-section order composition layer, not a pharmacy featu
 4. **Canonical pickup stop**: one stop per distinct provider/location, with a list of its cart lines. Stop authorization is scoped to the owning provider; providers must never see other providers' items or addresses.
 5. **Delivery adapter**: converts the validated cart and its stops into one existing `delivery_orders` job. The current delivery lifecycle remains authoritative and is not duplicated.
 
+## Current integration scope
+
+The existing medical products section is in scope now, not a hypothetical future section. Its product cards should add the existing approved `product_offers` to the shared cart through the canonical `product` source adapter, using the offer ID and owning provider ID. Checkout revalidates approval, availability, confirmation freshness, price, and region. Prescription quotes and available replies to the customer's own medicine inquiry remain supported as separate current sources. The existing product catalog/provider IDs are still pharmacy-backed, so this does not yet mean independent supermarkets or bakeries are integrated.
+
 ## Adding a future section
 
 A new section should need only:
