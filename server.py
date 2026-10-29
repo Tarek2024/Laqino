@@ -1506,12 +1506,17 @@ class H(BaseHTTPRequestHandler):
                 if to in ("awaiting_confirmation", "completed"): charge_commission(c, oid)  # الطلبات العادية تُحصّل عند التأكيد؛ طلب الصيدلية عند الاستلام
                 c.commit(); return self.send(200, {"status": to})
             if method == "GET" and path == "/api/features":  # أعلام عامة للواجهة (المنتجات مطفية افتراضيًا عند الإطلاق)
-                return self.send(200, {"products": products.enabled(c)})
+                return self.send(200, {"products": products.enabled(c), "cart": shop.enabled(c)})
             if method == "POST" and path == "/api/admin/features":
                 self.need(u, "admin"); d = self.body()
                 if not isinstance(d.get("products"), bool): raise E(400, "قيمة غير صالحة")
                 c.execute("INSERT INTO settings VALUES(?,?) ON CONFLICT(key) DO UPDATE SET value=excluded.value", ("products_enabled", "1" if d["products"] else "0"))
-                audit(c, u["id"], "settings.products_enabled", None, {"products": d["products"]}); c.commit(); return self.send(200, {"products": d["products"]})
+                result = {"products": d["products"]}
+                if "cart" in d:
+                    if not isinstance(d["cart"], bool): raise E(400, "قيمة السلة غير صالحة")
+                    c.execute("INSERT INTO settings VALUES(?,?) ON CONFLICT(key) DO UPDATE SET value=excluded.value", ("cart_enabled", "1" if d["cart"] else "0"))
+                    result["cart"] = d["cart"]
+                audit(c, u["id"], "settings.features", None, result); c.commit(); return self.send(200, result)
             if path == "/api/home-sections":
                 defaults = [
                     {"key":"med","name":"الخدمات الطبية","description":"أدوية وصيدليات وأطباء ومعامل","visible":True,"order":1},
