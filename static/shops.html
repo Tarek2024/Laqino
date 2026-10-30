@@ -19,7 +19,7 @@ async function list(){
  const qs=[];if(R&&!ALL)qs.push('region_id='+R);if(TY)qs.push('type_id='+TY);if(Q.trim())qs.push('q='+encodeURIComponent(Q.trim()));
  const l=await api('/shops'+(qs.length?'?'+qs.join('&'):''));
  const act=document.activeElement&&document.activeElement.id=='sqi';
- m.innerHTML=`<input id="sqi" value="${esc(Q)}" placeholder="ابحث باسم المحل" aria-label="بحث" oninput="sq(this.value)"><div class="chips" role="group" aria-label="نوع المحل"><button class="${TY?'':'on'}" onclick="sty(0)">الكل</button>${TYPES.map(x=>`<button class="${TY==x.id?'on':''}" onclick="sty(${x.id})">${esc(x.name_ar)}</button>`).join('')}</div>`
+ m.innerHTML=`<div class="card" style="margin-bottom:10px"><b>صاحب محل؟</b><p class="n">سجّل محلك في لاقينو واعرض منتجاتك لعملاء منطقتك.</p><a class="s" href="/shop.html#apply" style="display:block;text-align:center;text-decoration:none">＋ سجّل محلك في لاقينو</a></div><input id="sqi" value="${esc(Q)}" placeholder="ابحث باسم المحل" aria-label="بحث" oninput="sq(this.value)"><div class="chips" role="group" aria-label="نوع المحل"><button class="${TY?'':'on'}" onclick="sty(0)">الكل</button>${TYPES.map(x=>`<button class="${TY==x.id?'on':''}" onclick="sty(${x.id})">${esc(x.name_ar)}</button>`).join('')}</div>`
   +(R?`<label class="n"><input type="checkbox" ${ALL?'checked':''} onchange="sall(this.checked)"> كل المناطق</label>`:'<p class="n">اختار منطقتك من <a href="/">الصفحة الرئيسية</a> عشان تشوف محلات منطقتك.</p>')
   +(l.items.length?l.items.map(shopCard).join(''):'<div class="card"><small>لا توجد محلات مطابقة حاليًا.</small></div>');
  if(act){const e=$('sqi');e.focus();e.setSelectionRange(e.value.length,e.value.length)}pics()}
