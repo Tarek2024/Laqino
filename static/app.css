@@ -258,6 +258,8 @@ body.app .pnl{display:flex;align-items:center;gap:12px;min-height:72px;padding:1
 body.app .pnl .ti{flex:none;width:44px;height:44px;border-radius:14px;display:grid;place-items:center;background:var(--sky-bg);color:var(--navy)}
 body.app .pnl.pharmacy .ti{background:var(--teal-bg);color:var(--teal)}
 body.app .pnl.courier .ti{background:var(--sand-bg);color:var(--orange-d)}
+body.app .pnl.shop .ti{background:#efe8fb;color:#6a3fb5}  /* م80: لوحة المحل — بنفسجي مميز بين التيل (صيدلية) والبرتقالي (مندوب) */
+body.app .pnl.shop.on{border-color:#6a3fb5;box-shadow:0 2px 8px #6a3fb533}
 body.app .pnl .ti svg{width:24px;height:24px}
 body.app .pnl .pb{flex:1;min-width:0;display:flex;flex-direction:column;gap:2px}
 body.app .pnl .pb b{font-family:var(--fd);font-size:1rem;color:var(--navy)}
