@@ -10,6 +10,7 @@ const store=t=>({getItem:k=>(k==='t'||k==='at')?(token||null):(k==='rg'?'3':null
 const ctx={document:{hidden:false,activeElement:{tagName:'BODY'},querySelectorAll:()=>[],getElementById:el,body:{},addEventListener(){},querySelector:()=>el('q')},localStorage:store(),sessionStorage:store(),
  fetch:(u,o)=>fetch(base+u,o),alert:x=>alerts.push(String(x)),confirm:()=>confirmAns,prompt:()=>promptAns,console,Promise,JSON,Math,String,Date,Object,Array,parseFloat,setTimeout,clearTimeout,setInterval:()=>0,clearInterval:()=>{},Set,navigator:{},URL,location:{hash:'',pathname:'/'},history:{replaceState(){},pushState(){}},MutationObserver:class{observe(){}disconnect(){}}};
 ctx.window=ctx;vm.createContext(ctx);
+if(/data-pd="shop"/.test(html)){ctx.document.currentScript={dataset:{pd:'shop'}};try{vm.runInContext(fs.readFileSync(path.join(__dirname,'static','pdelivery.js'),'utf8'),ctx)}catch(e){console.error('PDLOAD '+e)}ctx.document.currentScript=null}  // م82: المكتبة المشتركة لصفحة المحل
 process.on('unhandledRejection',e=>errs.push(String(e)));
 const sleep=ms=>new Promise(r=>setTimeout(r,ms));
 (async()=>{
