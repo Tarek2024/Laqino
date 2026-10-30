@@ -243,3 +243,19 @@
 - أضيف `RX_AUTO_DISTRIBUTION_PHASE52.md` و`TEST_RESULTS_PHASE52_RX_AUTO_DISTRIBUTION.md`.
 - الاختبارات المستهدفة وفحوصات الإصدار موثقة في تقرير النتائج. الإعداد الافتراضي يظل مغلقًا ويحتاج تفعيل الإدارة.
 - الأرشيف مبني على الملفات المتاحة في المحادثة؛ لم يتم دمجه مع آخر `main` على GitHub أو نشره إلى الإنتاج.
+
+## Phase 78 — دمج المحلات (phase-71) مع تحديثات دليفري الصيدلية (phase-77)
+- الأساس: phase-77. أُضيف عليه: shops.py, shop_delivery.py, static/shop.html, static/shops.html + ربطها في server.py/account.py/overview.py/admin.html/index.html/courier.html/notif.js/sw.js/Dockerfile.
+- المحلات بنفس منطق الصيدلية: طلب انضمام ← موافقة الإدارة ← ميزة الدليفري (`shop_delivery_enabled`) تشغيل/إيقاف من الإدارة.
+- توصيل «من المحل» (shop_pickup) يبقى بمسار خطوتين (SHOP_PICKUP_NEXT) وعمولته عند الإتمام؛ دليفري الصيدلية يبقى بمساره الجديد (4 خطوات، العمولة عند الاستلام).
+- cache=laqino-v121, release=phase-78.
+
+## Phase 79 — مطابقة دليفري المحلات للصيدلية + إحصائيات المحلات
+- الأساس: phase-78. الصيدلية لم تُلمس (لا تعديل في provider_delivery.py ولا pharmacy.html ولا pdelivery*.js الخاصة بها)؛ كل الإضافات خاصة بالمحلات.
+- «المحل يطلب مندوب» (`shop_pickup`) صار بنفس مسار الصيدلية: للمحل ← استلم ← للعميل ← سلّم (4 مراحل)، العمولة عند الاستلام (مرة واحدة)، وينتهي عند التسليم للعميل. أُزيل `SHOP_PICKUP_NEXT` من server.py (يستعمل `provider_delivery.NEXT` عبر `PICKUP_KINDS`).
+- حقول اختيارية عند الطلب (رقم العميل/السعر/تفاصيل) في أعمدة `pd_*` نفسها؛ تظهر للمندوب المقبول فقط وطالما الطلب نشط. تأكيد التسليم يدويًا: `POST /api/owner/shops/<id>/delivery-requests/<oid>/delivered`.
+- وحدة جديدة `shop_delivery_stats.py` (مضافة للـ Dockerfile): لوحة المحل `GET /api/owner/shops/<id>/delivery-(dashboard|search|order|export)` ولوحة الإدارة `GET /api/admin/shop-delivery/(dashboard|export)` (admin فقط) مع تنبيهات رقم عميل عبر محلات ومندوب كثير التخلّي وتصدير CSV.
+- مفتاح مستقل `shop_delivery_late_minutes` (افتراضي 45، من تبويب المحلات في الإدارة) بدل مشاركة مفتاح الصيدلية.
+- واجهات: `static/shop-dash.js` (لوحة المحل، تُحمَّل عند أول ضغط)، `static/shop-admin-dash.js` (زر «إحصائيات دليفري المحلات» في تبويب المحلات)، وبطاقة المندوب «استلام من محل» بنفس خطوات الصيدلية.
+- اختبارات: `test_phase79_shop_delivery_stats.py` (جديد) وتحديث `test_phase69_shop_delivery.py` للمسار الجديد. الإخفاقات الأربعة الموجودة قبل هذه المرحلة (test_courier_documents_ui، test_password_reset، test_phase40_provider_delivery_browser، test_step7_notifs) لم تتغير.
+- cache=laqino-v122, release=phase-79.

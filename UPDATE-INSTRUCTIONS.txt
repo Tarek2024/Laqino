@@ -1,0 +1,14 @@
+Laqino Phase 77 -> Phase 79 Update
+
+This package contains only the 33 files identified in the comparison:
+- 16 existing files to replace
+- 17 new files to add
+
+Apply to a copy/branch of Phase 77:
+1. Extract this ZIP into the Phase 77 project root, preserving folders.
+2. Allow the 16 existing files to be overwritten.
+3. Add the 17 new files.
+4. Do not delete other project files or overwrite the production database/configuration.
+
+Important: this is a file update package, not a verified production deployment.
+Run the project's tests and review configuration/database compatibility before deployment.

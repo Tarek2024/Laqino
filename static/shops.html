@@ -1,0 +1,46 @@
+<!doctype html><html lang="ar" dir="rtl"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover"><link rel="manifest" href="/manifest.webmanifest"><meta name="theme-color" content="#0f2a5c"><link rel="icon" href="/assets/icon-192.png"><link rel="apple-touch-icon" href="/assets/apple-touch-icon.png"><meta name="mobile-web-app-capable" content="yes"><meta name="apple-mobile-web-app-capable" content="yes"><meta name="robots" content="noindex, nofollow">
+<title>لاقينو — محلات في منطقتك</title><link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin><link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Baloo+Bhaijaan+2:wght@600;700;800&family=IBM+Plex+Sans+Arabic:wght@400;500;600;700&display=swap"><link rel="stylesheet" href="/theme.css"><link rel="stylesheet" href="/panel.css"><style>.chips{display:flex;gap:8px;flex-wrap:wrap;margin:10px 0}.chips button{width:auto;min-height:0;padding:8px 14px}.chips button.on{background:var(--navy,#0f2a5c);color:#fff}.shc{display:block;cursor:pointer}</style></head><body class="panel shops">
+<header class="ph"><div class="in"><a class="back" href="/" aria-label="رجوع للتطبيق"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 6l6 6-6 6"/></svg><span>رجوع للتطبيق</span></a><div class="tt"><img class="lg" src="/assets/logo.jpg" alt=""><h1>محلات في منطقتك</h1></div><div class="ph-end" id="ph-end"></div></div></header><main id="m"></main><script src="/notif.js" defer></script><script>
+/* المرحلة 70 (م5 المحلات): واجهة العميل = أنواع + محلات المنطقة + أصناف المحل بصور + طلب (لو مفعّل). كل نص من الخادم يمر عبر esc. */
+const T=localStorage.getItem('t'),R=+localStorage.getItem('rg')||0,m=document.getElementById('m'),$=i=>document.getElementById(i);
+const esc=x=>String(x??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const api=async(p,b)=>{const r=await fetch('/api'+p,{method:b===undefined?'GET':'POST',headers:{'Content-Type':'application/json',...(T?{Authorization:'Bearer '+T}:{})},body:b===undefined?undefined:JSON.stringify(b)});const j=await r.json().catch(()=>({}));if(!r.ok)throw new Error(j.error||'تعذّر التنفيذ');return j};
+let TY=0,Q='',ALL=0,SID=+(location.hash.match(/^#s(\d{1,9})$/)||[])[1]||0,CART={},KEY='',BUSY=0,msg='',isErr=0,TYPES=[];
+const money=x=>Math.round(x*100)/100;
+async function img(id,el){if(!T)return;try{const r=await fetch('/api/files/'+id,{headers:{Authorization:'Bearer '+T}});if(r.ok)el.src=URL.createObjectURL(await r.blob())}catch(e){}}
+const pics=()=>document.querySelectorAll('img[data-im]').forEach(el=>img(el.dataset.im,el));
+window.sty=id=>{TY=id;list()};window.sall=v=>{ALL=v?1:0;list()};
+let qt=0;window.sq=v=>{Q=v;clearTimeout(qt);qt=setTimeout(list,350)};
+window.sopen=id=>{SID=id;CART={};KEY='';msg='';try{history.replaceState(null,'','#s'+id)}catch(e){}menu()};
+window.sback=()=>{SID=0;try{history.replaceState(null,'',location.pathname)}catch(e){}list()};
+const shopCard=s=>`<button class="card shc" onclick="sopen(${s.id})" style="text-align:right;width:100%">${s.cover_file_id?`<img alt="" data-im="${+s.cover_file_id}" style="width:64px;height:64px;object-fit:cover;border-radius:12px;float:left;margin:0 0 6px 8px">`:''}<b>${esc(s.name_ar)}</b> <small>${esc(s.type_name)}</small><br><small>${esc(s.region_name)}${s.address?' — '+esc(s.address):''}</small><br>${s.is_open?'<b class="okm">مفتوح الآن</b>':'<small>مغلق حاليًا</small>'} <small>· ${+s.item_count} صنف</small></button>`;
+async function list(){
+ try{const t=await api('/shop-types');if(!t.enabled){m.innerHTML='<div class="card"><b>قسم المحلات غير متاح حاليًا.</b><br><small>هيظهر هنا أول ما يتفعّل في منطقتك.</small></div>';return}TYPES=t.items;
+ const qs=[];if(R&&!ALL)qs.push('region_id='+R);if(TY)qs.push('type_id='+TY);if(Q.trim())qs.push('q='+encodeURIComponent(Q.trim()));
+ const l=await api('/shops'+(qs.length?'?'+qs.join('&'):''));
+ const act=document.activeElement&&document.activeElement.id=='sqi';
+ m.innerHTML=`<input id="sqi" value="${esc(Q)}" placeholder="ابحث باسم المحل" aria-label="بحث" oninput="sq(this.value)"><div class="chips" role="group" aria-label="نوع المحل"><button class="${TY?'':'on'}" onclick="sty(0)">الكل</button>${TYPES.map(x=>`<button class="${TY==x.id?'on':''}" onclick="sty(${x.id})">${esc(x.name_ar)}</button>`).join('')}</div>`
+  +(R?`<label class="n"><input type="checkbox" ${ALL?'checked':''} onchange="sall(this.checked)"> كل المناطق</label>`:'<p class="n">اختار منطقتك من <a href="/">الصفحة الرئيسية</a> عشان تشوف محلات منطقتك.</p>')
+  +(l.items.length?l.items.map(shopCard).join(''):'<div class="card"><small>لا توجد محلات مطابقة حاليًا.</small></div>');
+ if(act){const e=$('sqi');e.focus();e.setSelectionRange(e.value.length,e.value.length)}pics()}
+ catch(e){m.innerHTML=`<div class="card"><p class="e">${esc(e&&e.message?e.message:e)}</p></div>`}}
+const total=()=>money(Object.values(CART).reduce((a,x)=>a+x.p*x.q,0));
+const itemRow=(x,can)=>`<div class="card" id="it${x.id}">${(x.image_ids||[]).slice(0,3).map(f=>`<img alt="" data-im="${+f}" style="height:70px;border-radius:10px;margin:0 0 6px 6px">`).join('')}<br><b>${esc(x.name_ar)}</b> <small>${esc(money(x.price))} ج</small>${x.description?`<br><small>${esc(x.description)}</small>`:''}${can?`<div class="row"><button class="line" aria-label="أقل" onclick="cq(${x.id},-1)">−</button><b id="q${x.id}">${CART[x.id]?CART[x.id].q:0}</b><button class="line" aria-label="أكثر" onclick="cq(${x.id},1)">＋</button></div>`:''}</div>`;
+window.cq=(id,d)=>{const x=window.MENU.items.find(i=>i.id==id);if(!x)return;const q=Math.max(0,Math.min(50,((CART[id]||{q:0}).q)+d));if(q)CART[id]={p:x.price,q};else delete CART[id];$('q'+id).textContent=q;const t=$('ct');if(t)t.textContent=total()+' ج';const b=$('ob');if(b)b.disabled=!Object.keys(CART).length};
+async function menu(){
+ try{const d=await api('/shops/'+SID+'/menu');window.MENU=d;if(!d.enabled||!d.shop){m.innerHTML='<div class="card"><p class="e">المحل غير متاح.</p></div>';return}
+ const s=d.shop,can=d.order_enabled&&s.is_open&&!!T;
+ m.innerHTML=`<button class="line" onclick="sback()">‹ كل المحلات</button><div class="card"><b>${esc(s.name_ar)}</b> <small>${esc(s.type_name)}</small><p>${s.is_open?'<b class="okm">مفتوح الآن</b>':'<b>مغلق حاليًا — الأصناف للتصفح فقط</b>'}</p></div>`
+  +(msg?`<p class="${isErr?'e':'okm'}" role="status">${msg}</p>`:'')
+  +(d.items.length?d.items.map(x=>itemRow(x,can)).join(''):'<div class="card"><small>لا توجد أصناف متاحة الآن.</small></div>')
+  +(can&&d.items.length?`<div class="card"><b>إجمالي الأصناف: <span id="ct">0 ج</span></b><br><small>ثمن الأصناف بتدفعه للمندوب أو المحل عند الاستلام؛ لاقينو مبتحصّلش مدفوعات. أجرة التوصيل بيقترحها المندوب وانت توافق.</small><input id="da" maxlength="300" placeholder="عنوان التسليم" aria-label="عنوان التسليم"><input id="dn" maxlength="300" placeholder="ملاحظة (اختياري)" aria-label="ملاحظة"><button class="full" id="ob" disabled onclick="ord()">اطلب من المحل</button></div>`:'')
+  +(!T&&s.is_open&&d.order_enabled?'<div class="card"><small>سجّل الدخول من <a href="/">الصفحة الرئيسية</a> عشان تطلب.</small></div>':'');
+ pics()}catch(e){m.innerHTML=`<div class="card"><button class="line" onclick="sback()">‹ رجوع</button><p class="e">${esc(e&&e.message?e.message:e)}</p></div>`}}
+window.ord=async()=>{if(BUSY||!Object.keys(CART).length)return;BUSY=1;const b=$('ob');if(b)b.disabled=true;
+ try{KEY=KEY||(typeof crypto!='undefined'&&crypto.randomUUID?crypto.randomUUID():Date.now()+'-'+Math.random());
+ const r=await api('/shops/'+SID+'/order',{request_key:KEY,items:Object.entries(CART).map(([i,x])=>({item_id:+i,qty:x.q})),dropoff_text:$('da').value,note:$('dn').value});
+ CART={};KEY='';m.innerHTML=`<div class="card"><b class="okm">تم إرسال طلبك ✓</b><p>رقم الطلب #${esc(r.id)} — رمز التسليم: <b>${esc(r.delivery_code)}</b></p><small>المندوب هيقترح أجرة التوصيل وانت توافق من <a href="/">الصفحة الرئيسية ← التوصيل</a>.</small></div><button class="line" onclick="sback()">‹ كل المحلات</button>`}
+ catch(e){msg=esc(e&&e.message?e.message:e);isErr=1;const da=$('da')?$('da').value:'',dn=$('dn')?$('dn').value:'',c=CART;await menu();CART=c;Object.keys(c).forEach(i=>{const q=$('q'+i);if(q)q.textContent=c[i].q});if($('da')){$('da').value=da;$('dn').value=dn;$('ct').textContent=total()+' ج';$('ob').disabled=!Object.keys(c).length}msg='';isErr=0}
+ BUSY=0};
+addEventListener('hashchange',()=>{const k=+(location.hash.match(/^#s(\d{1,9})$/)||[])[1]||0;if(k!=SID){SID=k;SID?menu():list()}});
+SID?menu():list();</script><script>if("serviceWorker" in navigator)addEventListener("load",()=>navigator.serviceWorker.register("/sw.js").catch(()=>{}))</script></body></html>

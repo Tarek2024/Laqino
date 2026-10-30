@@ -3,7 +3,7 @@ import notif, account
 from http.server import ThreadingHTTPServer, BaseHTTPRequestHandler
 from urllib.parse import urlparse, parse_qs, quote
 import market
-import gsearch, products, provider_delivery, rx, chat, svc, overview, fcm, exchange, lsocial, bulk_import
+import gsearch, products, provider_delivery, shops, shop_delivery, shop_delivery_stats, rx, chat, svc, overview, fcm, exchange, lsocial, bulk_import
 DB = os.environ.get("LAQINO_DB", "laqino.db")
 UP = os.environ.get("LAQINO_UPLOADS", "uploads")
 ROOT = os.path.realpath(os.path.join(os.path.dirname(os.path.abspath(__file__)), "static"))
@@ -284,6 +284,8 @@ def init(admin_phone=None, admin_pw=None):
     notif.install(c)
     exchange.install(c)  # سوق الصيدليات (إضافة بعد الخطوة 7): exchange_deals/images/reports (idempotent)
     provider_delivery.bind(push_new_order, audit, default_delivery_region, COUNT_SQL["orders"]); provider_delivery.install(c)  # Phase 40: زر «اطلب دليفري» للصيدليات
+    shops.bind(audit); shops.install(c)  # Phase 66 (م1 المحلات): shop_types + shops + مفتاح shops_enabled مطفي (idempotent)
+    shop_delivery.bind(push_new_order, push_stop_order, audit, default_delivery_region, COUNT_SQL["orders"], region_fee, commission_for, LIMITS["orders"]); shop_delivery.install(c)  # Phase 69 (م4 المحلات): المحل يطلب مندوب + العميل يطلب من المحل (بعد shops.install لأنه يعيد كتابة triggers ntf_shop_)
     products.install(c)  # Phase 2: product_offers + medical sub-categories (idempotent)
     rx.install(c)  # RX schema extensions (idempotent, additive migrations)
     try: c.execute("ALTER TABLE listings ADD COLUMN featured_until INTEGER")  # المرحلة 30: تمييز الإعلان حتى تاريخ (NULL = غير مميز). بعد market.migrate لأنه قد يعيد بناء الجدول
@@ -351,6 +353,8 @@ def check_admin_password(pw, phone=""):
     if len(set(pw)) < 4 or pw.lower() in WEAK_ADMIN_PW or pw == phone or phone and phone in pw: raise SystemExit("كلمة مرور المدير ضعيفة (متكررة أو شائعة أو تحتوي رقم الهاتف). اختر كلمة أخرى.")
     if pw.startswith("ضع-") or "كلمة-قوية" in pw or pw.startswith("XXXX"): raise SystemExit("كلمة مرور المدير ما زالت النص التوضيحي من env.example. اكتب كلمة حقيقية.")
 LIMITS = {"orders": 5, "inquiries": 10, "prescriptions": 5, "files": 20}  # per-user caps on open items (server-side abuse guard)
+PICKUP_KINDS = (provider_delivery.KIND, shop_delivery.PICKUP)  # طلبات «استلام من مؤسسة»: بلا أجرة، قبول مباشر، وتمتد حتى التسليم للعميل (صيدلية أو محل)
+# م79: «المحل يطلب مندوب» صار بنفس مسار الصيدلية (provider_delivery.NEXT): للمحل ← استلم ← للعميل ← سلّم؛ ينتهي عند التسليم للعميل والعمولة عند الاستلام
 OPEN_ORDERS = "('searching','assigned','heading_pickup','picked_up','heading_customer','arrived','awaiting_confirmation')"
 COUNT_SQL = {
     "orders": "SELECT COUNT(*) FROM delivery_orders WHERE customer_id=? AND status IN " + OPEN_ORDERS,
@@ -373,6 +377,7 @@ COUNT_SQL = {
         " AND id NOT IN (SELECT photo_file_id FROM labs WHERE photo_file_id IS NOT NULL)"
         " AND id NOT IN (SELECT file_id FROM product_images)"
         " AND id NOT IN (SELECT file_id FROM exchange_images)"
+        " AND id NOT IN (SELECT file_id FROM shop_item_images)"
 }
 def _exif_orientation(seg):
     """Read only the Orientation tag (1-8) from an APP1 'Exif' payload; None when absent or malformed."""
@@ -783,6 +788,9 @@ class H(BaseHTTPRequestHandler):
             if gsearch.handle(self, c, u, method, path, q): return
             if products.handle(self, c, u, method, path, q): return
             if provider_delivery.handle(self, c, u, method, path, q): return
+            if shops.handle(self, c, u, method, path, q): return
+            if shop_delivery.handle(self, c, u, method, path, q): return
+            if shop_delivery_stats.handle(self, c, u, method, path, q): return  # م79: إحصائيات دليفري المحلات (GET فقط)
             if exchange.handle(self, c, u, method, path, q): return
             if rx.handle(self, c, u, method, path, q): return
             if chat.handle(self, c, u, method, path, q): return
@@ -1420,7 +1428,7 @@ class H(BaseHTTPRequestHandler):
                     ext_ = 1 if can_extend(c, cr["region_id"], need_, now) else 0  # المرحلة 64: مندوب منطقة مجاورة بعد التوسّع
                     dflt = region_fee(c, need_["region_id"]); cm_ = commission_for(c, dflt["fee"], need_["comm_type"], need_["comm_value"]) if dflt else need_["commission"]
                     if need_["offer_fee"] is not None: dflt = {"fee": need_["offer_fee"]}; cm_ = commission_for(c, need_["offer_fee"], need_["comm_type"], need_["comm_value"])  # المرحلة 27: السعر المرجعي هو سعر العميل لا الافتراضي  # الأجرة الافتراضية الحالية للمنطقة (الإدارة قد تكون عدّلتها بعد إنشاء الطلب)
-                    pk_ = need_["origin_type"] == provider_delivery.KIND
+                    pk_ = need_["origin_type"] in PICKUP_KINDS
                     if pk_: dflt = None; cm_ = need_["commission"]
                     if need_["customer_id"] == u["id"]: raise E(403, "لا يمكنك قبول طلب أنشأته بنفسك")
                     if free < cm_: raise E(402, "رصيدك غير كافٍ لقبول هذا الطلب")
@@ -1459,7 +1467,7 @@ class H(BaseHTTPRequestHandler):
                 if not c.execute("UPDATE delivery_orders SET search_started_at=?,updated_at=? WHERE id=? AND customer_id=? AND status='searching'", (now, now, oid, u["id"])).rowcount: raise E(409, "لا يمكن إعادة البحث لهذا الطلب")
                 c.execute("DELETE FROM order_offers WHERE order_id=?", (oid,)); audit(c, u["id"], "order.retry_search", str(oid)); c.commit(); push_new_order(oid); return self.send(200, {"status": "searching"})
             if method == "GET" and path == "/api/courier/orders":
-                courier(); rows = [dict(r) for r in c.execute("SELECT o.origin_type,o.region_id,o.fare_status,o.offer_fee,o.id,o.pickup_text,o.dropoff_text,o.details,o.fee,o.status,CASE WHEN o.status IN " + ACTIVE + " THEN cu.name END customer_name,CASE WHEN o.status IN " + ACTIVE + " THEN cu.phone END customer_phone,CASE WHEN o.status IN " + ACTIVE + " THEN o.dropoff_lat END dropoff_lat,CASE WHEN o.status IN " + ACTIVE + " THEN o.dropoff_lng END dropoff_lng,CASE WHEN o.status IN " + ACTIVE + " AND o.origin_type=? THEN o.pd_cust_phone END pd_cust_phone,CASE WHEN o.status IN " + ACTIVE + " AND o.origin_type=? THEN o.pd_price END pd_price,CASE WHEN o.status IN " + ACTIVE + " AND o.origin_type=? THEN o.pd_note END pd_note FROM delivery_orders o JOIN users cu ON cu.id=o.customer_id WHERE o.courier_id=? ORDER BY o.id DESC", (provider_delivery.KIND, provider_delivery.KIND, provider_delivery.KIND, u["id"]))]  # phase-74: تفاصيل طلب الصيدلية (رقم العميل/السعر/ملاحظة) للمندوب المقبول فقط وطالما الطلب نشط
+                courier(); rows = [dict(r) for r in c.execute("SELECT o.origin_type,o.region_id,o.fare_status,o.offer_fee,o.id,o.pickup_text,o.dropoff_text,o.details,o.fee,o.status,CASE WHEN o.status IN " + ACTIVE + " THEN cu.name END customer_name,CASE WHEN o.status IN " + ACTIVE + " THEN cu.phone END customer_phone,CASE WHEN o.status IN " + ACTIVE + " THEN o.dropoff_lat END dropoff_lat,CASE WHEN o.status IN " + ACTIVE + " THEN o.dropoff_lng END dropoff_lng,CASE WHEN o.status IN " + ACTIVE + " AND o.origin_type IN (?,?) THEN o.pd_cust_phone END pd_cust_phone,CASE WHEN o.status IN " + ACTIVE + " AND o.origin_type IN (?,?) THEN o.pd_price END pd_price,CASE WHEN o.status IN " + ACTIVE + " AND o.origin_type IN (?,?) THEN o.pd_note END pd_note FROM delivery_orders o JOIN users cu ON cu.id=o.customer_id WHERE o.courier_id=? ORDER BY o.id DESC", (*PICKUP_KINDS, *PICKUP_KINDS, *PICKUP_KINDS, u["id"]))]  # phase-74: تفاصيل طلب الصيدلية (رقم العميل/السعر/ملاحظة) للمندوب المقبول فقط وطالما الطلب نشط
                 for r in rows:
                     if r.get("origin_type") is None: r.pop("origin_type", None)
                     if r["fare_status"] != "approved": r["pd_cust_phone"] = r["pd_price"] = r["pd_note"] = None
@@ -1493,12 +1501,12 @@ class H(BaseHTTPRequestHandler):
                     now = int(time.time())
                     if not c.execute("UPDATE delivery_orders SET status='searching',courier_id=NULL,fare_status='none',updated_at=?,search_started_at=? WHERE id=? AND courier_id=? AND status IN('assigned','heading_pickup')", (now, now, oid, u["id"])).rowcount: raise E(409, "تغيّرت حالة الطلب، حدّث الصفحة")  # لا نُحيي طلبًا ألغاه العميل في نفس اللحظة
                     c.execute("DELETE FROM order_offers WHERE order_id=?", (oid,)); ev(oid, o["status"], "searching"); c.commit(); push_new_order(oid); return self.send(200, {"status": "searching"})  # push: وإلا لا يعلم بقية المناديب بالطلب المُعاد
-                to = (provider_delivery.NEXT if o["origin_type"] == provider_delivery.KIND else NEXT).get(o["status"])
+                to = (provider_delivery.NEXT if o["origin_type"] in PICKUP_KINDS else NEXT).get(o["status"])
                 if not to or self.body().get("to") != to: raise E(409, "انتقال غير مسموح")
                 if o["fare_status"] != "approved": raise E(409, "لا يمكن بدء التوصيل قبل موافقة العميل على الأجرة")
                 if not c.execute("UPDATE delivery_orders SET status=?,updated_at=? WHERE id=? AND courier_id=? AND status=?", (to, int(time.time()), oid, u["id"], o["status"])).rowcount: raise E(409, "تغيّرت حالة الطلب، حدّث الصفحة")  # لا نكتب فوق إلغاء/اعتراض حدث بالتوازي
                 ev(oid, o["status"], to)
-                if to in ("awaiting_confirmation", "completed") or (to == "picked_up" and o["origin_type"] == provider_delivery.KIND): charge_commission(c, oid)  # الطلبات العادية تُحصّل عند التأكيد؛ طلب الصيدلية عند الاستلام من الصيدلية (picked_up) — م2: التسليم للعميل بعدها لا يعيد التحصيل (charge_commission idempotent)
+                if to in ("awaiting_confirmation", "completed") or (to == "picked_up" and o["origin_type"] in PICKUP_KINDS): charge_commission(c, oid)  # الطلبات العادية تُحصّل عند التأكيد؛ طلب الصيدلية عند الاستلام من الصيدلية (picked_up) — م2: التسليم للعميل بعدها لا يعيد التحصيل (charge_commission idempotent)
                 c.commit(); return self.send(200, {"status": to})
             if method == "GET" and path == "/api/features":  # أعلام عامة للواجهة (المنتجات مطفية افتراضيًا عند الإطلاق)
                 return self.send(200, {"products": products.enabled(c)})
@@ -2215,10 +2223,11 @@ class H(BaseHTTPRequestHandler):
                     try: rx.refresh_claims(c); c.commit()
                     except Exception: pass
                 f = c.execute("SELECT * FROM files WHERE id=?", (int(m[1]),)).fetchone()
-                allowed = f and (f["owner_id"] == u["id"] or u["role"] in ("admin", "staff") or c.execute("SELECT 1 FROM prescription_access a JOIN prescriptions p ON p.id=a.prescription_id JOIN providers v ON v.user_id=a.provider_id WHERE a.provider_id=? AND v.status='approved' AND (p.file_id=? OR ? IN (SELECT file_id FROM rx_images WHERE prescription_id=p.id))", (u["id"], f["id"], f["id"])).fetchone())
+                shop_pub = bool(f) and method == "GET" and not m[2] and shops.public_image(c, f["id"])  # م5: صور أصناف المحلات المعتمدة للعرض العام (قراءة فقط)
+                allowed = f and (shop_pub or f["owner_id"] == u["id"] or u["role"] in ("admin", "staff") or c.execute("SELECT 1 FROM prescription_access a JOIN prescriptions p ON p.id=a.prescription_id JOIN providers v ON v.user_id=a.provider_id WHERE a.provider_id=? AND v.status='approved' AND (p.file_id=? OR ? IN (SELECT file_id FROM rx_images WHERE prescription_id=p.id))", (u["id"], f["id"], f["id"])).fetchone())
                 if not allowed: raise E(404, "غير موجود")
                 if method == "GET" and not m[2]:
-                    if f["owner_id"] != u["id"]: rx.mark_seen_by_file(c, u["id"], f["id"]); audit(c, u["id"], "file.read", str(f["id"]), {"role": u["role"]}); c.commit()
+                    if f["owner_id"] != u["id"] and not shop_pub: rx.mark_seen_by_file(c, u["id"], f["id"]); audit(c, u["id"], "file.read", str(f["id"]), {"role": u["role"]}); c.commit()
                     return self.send(200, None, f["mime"], open(os.path.join(UP, f["path"]), "rb").read())
                 if method == "POST" and m[2]:
                     if f["owner_id"] != u["id"]: raise E(404, "غير موجود")
@@ -2227,6 +2236,7 @@ class H(BaseHTTPRequestHandler):
                     if c.execute("SELECT 1 FROM doctors WHERE photo_file_id=? UNION SELECT 1 FROM labs WHERE photo_file_id=?", (f["id"], f["id"])).fetchone(): raise E(409, "هذه الصورة مستخدمة في بطاقة طبيب أو معمل")
                     if c.execute("SELECT 1 FROM listing_images WHERE file_id=?", (f["id"],)).fetchone(): raise E(409, "هذه الصورة مرتبطة بإعلان؛ عدّل الإعلان لإزالتها")
                     if c.execute("SELECT 1 FROM product_images WHERE file_id=?", (f["id"],)).fetchone(): raise E(409, "هذه الصورة مرتبطة بعرض منتج؛ عدّل العرض لإزالتها")
+                    if c.execute("SELECT 1 FROM shop_item_images WHERE file_id=?", (f["id"],)).fetchone(): raise E(409, "هذه الصورة مرتبطة بصنف في محلك؛ عدّل الصنف لإزالتها")
                     if c.execute("SELECT 1 FROM chat_messages WHERE file_id=?", (f["id"],)).fetchone(): raise E(409, "هذه الصورة جزء من محادثة")
                     if c.execute("SELECT 1 FROM service_request_images WHERE file_id=?", (f["id"],)).fetchone(): raise E(409, "هذه الصورة مرفقة بطلب خدمة؛ احذفها من الطلب")
                     if not rx.remove_image(c, f["id"]): c.execute("UPDATE prescriptions SET file_id=NULL,status='closed' WHERE file_id=?", (f["id"],))  # الصورة الوحيدة: تُغلق الروشتة كما كان؛ ولو بقيت صور أخرى تبقى الروشتة مفتوحة

@@ -39,7 +39,7 @@ c = server.db(); after = dump(c)
 # sessions تُنظَّف عند التشغيل بقصد؛ نستثنيها من المقارنة
 before.pop("sessions", None); after.pop("sessions", None)
 ok("migration: every old table identical (no row lost or changed)", before == after)
-ok("migration: notifications table + triggers created", c.execute("SELECT COUNT(*) FROM sqlite_master WHERE type='trigger' AND name LIKE 'ntf_%' AND name NOT LIKE 'ntf_prod_%' AND name NOT LIKE 'ntf_exch_%' AND name NOT LIKE 'ntf_rxresp_%'").fetchone()[0] == len(notif._triggers()))
+ok("migration: notifications table + triggers created", c.execute("SELECT COUNT(*) FROM sqlite_master WHERE type='trigger' AND name LIKE 'ntf_%' AND name NOT LIKE 'ntf_prod_%' AND name NOT LIKE 'ntf_exch_%' AND name NOT LIKE 'ntf_rxresp_%' AND name NOT LIKE 'ntf_shop_%'").fetchone()[0] == len(notif._triggers()))
 ok("migration: old users still log in", server.hp("password1", "ab" * 16) == c.execute("SELECT pw_hash FROM users WHERE id=2").fetchone()["pw_hash"])
 ok("migration: no notification fabricated for old rows", c.execute("SELECT COUNT(*) FROM notifications").fetchone()[0] == 0)
 ok("integrity_check ok", c.execute("PRAGMA integrity_check").fetchone()[0] == "ok" and not c.execute("PRAGMA foreign_key_check").fetchall())

@@ -91,6 +91,7 @@ body.app .sc svg.go{position:absolute;top:14px;inset-inline-end:12px;width:18px;
 body.app .sc.med .ti{background:var(--teal-bg);color:var(--teal)}
 body.app .sc.souq .ti{background:var(--sand-bg);color:var(--orange-d)}
 body.app .sc.svc .ti{background:var(--sky-bg);color:var(--navy2)}
+body.app .sc.shops .ti{background:var(--sand-bg);color:var(--orange-d)}
 body.app .sc.dlv .ti{background:var(--orange);color:var(--navy-d)}
 body.app .sc.soon{background:#f6f8fc;border:1.5px dashed #b9c4dc;cursor:default;box-shadow:none!important;opacity:1}
 body.app .sc.soon .ti{background:#e3e9f4;color:var(--mute)}

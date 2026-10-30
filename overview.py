@@ -14,6 +14,7 @@ PENDING = (
     ("products", "منتجات بانتظار المراجعة", "products", "SELECT COUNT(*) FROM product_offers WHERE status='pending'"),
     ("providers", "طلبات انضمام صيدليات", "providers", "SELECT COUNT(*) FROM providers WHERE status='pending'"),
     ("rx", "روشتات بانتظار التحويل", "rx", "SELECT COUNT(*) FROM prescriptions WHERE status='pending'"),
+    ("shops", "محلات بانتظار الاعتماد", "shops", "SELECT COUNT(*) FROM shops WHERE status='pending'"),
     ("rx_responses", "ردود صيدليات على روشتات بانتظار الاعتماد", "rx", "SELECT COUNT(*) FROM prescription_responses x JOIN prescriptions r ON r.id=x.prescription_id WHERE x.review='pending' AND r.status!='closed'"),
     ("rating_reports", "بلاغات على تقييمات خدمات", "svcreq", "SELECT COUNT(*) FROM service_rating_reports WHERE status='pending'"),
     ("orders", "طلبات توصيل متنازع عليها", "orders", "SELECT COUNT(*) FROM delivery_orders WHERE status='disputed'"),

@@ -25,7 +25,7 @@ ov = lambda t=at: call("GET", "/admin/overview", None, t)
 ok("anonymous -> 401", ov(None)[0] == 401)
 ok("customer -> 403", ov(cu)[0] == 403)
 s, r = ov()
-ok("empty system: 200, every counter 0, total_pending 0", s == 200 and r["total_pending"] == 0 and all(v == 0 for v in r["pending"].values()) and len(r["pending"]) == 12)
+ok("empty system: 200, every counter 0, total_pending 0", s == 200 and r["total_pending"] == 0 and all(v == 0 for v in r["pending"].values()) and len(r["pending"]) == 13)
 ok("totals present (users counted)", r["totals"]["users"] >= 3 and set(r["totals"]) == {"users", "couriers", "pharmacies", "listings", "orders_24h"})
 ok("POST is not allowed (404)", call("POST", "/admin/overview", {}, at)[0] == 404)
 
@@ -43,10 +43,11 @@ sql("INSERT INTO product_offers(provider_id,category_id,title,price,created_at,u
 sql("INSERT INTO prescriptions(customer_id,region_id,created_at) VALUES(?,?,?)", (uid_cu, 3, now))
 sql("INSERT INTO prescription_responses(prescription_id,provider_id,status,price,updated_at) VALUES(1,?,?,?,?)", (uid_cu, "available", 10, now))  # رد جديد = بانتظار اعتماد الإدارة (الخطوة 4)
 sql("INSERT INTO service_rating_reports(rating_id,request_id,provider_id,reporter_id,reason,snap_stars,created_at) VALUES(1,1,1,?,?,?,?)", (uid_cu, "سبب البلاغ", 1, now))  # الخطوة 5
+sql("INSERT INTO shops(owner_id,type_id,name_ar,name_norm,address,phone,region_id,created_at,updated_at) VALUES(?,?,?,?,?,?,?,?,?)", (uid_cu, 1, "محل", "محل", "عنوان", "01012345678", 3, now, now))  # م2 المحلات: طلب انضمام معلق
 sql("INSERT INTO delivery_orders(customer_id,region_id,pickup_text,dropoff_text,fee,status,created_at,updated_at) VALUES(?,?,?,?,?,?,?,?)", (uid_cu, 3, "أ", "ب", 20, "disputed", now, now))
 sql("INSERT INTO delivery_orders(customer_id,region_id,pickup_text,dropoff_text,fee,status,created_at,updated_at) VALUES(?,?,?,?,?,?,?,?)", (uid_cu, 3, "أ", "ب", 20, "completed", now - 10 * 86400, now - 10 * 86400))
 r = ov()[1]
-ok("each of the 12 counters sees exactly its one item", all(r["pending"][k] == 1 for k in r["pending"]) and r["total_pending"] == 12)
+ok("each of the 13 counters sees exactly its one item", all(r["pending"][k] == 1 for k in r["pending"]) and r["total_pending"] == 13)
 ok("orders_24h counts only recent orders (1 of 2)", r["totals"]["orders_24h"] == 1)
 ok("approved items are not counted as pending", (sql("UPDATE listings SET status='approved'"), sql("UPDATE service_requests SET status='done'"), ov()[1]["pending"]["listings"] == 0 and ov()[1]["pending"]["svcreq"] == 0 and ov()[1]["totals"]["listings"] == 1)[2])
 ok("staff can read the overview", (sql("UPDATE users SET role='staff' WHERE id=?", (uid_cu,)), ov(user("01055550001") if False else call("POST", "/login", {"phone": "01055550001", "password": "password1"})[1]["token"])[0])[1] == 200)

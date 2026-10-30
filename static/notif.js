@@ -4,7 +4,7 @@
 (function () {
   if (window.__laqNotif) return; window.__laqNotif = 1;
   var POLL = 30000, LIM = 30, T = '', open = false, unread = 0, items = [], maxId = 0, timer = 0, busy = false, first = true;
-  var LINKS = { orders: ['/', 'طلبات التوصيل'], courier: ['/courier.html', 'لوحة المندوب'], pharmacy: ['/pharmacy.html', 'لوحة الصيدلية'], medical: ['/', 'الخدمات الطبية'], souq: ['/', 'السوق'], chat: ['/market.html#/chats', 'محادثات السوق'], svc: ['/', 'طلبات الخدمات'], svcjob: ['/', 'شغل الخدمات'] };
+  var LINKS = { orders: ['/', 'طلبات التوصيل'], courier: ['/courier.html', 'لوحة المندوب'], pharmacy: ['/pharmacy.html', 'لوحة الصيدلية'], shop: ['/shop.html', 'لوحة المحل'], shoporders: ['/shop.html#o', 'طلبات المحل'], medical: ['/', 'الخدمات الطبية'], souq: ['/', 'السوق'], chat: ['/market.html#/chats', 'محادثات السوق'], svc: ['/', 'طلبات الخدمات'], svcjob: ['/', 'شغل الخدمات'] };
   var ADM = location.pathname === '/admin.html';   // لوحة الإدارة تحفظ توكنها في sessionStorage['at']
   var tok = function () { try { return (ADM ? sessionStorage.getItem('at') : localStorage.getItem('t')) || ''; } catch (e) { return ''; } };
   var esc = function (x) { return String(x == null ? '' : x).replace(/[&<>"']/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]; }); };

@@ -38,7 +38,7 @@ def delete_account(c, uid, upload_dir):
     fids = [f["id"] for f in files]
     for fid in fids:
         for t, col in (("courier_documents", "file_id"), ("rx_images", "file_id"), ("listing_images", "file_id"), ("exchange_images", "file_id"),
-                       ("product_images", "file_id"), ("service_request_images", "file_id"), ("market_files", "file_id")):
+                       ("product_images", "file_id"), ("shop_item_images", "file_id"), ("service_request_images", "file_id"), ("market_files", "file_id")):
             _x(c, "DELETE FROM %s WHERE %s=?" % (t, col), fid)
         _x(c, "UPDATE prescriptions SET file_id=NULL WHERE file_id=?", fid)
         _x(c, "UPDATE chat_messages SET file_id=NULL WHERE file_id=?", fid)
@@ -63,6 +63,8 @@ def delete_account(c, uid, upload_dir):
     # 4) الصيدلية/المندوب: إخفاء الاسم والعنوان وإيقاف الظهور
     _x(c, "UPDATE couriers SET status='suspended',is_available=0 WHERE user_id=?", uid)
     _x(c, "UPDATE providers SET name_ar=?,address=NULL,status='suspended' WHERE user_id=?", DELETED_NAME, uid)
+    _x(c, "UPDATE shop_items SET status='deleted',name_ar=?,description=NULL WHERE shop_id IN (SELECT id FROM shops WHERE owner_id=?)", DELETED_NAME, uid)  # م3: أصناف المحل
+    _x(c, "UPDATE shops SET name_ar=?,name_norm='deleted-'||id,address='',phone='',lat=NULL,lng=NULL,status='suspended',is_open=0,review_reason=NULL WHERE owner_id=?", DELETED_NAME, uid)  # م1 المحلات: إخفاء بيانات المحل وإيقافه
     _x(c, "DELETE FROM provider_stock WHERE provider_id=?", uid)
     _x(c, "UPDATE exchange_deals SET status='deleted',title=?,details=NULL WHERE provider_id=?", TXT, uid)
     _x(c, "UPDATE product_offers SET status='deleted',title=?,brand=NULL,description=NULL WHERE provider_id=?", TXT, uid)
