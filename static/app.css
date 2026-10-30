@@ -258,20 +258,6 @@ body.app .pnl{display:flex;align-items:center;gap:12px;min-height:72px;padding:1
 body.app .pnl .ti{flex:none;width:44px;height:44px;border-radius:14px;display:grid;place-items:center;background:var(--sky-bg);color:var(--navy)}
 body.app .pnl.pharmacy .ti{background:var(--teal-bg);color:var(--teal)}
 body.app .pnl.courier .ti{background:var(--sand-bg);color:var(--orange-d)}
-body.app .pnl.shop .ti{background:#e8efff;color:var(--navy2)}
-body.app .courier-join{margin:14px 0 18px;padding:0;overflow:hidden}
-body.app .courier-join summary{list-style:none;display:flex;align-items:center;gap:12px;padding:14px 16px;cursor:pointer}
-body.app .courier-join summary::-webkit-details-marker{display:none}
-body.app .courier-join summary .ti{display:grid;place-items:center;flex:none;width:44px;height:44px;border-radius:14px;background:var(--sand-bg);color:var(--orange-d)}
-body.app .courier-join summary .ti svg{width:24px;height:24px}
-body.app .courier-join-copy{display:flex;flex-direction:column;gap:2px;min-width:0}
-body.app .courier-join-copy b{font-family:var(--fd);font-size:1rem;color:var(--navy)}
-body.app .courier-join-copy small{font-size:.82rem;color:var(--mute);line-height:1.5}
-body.app .courier-join[open] summary{border-bottom:1px solid var(--line)}
-body.app .courier-join .bd{padding:10px 16px 16px}
-body.app .courier-join-link{text-align:center;margin:12px 0 18px;font-size:.9rem;font-weight:700}
-body.app .courier-join-link a{color:var(--navy);text-decoration:underline;text-underline-offset:4px}
-
 
 body.app .pnl .ti svg{width:24px;height:24px}
 body.app .pnl .pb{flex:1;min-width:0;display:flex;flex-direction:column;gap:2px}
