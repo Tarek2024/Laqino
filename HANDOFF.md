@@ -1,6 +1,6 @@
 # HANDOFF — لاقينو (التحديث التراكمي phase-57)
 
-> الإصدار الحالي `phase-77`؛ كاش الواجهة `laqino-v120` (السابق laqino-v119). آخر تغيير: م4 «دفتر الصيدلية» — لوحة الإدارة على كل الصيدليات (راجع README_UPDATE.md).
+> الإصدار الحالي `phase-81`؛ كاش الواجهة `laqino-v125` (السابق `laqino-v124`). آخر تغيير: إزالة نموذج وروابط التقديم العامة للمحلات.
 
 ## phase-55 — قفل البحث تلقائيًا لما الرد يكتمل
 - `rx.py`: جدول `rx_completed` + `is_completed` / `mark_completed` / `open_prescription_count`؛ `complete_claim_on_full_approval` و`_claim_next` بيستدعوا القفل؛ `stage_of` بترجع `completed`؛ حارس في `_claim_next` يمنع إعادة التوزيع (ويفتح البحث تاني لو الاكتمال اتراجع)؛ بحث النواقص الفرعي لما يكتمل بيقفل الأصل كمان؛ `/quotes` بترجع `completed` و`completed_at`.
