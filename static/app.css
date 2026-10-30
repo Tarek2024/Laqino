@@ -238,6 +238,11 @@ body.app .lc .prow .ds{margin:4px 0 0}
 body.app .pc .acts{display:flex;gap:8px;margin-top:10px;flex-wrap:wrap}
 body.app .pc .acts button{min-height:44px;margin:0}
 body.app .ad .cv{display:block;width:100%;aspect-ratio:4/3;object-fit:cover;border-radius:12px;margin-bottom:8px;background:#e9edf0}
+body.app .home-market-ad{padding:0!important;overflow:hidden}
+body.app .home-market-photo{width:100%;aspect-ratio:16/10;object-fit:cover;border-radius:0;margin:0;background:var(--sky-bg)}
+body.app .home-market-no-image{display:grid;place-items:center;min-height:132px;background:var(--sky-bg);color:var(--mute);font-weight:700}
+body.app .home-market-body{padding:12px 14px}
+body.app .home-market-ad .meta{padding-bottom:2px}
 body.app .imgs{display:flex;flex-direction:column;gap:6px;margin:6px 0}
 body.app .imgs #lip{display:flex;flex-wrap:wrap;gap:8px}
 body.app .imgs .lt{position:relative;width:72px;height:72px}
@@ -633,3 +638,51 @@ body.app button.qdel:active{transform:translateY(3px);border-bottom-width:2px}
   body.app .tiles{grid-template-columns:repeat(2,minmax(0,1fr))}
   body.app .sc{min-height:160px}
 }
+
+/* 3D provider profile cards */
+body.app .provider3d{position:relative;isolation:isolate;overflow:hidden;border:1px solid rgba(22,132,148,.2)!important;background:linear-gradient(145deg,#fff,#f2fafb)!important;box-shadow:0 5px 0 rgba(16,77,98,.06),0 12px 24px rgba(15,42,92,.08)!important;transition:transform .18s ease,box-shadow .18s ease;cursor:pointer}
+body.app .provider3d:active{transform:translateY(1px) scale(.995)}
+body.app .provider3d-glow{position:absolute;z-index:-1;inset:-35% -15% auto auto;width:150px;height:150px;border-radius:50%;background:radial-gradient(circle,rgba(18,151,165,.15),transparent 70%);pointer-events:none}
+body.app .provider3d .pic{border-radius:17px;box-shadow:0 5px 0 rgba(8,127,140,.1),0 10px 20px rgba(8,56,75,.1)}
+body.app .provider-profile3d{overflow:hidden;margin-top:14px;border:1px solid #cfe7eb;border-radius:20px;background:linear-gradient(155deg,#fff,#eaf7f8);box-shadow:inset 0 1px 0 #fff,0 6px 0 rgba(8,127,140,.07),0 14px 28px rgba(15,42,92,.09)}
+body.app .profile3d-head{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:17px;background:linear-gradient(125deg,#123b55,#087f8c);color:#fff}
+body.app .profile3d-head h3{color:#fff!important;margin:3px 0;font-size:1.08rem}
+body.app .profile3d-head p{color:#d7edef;font-size:.82rem;margin:0}
+body.app .profile3d-head small{color:#c9f1f2}
+body.app .profile3d-close{width:30px;height:30px;border:1px solid #ffffff55;border-radius:10px;background:#ffffff18;color:white;font-size:22px}
+body.app .profile3d-body{padding:15px}
+body.app .profile3d-item{padding:12px;margin-bottom:9px;border:1px solid #dfedf0;border-radius:14px;background:#fff;box-shadow:0 3px 0 #0a75850b,0 6px 14px #143f5510}
+body.app .profile3d-item b{display:block;color:#16465a}
+body.app .profile3d-item p{margin:3px 0 0;color:#536b78;white-space:pre-line}
+body.app .profile-loading{padding:14px;margin-top:12px;border-radius:14px;background:#eef8fa;color:#087f8c;text-align:center;font-weight:700}
+@media(hover:hover){body.app .provider3d:hover{transform:translateY(-3px);box-shadow:0 7px 0 rgba(16,77,98,.06),0 18px 30px rgba(15,42,92,.12)!important}}
+@media(prefers-reduced-motion:reduce){body.app .provider3d{transition:none}}
+
+
+/* Doctor directory cards: responsive layout, preserving existing card styles. */
+body.app .doctor-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,280px),1fr));gap:12px;margin-top:14px;align-items:stretch}
+body.app .doctor-grid>.card{margin:0;min-width:0}
+body.app .doctor-grid .pc{height:100%;cursor:pointer;transition:transform .18s ease,box-shadow .18s ease}
+@media(hover:hover){body.app .doctor-grid .pc:hover{transform:translateY(-2px);box-shadow:0 8px 22px rgba(15,42,92,.10)}}
+@media(max-width:520px){body.app .doctor-grid{grid-template-columns:minmax(0,1fr);gap:9px}}
+@media(prefers-reduced-motion:reduce){body.app .doctor-grid .pc{transition:none}}
+
+
+/* Shared provider profile identity: image and name stay aligned on mobile. */
+body.app .profile3d-identity{display:flex;align-items:center;gap:12px;min-width:0}
+body.app .profile3d-identity>div{min-width:0}
+body.app .profile3d-avatar{width:68px;height:68px;min-width:68px;object-fit:cover;border-radius:18px;border:2px solid #ffffff70;box-shadow:0 5px 14px #001b2b35;background:#ffffff18}
+body.app .profile3d-identity h3{overflow-wrap:anywhere}
+@media(max-width:380px){body.app .profile3d-head{padding:12px;gap:8px}body.app .profile3d-avatar{width:56px;height:56px;min-width:56px;border-radius:15px}body.app .profile3d-identity{gap:9px}}
+
+/* Marketplace primary actions: keep controls visible and usable on narrow phones. */
+body.app .market-home-actions{display:flex!important;flex-wrap:wrap;gap:8px;margin:8px 0}
+body.app .market-home-actions button{display:inline-flex!important;align-items:center;justify-content:center;flex:1 1 140px;min-width:0;min-height:44px;font-weight:800;visibility:visible;opacity:1}
+body.app .sbar .market-add{display:inline-flex!important;align-items:center;justify-content:center;flex:0 0 auto;min-width:max-content;min-height:42px;padding-inline:10px;white-space:nowrap;font-weight:800;visibility:visible;opacity:1}
+@media(max-width:360px){body.app .sbar{gap:4px;padding-inline:4px}body.app .sbar .market-add{padding-inline:7px;font-size:.82rem}body.app .sbar button{padding-inline:9px}}
+
+
+/* السوق داخل الرئيسية: إظهار اسم الناشر وحده أسفل الإعلان بنص واضح */
+body.app .market-seller-only{display:flex;align-items:center;gap:0;margin-top:8px;padding-top:8px;border-top:1px solid #dce5f0;color:#34425b;font-size:13px;font-weight:700;line-height:1.5;overflow-wrap:anywhere}
+body.app .market-seller-only:empty{display:none}
+@media(prefers-color-scheme:dark){body.app .market-seller-only{color:#d0d9e8;border-top-color:#394454}}

@@ -1,0 +1,170 @@
+name: Marketplace ad management review
+on:
+  push:
+    branches: [feature/marketplace-ad-management]
+  pull_request:
+    branches: [main]
+jobs:
+  marketplace-regression:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Compile changed Python files
+        run: python -m py_compile server.py market.py test_phase_marketplace_ad_management.py test_phase4_chat.py test_registration_account_recovery.py
+      - name: Run registration recovery and account activation regression tests
+        run: python test_registration_account_recovery.py
+      - name: Run isolated marketplace regression tests
+        run: python test_phase_marketplace_ad_management.py
+      - name: Run existing marketplace favorites and reports regression tests
+        run: python test_phase8b_listing_social.py
+      - name: Install cryptography for Web Push regression coverage
+        run: python -m pip install cryptography
+      - name: Run chat privacy and compatibility regression tests
+        run: python test_phase4_chat.py
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+      - name: Syntax-check inline page scripts
+        run: |
+          python - <<'PY'
+          import pathlib, re
+          files = [pathlib.Path('static/index.html'), pathlib.Path('static/market.html')]
+          out = pathlib.Path('/tmp/laqino-inline-js')
+          out.mkdir(exist_ok=True)
+          n = 0
+          for page in files:
+              source = page.read_text(encoding='utf-8')
+              for script in re.findall(r'<script(?:\s[^>]*)?>([\s\S]*?)</script>', source, re.I):
+                  if not script.strip():
+                      continue
+                  target = out / f'check-{n}.js'
+                  target.write_text(script, encoding='utf-8')
+                  n += 1
+          print(f'Extracted {n} inline scripts')
+          PY
+          for f in /tmp/laqino-inline-js/*.js; do node --check "$f"; done
+
+  full-project-regression:
+    name: Full project regression suite
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+      - name: Install full-project test dependencies
+        run: |
+          python -m pip install cryptography openpyxl Pillow playwright
+          python -m playwright install --with-deps chromium
+      - name: Compile all project Python modules and test scripts
+        run: |
+          python - <<'PY'
+          import pathlib, py_compile
+          files = sorted(pathlib.Path('.').glob('*.py'))
+          for path in files:
+              py_compile.compile(str(path), doraise=True)
+          print(f"Compiled {len(files)} Python files")
+          PY
+      - name: Run all existing Python test scripts in isolation
+        shell: bash
+        run: |
+          set +e
+          total=0
+          failed=0
+          skipped=0
+          : > /tmp/laqino-test-failures.txt
+          for f in test_*.py; do
+            [ -f "$f" ] || continue
+            total=$((total+1))
+            echo "::group::TEST $f"
+            timeout 180s python "$f"
+            rc=$?
+            echo "::endgroup::"
+            if [ "$rc" -ne 0 ]; then
+              failed=$((failed+1))
+              printf '%s (exit %s)\n' "$f" "$rc" | tee -a /tmp/laqino-test-failures.txt
+            fi
+          done
+          echo "TOTAL=$total FAILED=$failed"
+          if [ "$failed" -ne 0 ]; then
+            cat /tmp/laqino-test-failures.txt
+            exit 1
+          fi
+      - name: Syntax-check all inline scripts in static HTML pages
+        if: always()
+        run: |
+          python - <<'PY'
+          import pathlib, re
+          out = pathlib.Path('/tmp/laqino-inline-js')
+          out.mkdir(exist_ok=True)
+          n = 0
+          for page in pathlib.Path('static').glob('*.html'):
+              source = page.read_text(encoding='utf-8')
+              for script in re.findall(r'<script(?:\s[^>]*)?>([\s\S]*?)</script>', source, re.I):
+                  if not script.strip():
+                      continue
+                  target = out / f'check-{n}.js'
+                  target.write_text(script, encoding='utf-8')
+                  n += 1
+          print(f'Extracted {n} inline scripts from static HTML')
+          PY
+          for f in /tmp/laqino-inline-js/*.js; do node --check "$f"; done
+
+  baseline-main-regression:
+    name: Baseline regression suite (main)
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: main
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+      - name: Install full-project test dependencies
+        run: |
+          python -m pip install cryptography openpyxl Pillow playwright
+          python -m playwright install --with-deps chromium
+      - name: Compile baseline Python modules and test scripts
+        run: |
+          python - <<'PY'
+          import pathlib, py_compile
+          files = sorted(pathlib.Path('.').glob('*.py'))
+          for path in files:
+              py_compile.compile(str(path), doraise=True)
+          print(f"Compiled {len(files)} Python files on main")
+          PY
+      - name: Run all baseline Python test scripts in isolation
+        shell: bash
+        run: |
+          set +e
+          total=0
+          failed=0
+          : > /tmp/laqino-main-test-failures.txt
+          for f in test_*.py; do
+            [ -f "$f" ] || continue
+            total=$((total+1))
+            echo "::group::BASELINE TEST $f"
+            timeout 180s python "$f"
+            rc=$?
+            echo "::endgroup::"
+            if [ "$rc" -ne 0 ]; then
+              failed=$((failed+1))
+              printf '%s (exit %s)\\n' "$f" "$rc" | tee -a /tmp/laqino-main-test-failures.txt
+            fi
+          done
+          echo "BASELINE_TOTAL=$total BASELINE_FAILED=$failed"
+          if [ "$failed" -ne 0 ]; then
+            cat /tmp/laqino-main-test-failures.txt
+            exit 1
+          fi

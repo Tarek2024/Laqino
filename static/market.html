@@ -2,6 +2,7 @@
 <html lang="ar" dir="rtl">
 <head>
 <meta charset="utf-8">
+<link rel="stylesheet" href="/market-enhancements.css?v=8">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <title>سوق لاقينو | الإعلانات والمنتجات المحلية</title>
 <meta name="description" content="تصفح سوق لاقينو للمنتجات والإعلانات المحلية وتواصل مع أصحاب الإعلانات من خلال المنصة.">
@@ -20,7 +21,7 @@
 header{background:var(--card);border-bottom:1px solid var(--bd);padding:10px 12px}
 h1{font-size:18px;margin:0 0 8px}main{max-width:900px;margin:0 auto;padding:12px}
 input,select,button{font:inherit;color:inherit;background:var(--card);border:1px solid var(--bd);border-radius:10px;padding:9px 10px;min-height:42px}
-#q{width:100%}.row{display:flex;flex-wrap:wrap;gap:8px;margin-top:8px}.row>*{flex:1 1 130px}
+#q{width:auto;flex:1;min-width:0}.market-search-row{display:flex;direction:rtl;align-items:stretch;gap:8px;margin:8px 0}.market-search-row #q{flex:1;min-width:0}.add-listing-btn{display:inline-flex;align-items:center;justify-content:center;flex:0 0 auto;white-space:nowrap;text-decoration:none;background:var(--ac);border:1px solid var(--ac);color:#fff;font-weight:800;border-radius:10px;padding:9px 12px;min-height:42px}.row{display:flex;flex-wrap:wrap;gap:8px;margin-top:8px}.row>*{flex:1 1 130px}
 button.pri{background:var(--ac);color:#fff;border-color:var(--ac);cursor:pointer}
 .grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(160px,1fr));gap:10px}
 .card{background:var(--card);border:1px solid var(--bd);border-radius:12px;overflow:hidden;cursor:pointer;display:flex;flex-direction:column}
@@ -101,6 +102,7 @@ a.back{display:inline-flex;align-items:center;min-height:44px;padding:0 16px;bor
 .lb img{max-width:100%;max-height:100%;border-radius:14px;box-shadow:0 20px 40px rgba(0,0,0,.6)}
 .lb button{position:absolute;top:14px;inset-inline-start:14px;min-height:46px;padding:0 18px;border-radius:14px;border:0;background:#fff;color:#16213a;font-weight:900;cursor:pointer}
 @media(prefers-reduced-motion:reduce){.card,.card .ph img{transition:none}.card:hover{transform:none}}
+</style>
 <style id="lagino-market-featured">
 /* المرحلة 30: الإعلانات المميزة — قسم أعلى السوق بإطار ذهبي (الفئة .fc لا تتقاطع مع .card فلا تتأثر عدّادات الشبكة) */
 .feat{margin:6px 0 0}.feat h2{font-size:20px;font-weight:900;margin:6px 4px 8px;color:var(--lag-ink)}
@@ -122,13 +124,20 @@ a.back{display:inline-flex;align-items:center;min-height:44px;padding:0 16px;bor
 .tag.gold{background:#ffeab8;color:#6b4300}
 @media(prefers-color-scheme:dark){.tag.gold{background:#5a4210;color:#ffe6a8}}
 @media(prefers-reduced-motion:reduce){.fc{transition:none}.fc:hover{transform:none}}
-</style><style id="edge-to-edge">/* أندرويد 16 (API 36) يرسم المحتوى خلف شريط الحالة: نزيح الهيدر بقدر الحافة الآمنة */header{padding-top:calc(14px + env(safe-area-inset-top))!important}body{padding-left:env(safe-area-inset-left);padding-right:env(safe-area-inset-right);padding-bottom:env(safe-area-inset-bottom)}</style></head>
+</style><style id="edge-to-edge">/* أندرويد 16 (API 36) يرسم المحتوى خلف شريط الحالة: نزيح الهيدر بقدر الحافة الآمنة */header{padding-top:calc(14px + env(safe-area-inset-top))!important}body{padding-left:env(safe-area-inset-left);padding-right:env(safe-area-inset-right);padding-bottom:env(safe-area-inset-bottom)}</style><style id="market-primary-actions-fix">
+/* Keep the primary marketplace actions visible and aligned on the listing screen. */
+header #mychats,header #myfav{display:inline-flex;align-items:center;justify-content:center;vertical-align:middle}
+header .market-search-row{display:flex;direction:rtl;align-items:stretch;gap:8px;width:100%}
+header .market-search-row #q{flex:1 1 auto;min-width:0;width:auto}
+header .market-search-row #addlisting{display:inline-flex;flex:0 0 auto;align-items:center;justify-content:center;white-space:nowrap;visibility:visible;opacity:1}
+@media(max-width:420px){header .market-search-row{gap:6px}header .market-search-row #addlisting{padding-inline:9px;font-size:.86rem}}
+</style></head>
 <body>
 <header>
   <h1>سوق لاقينو</h1>
   <button id="mychats" type="button">محادثاتي</button>
   <button id="myfav" type="button">مفضلتي</button>
-  <input id="q" type="search" placeholder="ابحث في الإعلانات…" aria-label="بحث">
+  <div class="market-search-row"><input id="q" type="search" placeholder="ابحث في الإعلانات…" aria-label="بحث"><a id="addlisting" class="add-listing-btn" href="/?market-add=1">＋ إضافة إعلان</a></div>
   <div class="row" id="filters">
     <select id="cat" aria-label="التصنيف"><option value="">كل التصنيفات</option></select>
     <select id="reg" aria-label="المحافظة"><option value="">كل المحافظات</option></select>
@@ -198,6 +207,7 @@ function api(path, opt) {
 }
 function money(v) { return v == null ? "بدون سعر" : Number(v).toLocaleString("ar-EG") + " ج.م"; }
 function ago(ts) { var d = Math.max(0, Date.now() / 1000 - ts), m = Math.floor(d / 60); if (m < 1) return "الآن"; if (m < 60) return "منذ " + m + " دقيقة"; var hr = Math.floor(m / 60); if (hr < 24) return "منذ " + hr + " ساعة"; return "منذ " + Math.floor(hr / 24) + " يوم"; }
+function isFeatured(x) { return !!x && (x.featured === true || x.featured === 1 || x.featured === "1"); }
 function img(lid, fid) { return "/api/listings/" + lid + "/images/" + fid; }
 
 function query(offset) {
@@ -211,21 +221,20 @@ function query(offset) {
 function card(x) {
   var ph = x.images.length ? h("img", {src: img(x.id, x.images[0]), alt: "", loading: "lazy"}) : h("span", {text: "بلا صورة"});
   if (x.images.length) { var ld = function () { ph.classList.add("ld"); }; ph.addEventListener("load", ld); ph.addEventListener("error", ld); if (ph.complete && ph.naturalWidth) ld(); }
-  var fresh = x.featured ? h("span", {class: "gold", text: "★ مميز"}) : ((Date.now() / 1000 - x.created_at) < 86400 && !x.closed_kind ? h("span", {class: "fresh", text: "جديد الآن"}) : null);
+  var fresh = isFeatured(x) ? h("span", {class: "gold", text: "إعلان"}) : ((Date.now() / 1000 - x.created_at) < 86400 && !x.closed_kind ? h("span", {class: "fresh", text: "جديد الآن"}) : null);
   var tags = [];
-  if (x.condition) tags.push(h("span", {class: "tag " + (x.condition === "new" ? "new" : "used"), text: x.condition === "new" ? "جديد" : "مستعمل"}));
-  if (x.negotiable) tags.push(h("span", {class: "tag neg", text: "قابل للتفاوض"}));
   if (x.closed_kind) tags.push(h("span", {class: "tag closed", text: x.closed_kind === "sold" ? "تم البيع" : "تم التأجير"}));
-  return h("div", {class: "card", role: "link", tabindex: "0", onclick: function () { location.hash = "#/l/" + x.id; }}, [
+  var seller = x.seller ? h("div", {class: "seller-only", text: x.seller}) : null;
+  return h("div", {class: "card" + (isFeatured(x) ? " featured-card" : ""), role: "link", tabindex: "0", onclick: function () { location.hash = "#/l/" + x.id; }, onkeydown: function (e) { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); location.hash = "#/l/" + x.id; } }}, [
     h("div", {class: "ph"}, [ph, fresh]),
-    h("div", {class: "b"}, [h("p", {class: "t", text: x.title}), h("div", {class: "p", text: money(x.price)}), h("div", {}, tags), h("div", {class: "m", text: ago(x.created_at)})])
+    h("div", {class: "b"}, [h("p", {class: "t", text: x.title}), h("div", {class: "p", text: money(x.price)}), h("div", {}, tags), seller])
   ]);
 }
 function featCard(x) {
   var ph = x.images.length ? h("img", {src: img(x.id, x.images[0]), alt: ""}) : h("span", {text: "بلا صورة"});
   if (x.images.length) { var ld = function () { ph.classList.add("ld"); }; ph.addEventListener("load", ld); ph.addEventListener("error", ld); if (ph.complete && ph.naturalWidth) ld(); }
   var open = function () { location.hash = "#/l/" + x.id; };
-  return h("div", {class: "fc", role: "link", tabindex: "0", "aria-label": "إعلان مميز: " + x.title, onclick: open, onkeydown: function (e) { if (e.key === "Enter") open(); }}, [h("div", {class: "in"}, [
+  return h("div", {class: "fc", role: "link", tabindex: "0", "aria-label": "إعلان مميز: " + x.title, onclick: open, onkeydown: function (e) { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); open(); } }}, [h("div", {class: "in"}, [
     h("div", {class: "ph"}, [ph, h("span", {class: "star", text: "★ مميز"})]),
     h("div", {class: "bd"}, [h("div", {class: "ft", text: x.title}), h("div", {class: "fr"}, [h("div", {class: "fp", text: money(x.price)}), h("div", {class: "fm", text: ago(x.created_at)})])])
   ])]);
@@ -239,7 +248,7 @@ function loadFeatured() {
 }
 function list(reset) {
   if (state.busy) return; state.busy = true;
-  var app = $("app"); if (reset) { state.offset = 0; app.textContent = ""; app.appendChild(h("div", {class: "grid", id: "grid"})); app.appendChild(h("div", {id: "foot"})); loadFeatured(); }
+  var app = $("app"); if (reset) { state.offset = 0; app.textContent = ""; app.appendChild(h("div", {class: "grid", id: "grid"})); app.appendChild(h("div", {id: "foot"})); }
   api(query(state.offset)).then(function (r) {
     var g = $("grid"); if (!g) return;
     r.data.forEach(function (x) { g.appendChild(card(x)); }); state.offset += r.data.length; state.total = r.total;
@@ -332,11 +341,11 @@ function shrinkImg(file, cb, fail) {  // تصغير في المتصفح (حتى 
   rd.readAsDataURL(file);
 }
 function chatView(id) {
-  var app = $("app"), last = 0, title = h("h2"), note = h("div", {class: "m"}), list = h("div", {class: "msgs"}), inp = h("textarea", {maxlength: "1000", "aria-label": "اكتب رسالة"}), blockBtn = h("button", {text: "حظر"}), th = null;
+  var app = $("app"), last = 0, title = h("h2", {class: "chat-listing-title"}), listingLink = h("a", {class: "chat-listing-link", text: "عرض الإعلان"}), context = h("div", {class: "chat-context"}), note = h("div", {class: "m chat-note"}), list = h("div", {class: "msgs chat-messages"}), inp = h("textarea", {class: "chat-input", maxlength: "1000", "aria-label": "اكتب رسالة", placeholder: "اكتب رسالتك هنا…"}), blockBtn = h("button", {text: "حظر"}), th = null;
   app.textContent = ""; app.appendChild(h("a", {class: "back", onclick: function () { location.hash = "#/chats"; }, text: "→ محادثاتي"}));
   if (!TOKEN) { app.appendChild(needLogin()); return; }
   function add(ms) { ms.forEach(function (m) { last = Math.max(last, m.id); var b = h("div", {class: "msg" + (m.mine ? " mine" : "")}); if (m.body) b.appendChild(h("span", {text: m.body})); if (m.image) chatImg(id, m.id, b); list.appendChild(b); }); if (ms.length) list.scrollTop = list.scrollHeight; }
-  function state(t) { th = t; title.textContent = t.listing_title + " — " + t.other_name; blockBtn.textContent = t.blocked_by_me ? "رفع الحظر" : "حظر"; blockBtn.disabled = t.blocked && !t.blocked_by_me; note.textContent = t.blocked ? "المحادثة موقوفة" : (t.listing_status !== "approved" ? "الإعلان لم يعد متاحًا" : ""); }
+  function state(t) { th = t; title.textContent = "المحادثة بخصوص: " + t.listing_title; listingLink.setAttribute("href", "/market.html#/l/" + t.listing_id); blockBtn.textContent = t.blocked_by_me ? "رفع الحظر" : "حظر"; blockBtn.disabled = t.blocked && !t.blocked_by_me; note.textContent = t.blocked ? "المحادثة موقوفة" : (t.listing_status !== "approved" ? "الإعلان لم يعد متاحًا" : ""); }
   function load() { return api("/api/chats/" + id + "?after=" + last).then(function (r) { state(r.data.thread); add(r.data.messages); }).catch(function (e) { note.textContent = e.message; }); }
   var send = h("button", {class: "pri", text: "إرسال", onclick: function () { var v = inp.value.trim(); if (!v) return; api("/api/chats/" + id + "/messages", {method: "POST", body: {text: v}}).then(function () { inp.value = ""; note.textContent = ""; return load(); }).catch(function (e) { note.textContent = e.message; }); }});
   blockBtn.addEventListener("click", function () { api("/api/chats/" + id + "/block", {method: "POST", body: {block: !(th && th.blocked_by_me)}}).then(load).catch(function (e) { note.textContent = e.message; }); });
@@ -351,7 +360,7 @@ function chatView(id) {
       api("/api/chats/" + id + "/images", {method: "POST", body: {data: b64, text: cap}}).then(function () { inp.value = ""; note.textContent = ""; return load(); }).catch(function (e) { note.textContent = e.message; }).then(function () { pic.disabled = false; });
     }, function (m) { note.textContent = m; pic.disabled = false; });
   });
-  [title, list, inp, h("div", {class: "row"}, [send, pic, file, blockBtn, rep]), note].forEach(function (e) { app.appendChild(e); });
+  context.appendChild(title); context.appendChild(listingLink); app.appendChild(context); [list, inp, h("div", {class: "row chat-actions"}, [send, pic, file, blockBtn, rep]), note].forEach(function (e) { app.appendChild(e); });
   load(); poll = setInterval(function () { if (!document.hidden) load(); }, 5000);
 }
 function detail(id) {
@@ -373,7 +382,7 @@ function detail(id) {
       box.appendChild(cnt); show(0); box.appendChild(thumbs);
     }
     box.appendChild(h("h2", {text: d.title})); box.appendChild(h("div", {class: "p", text: money(d.price)}));
-    var tags = h("div", {}); if (d.featured) tags.appendChild(h("span", {class: "tag gold", text: "★ مميز"})); if (d.condition) tags.appendChild(h("span", {class: "tag " + (d.condition === "new" ? "new" : "used"), text: d.condition === "new" ? "جديد" : "مستعمل"})); if (d.negotiable) tags.appendChild(h("span", {class: "tag neg", text: "قابل للتفاوض"})); box.appendChild(tags);
+    var tags = h("div", {}); if (isFeatured(d)) tags.appendChild(h("span", {class: "tag gold", text: "★ مميز"})); if (d.condition) tags.appendChild(h("span", {class: "tag " + (d.condition === "new" ? "new" : "used"), text: d.condition === "new" ? "جديد" : "مستعمل"})); if (d.negotiable) tags.appendChild(h("span", {class: "tag neg", text: "قابل للتفاوض"})); box.appendChild(tags);
     box.appendChild(h("div", {class: "m", text: d.category.map(function (c) { return c.name; }).join(" ‹ ") + " — " + d.region.map(function (c) { return c.name; }).join(" ‹ ")}));
     var tb = h("table"); d.fields.forEach(function (f) { if (f.type !== "price") tb.appendChild(h("tr", {}, [h("td", {text: f.label}), h("td", {text: String(f.value)})])); });
     tb.appendChild(h("tr", {}, [h("td", {text: "البائع"}), h("td", {text: d.seller})])); box.appendChild(tb);
@@ -383,7 +392,7 @@ function detail(id) {
     document.title = d.title + " — سوق لاقينو"; window.scrollTo(0, 0);
   }).catch(function () { app.textContent = ""; app.appendChild(h("div", {class: "err", text: "الإعلان غير موجود أو غير متاح"})); app.appendChild(h("a", {class: "back", onclick: function () { location.hash = "#/"; }, text: "→ كل الإعلانات"})); });
 }
-function chrome(show) { $("filters").style.display = show ? "" : "none"; $("q").style.display = show ? "" : "none"; }
+function chrome(show) { var display = show ? "" : "none"; $("filters").style.display = display; $("q").style.display = display; $("mychats").style.display = display; $("myfav").style.display = display; var searchRow = document.querySelector(".market-search-row"); if (searchRow) searchRow.style.display = display; }
 function route() { stopPoll(); var m = /^#\/l\/(\d+)$/.exec(location.hash), ch = /^#\/chat\/(\d+)$/.exec(location.hash); if (m) { chrome(false); detail(m[1]); } else if (ch) { chrome(false); chatView(ch[1]); } else if (location.hash === "#/chats") { chrome(false); chatsView(); } else if (location.hash === "#/fav") { chrome(false); favView(); } else { chrome(true); document.title = "سوق لاقينو"; list(true); } }
 function fillCats() {
   api("/api/categories?section=souq").then(function (r) {

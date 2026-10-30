@@ -11,7 +11,7 @@ def chk(name, cond, detail=""):
 ver = dict(l.split("=", 1) for l in open(os.path.join(here, "VERSION")).read().split() if "=" in l).get("release", ""); chk("VERSION file present", re.fullmatch(r"phase-\d+\w*", ver), ver)
 sw = rd("static/sw.js"); cache = int(re.search(r"laqino-v(\d+)", sw).group(1)); chk("sw.js cache number found", cache > 0)
 shell = re.findall(r'"(/[^"]*)"', re.search(r"SHELL\s*=\s*\[(.*?)\]", sw, re.S).group(1))
-miss = [p for p in shell if p != "/" and not os.path.exists(os.path.join(here, "static", p.lstrip("/")))]; chk("every SHELL file exists", not miss, miss)
+miss = [p for p in shell if p != "/" and not os.path.exists(os.path.join(here, "static", p.lstrip("/").split("?", 1)[0]))]; chk("every SHELL file exists", not miss, miss)
 mods = {f[:-3] for f in os.listdir(here) if f.endswith(".py") and not f.startswith("test_")} - {"release_check", "apply_phase17_safe", "phase16_imgutil", "imgutil", "testutil"}
 dock = rd("Dockerfile"); copied = set()
 for ln in dock.splitlines():
