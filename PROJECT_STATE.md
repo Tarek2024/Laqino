@@ -1,6 +1,27 @@
 # لاقينو — ملف حالة المشروع (PROJECT_STATE.md)
 
-> **الحالة الحالية: الإصدار `phase-63` — كاش الخدمة `laqino-v97`** (المرجع الوحيد: ملف `VERSION`).
+> **الحالة الحالية: الإصدار `phase-77` — كاش الخدمة `laqino-v120`** (المرجع الوحيد: ملف `VERSION`).
+
+## سجل التعديل — phase-77 (م4 من خطة «دفتر الصيدلية»)
+- `provider_delivery.py`: `admin_dash()` + `_rows_admin/_group/_comm/_csv_admin` — مساران GET (admin فقط): `/api/admin/provider-delivery/dashboard` و`/export`. ملخص عام، ترتيب صيدليات ومناديب (`sort=orders|cancel|late|commission`)، نسب الإلغاء/التأخير، العمولة الصافية من `wallet_entries`، تنبيهات (رقم عند 2+ صيدليات، مندوب تخلّى 3+). لا تغيير في `server.py`. إصلاح `_csv` للحقل الفارغ.
+- الواجهة: `static/pdelivery-admin-dash.js` (جديد) + قسم م4 في `pdelivery.css`؛ يلزم سطر `<script>` واحد في `admin.html` (راجع README_UPDATE.md). `sw.js`/`VERSION`: v120. اختبار: `test_phase77_pd_m4.py` (معزول).
+
+## سجل التعديل — phase-76 (م3 من خطة «دفتر الصيدلية»)
+- `provider_delivery.py`: `dash()` + `bounds/summarize/_rows/_csv/_repeat` — مسارات GET: delivery-dashboard / delivery-search / delivery-order / delivery-export (لطلبات الصيدلية نفسها، بتوقيت القاهرة، بلا كتابة). لا تغيير في `server.py`.
+- الواجهة: `static/pdelivery-dash.js` (جديد، يُحمَّل عند الضغط) + زر في `pdelivery.js` + `pdelivery.css`. `sw.js`/`VERSION`: v119.
+- قرارات: التكرار اليومي 2+ والدائم الشهري 4+ (ثوابت `REPEAT_DAY/REPEAT_MONTH`)؛ رقم المندوب مطابقة كاملة فقط؛ إجمالي القيم للمكتمل فقط.
+
+## سجل التعديل — phase-75 (م2 من خطة «دفتر الصيدلية»)
+- دورة طلب الصيدلية تمتد حتى التسليم: `provider_delivery.NEXT` (assigned→heading_pickup→picked_up→heading_customer→completed). العمولة عند `picked_up` (تعديل سطر في مسار `/courier/orders/<id>/status`).
+- `provider_delivery.py`: `timing()` تشتق الأزمنة من `order_events` (accept/pickup/leg/total، late، fast، delivered_by، legacy)، و`late_minutes()`، ومسار `POST /api/provider/delivery-requests/<id>/delivered`، وحقل `late_minutes` الاختياري في إعداد الإدارة.
+- الواجهة: `pdelivery.js` (شريط تتبع + زر تم التسليم + أوقات)، `pdelivery-courier.js` (4 مراحل)، `pdelivery.css`. `sw.js`/`VERSION`: v118.
+- التفاصيل والاختبارات: README_UPDATE.md.
+
+## سجل التعديل — phase-74 (م1 من خطة «دفتر الصيدلية»)
+- طلب الدليفري من الصيدلية صار يقبل **اختياريًا**: رقم العميل، سعر الأوردر، تفاصيل الأوردر (+ العنوان القديم). الزر بضغطة واحدة بلا حقول يعمل كما كان.
+- أعمدة جديدة في `delivery_orders` (ترحيل `ALTER` إضافي تلقائي): `pd_cust_phone`, `pd_cust_norm` (للعدّ والبحث لاحقًا)، `pd_price`, `pd_note`.
+- الخصوصية: التفاصيل تظهر للصيدلية صاحبة الطلب، وللمندوب **بعد القبول فقط وطالما الطلب نشط** (`GET /api/courier/orders`)، ولا تظهر في `/api/courier/available`. دورة الطلب لم تتغير (ينتهي عند الاستلام من الصيدلية — يتغير في م2).
+- الملفات: `provider_delivery.py`, `server.py` (استعلام طلبات المندوب فقط), `static/pdelivery.js`, `static/pdelivery-courier.js`, `static/pdelivery.css`, `static/sw.js`, `VERSION`, `test_phase74_pd_m1.py`. الخطة الكاملة: `PLAN_PHARMACY_DELIVERY.md`.
 
 ## سجل التعديل — phase-63 (تحديث اختبارات فقط، بدون تغيير في كود التطبيق)
 - حُدّثت 4 اختبارات قديمة لتطابق الواجهة الحالية (VERSION وsw.js كما هما: phase-63 / laqino-v97):

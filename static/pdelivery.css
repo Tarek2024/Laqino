@@ -22,3 +22,23 @@ body.panel .dl .dl-btn svg{width:24px;height:24px;fill:none;stroke:#3b2700;strok
 .dl-it{margin-top:8px;padding:9px 12px;border-radius:14px;background:rgba(255,255,255,.08);font-size:.88rem;line-height:1.7}.dl-it a{color:#ffe58f}.dl-it small{opacity:.75;color:#fff}
 body.panel .dl .dl-x{margin:0 8px 0 0;min-height:0;padding:3px 12px;border-radius:999px!important;border:1px solid rgba(255,255,255,.35);background:transparent!important;color:#fff;box-shadow:none;cursor:pointer}
 @media(max-width:370px){.dl{grid-template-columns:1fr}.dl-row{grid-column:1;grid-row:auto;margin-top:8px}}
+/* phase-74 م1: خانات تفاصيل الأوردر */
+.dl-opt input[type=tel],.dl-opt input[type=number]{direction:ltr;text-align:right}
+/* م2 (phase-75): شريط تتبع مراحل الأوردر في قائمة طلبات الصيدلية */
+.dl-trk{display:flex;gap:3px;margin:5px 0 2px;direction:rtl}.dl-trk span{flex:1;text-align:center;font-size:.64rem;padding:2px 0;border-radius:6px;background:rgba(255,255,255,.1);color:rgba(255,255,255,.55)}.dl-trk span.d{background:rgba(120,220,150,.28);color:#d9ffe6}.dl-trk span.c{background:#f4bc38;color:#3b2700;font-weight:700}
+/* م3 (phase-76): لوحة الدليفري (بطاقة فاتحة تتبع بطاقة «اطلب دليفري») */
+#dlbw{margin:0 0 12px}.dlb-open{width:100%;padding:10px;border-radius:14px;border:1px solid #c9d3e6;background:#f4f7fc;color:#0f2a5c;font-weight:700;cursor:pointer}
+.dlb{margin-top:8px;padding:10px;border-radius:16px;background:#fff;border:1px solid #dfe5f0;color:#16233f;font-size:.88rem}.dlb small{color:#5b6882;display:block;margin:3px 0}
+.dlb-f{display:flex;flex-wrap:wrap;gap:6px;margin-bottom:8px}.dlb-f input,.dlb-f select{flex:1;min-width:110px;padding:6px 8px;border-radius:10px;border:1px solid #c9d3e6;font:inherit}.dlb-f button,.dlb-m{padding:6px 12px;border-radius:999px;border:1px solid #c9d3e6;background:#f4f7fc;color:#0f2a5c;cursor:pointer;font:inherit}.dlb-f button.on{background:#0f2a5c;color:#fff}.dlb-m{width:100%;margin-top:6px}
+.dlb-g{display:grid;grid-template-columns:repeat(auto-fit,minmax(92px,1fr));gap:6px;margin:6px 0}.dlb-g div{padding:8px 4px;border-radius:12px;background:#eef3fb;text-align:center;font-size:.76rem;line-height:1.5}.dlb-g b{display:block;font-size:1.05rem;color:#0f2a5c}
+.dlb-rp{margin:6px 0;font-size:.82rem;line-height:1.8}.dlb-rp a{color:#0f2a5c;font-weight:700}.dlb-r{padding:8px 4px;border-top:1px solid #edf0f6;cursor:pointer;line-height:1.7}.dlb-w{color:#b45309;font-size:.78rem}.dlb-d{margin-top:6px;padding:8px;border-radius:10px;background:#f7f9fd;line-height:1.7}
+
+/* م4 (phase-77): لوحة الإدارة لدليفري الصيدليات (pdelivery-admin-dash.js) */
+.pda-fab{position:fixed;bottom:14px;inset-inline-start:14px;z-index:60;padding:10px 14px;border-radius:999px;border:0;background:#0f2a5c;color:#fff;font-weight:700;box-shadow:0 4px 14px rgba(0,0,0,.3);cursor:pointer}
+.pda{position:fixed;inset:0;z-index:70;overflow:auto;background:#fff;color:#16233f;padding:12px;font-size:.88rem;direction:rtl}.pda[hidden]{display:none}
+.pda-h{display:flex;justify-content:space-between;align-items:center;margin-bottom:8px}.pda-x{border:0;background:#eef3fb;border-radius:50%;width:34px;height:34px;cursor:pointer}
+.pda-f{display:flex;flex-wrap:wrap;gap:6px;margin-bottom:8px}.pda-f input,.pda-f select{flex:1;min-width:110px;padding:6px 8px;border-radius:10px;border:1px solid #c9d3e6;font:inherit}.pda-f button{padding:6px 12px;border-radius:10px;border:1px solid #c9d3e6;background:#f4f7fc;color:#0f2a5c;font:inherit;cursor:pointer}.pda-f button.on{background:#0f2a5c;color:#fff}
+.pda small{color:#5b6882;display:block;margin:3px 0}.pda h4{margin:14px 0 6px;color:#0f2a5c}
+.pda-g{display:grid;grid-template-columns:repeat(auto-fit,minmax(110px,1fr));gap:6px;margin:6px 0}.pda-g div{padding:8px 4px;border-radius:12px;background:#eef3fb;text-align:center;font-size:.76rem;line-height:1.5}.pda-g b{display:block;font-size:1.05rem;color:#0f2a5c}
+.pda-a{padding:8px 10px;margin:4px 0;border-radius:10px;background:#fff6e5;border:1px solid #f3d9a4;line-height:1.7}
+.pda-t{overflow-x:auto}.pda-t table{width:100%;border-collapse:collapse;font-size:.8rem}.pda-t th,.pda-t td{padding:6px 5px;border-bottom:1px solid #edf0f6;text-align:start;white-space:nowrap}.pda-t th{color:#5b6882;font-weight:600}

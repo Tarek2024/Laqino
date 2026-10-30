@@ -288,6 +288,8 @@ def init(admin_phone=None, admin_pw=None):
     rx.install(c)  # RX schema extensions (idempotent, additive migrations)
     try: c.execute("ALTER TABLE listings ADD COLUMN featured_until INTEGER")  # المرحلة 30: تمييز الإعلان حتى تاريخ (NULL = غير مميز). بعد market.migrate لأنه قد يعيد بناء الجدول
     except sqlite3.OperationalError: pass
+    try: c.execute("ALTER TABLE listings ADD COLUMN anonymous INTEGER NOT NULL DEFAULT 0 CHECK(anonymous IN (0,1))")  # تحديث السوق المعزول: إظهار الاسم أو إخفاؤه
+    except sqlite3.OperationalError: pass
     ensure_fts(c)  # المرحلة 30: فهرس بحث trigram للإعلانات (اختياري)
     chat.install(c)  # Phase 4: chat_* tables + listings.contact_mode (idempotent; after market.migrate)
     svc.install(c)  # Phase 5: service_requests (idempotent)
@@ -1014,8 +1016,9 @@ class H(BaseHTTPRequestHandler):
                 clean, price = listing_clean_fields(c, cat["id"], d.get("fields") or {})
                 if d.get("contact_mode") is not None and d.get("contact_mode") not in chat.MODES: raise E(400, "طريقة التواصل غير صالحة")
                 cond, neg = listing_flags(d); img_ids = listing_image_ids(c, u["id"], d.get("image_file_ids"))
+                anon = 1 if d.get("anonymous") in (1, True, "1", "true", "yes") else 0
                 now = int(time.time())
-                cur = c.execute("INSERT INTO listings(user_id,category_id,region_id,title,description,price,data,created_at,updated_at,condition,negotiable) VALUES(?,?,?,?,?,?,?,?,?,?,?)", (u["id"], cat["id"], d["region_id"], title, str(d.get("description", ""))[:2000], price, json.dumps(clean, ensure_ascii=False), now, now, cond, neg))
+                cur = c.execute("INSERT INTO listings(user_id,category_id,region_id,title,description,price,data,created_at,updated_at,condition,negotiable,anonymous) VALUES(?,?,?,?,?,?,?,?,?,?,?,?)", (u["id"], cat["id"], d["region_id"], title, str(d.get("description", ""))[:2000], price, json.dumps(clean, ensure_ascii=False), now, now, cond, neg, anon))
                 for i, fid in enumerate(img_ids): c.execute("INSERT INTO listing_images(listing_id,file_id,position,created_at) VALUES(?,?,?,?)", (cur.lastrowid, fid, i, now))
                 chat.set_mode(c, cur.lastrowid, d.get("contact_mode") or "both"); c.commit(); return self.send(201, {"id": cur.lastrowid, "status": "pending", "images": img_ids})
             if method == "POST" and path == "/api/listings/images":  # رفع صورة إعلان: سقف مستقل (MAX_MARKET_UPLOADS) عن سقف الـ20 ملفًا
@@ -1038,7 +1041,7 @@ class H(BaseHTTPRequestHandler):
                 self.need(u); lid = int(m[1]); r = c.execute("SELECT * FROM listings WHERE id=? AND user_id=? AND status!='deleted'", (lid, u["id"])).fetchone()
                 if not r: raise E(404, "غير موجود")
                 if r["status"] == "hidden": raise E(409, "الإعلان مخفي بقرار إداري؛ تواصل مع الإدارة")
-                d = self.body(); keys = ("title", "description", "region_id", "category_id", "fields", "condition", "negotiable", "image_file_ids")
+                d = self.body(); keys = ("title", "description", "region_id", "category_id", "fields", "condition", "negotiable", "image_file_ids", "anonymous")
                 if not any(k in d for k in keys): raise E(400, "لا توجد تعديلات")
                 cat_id = d["category_id"] if "category_id" in d else r["category_id"]
                 if not c.execute("SELECT 1 FROM categories WHERE id=? AND section='souq' AND is_active=1 AND id IN " + market.VISIBLE_CATEGORIES, (cat_id,)).fetchone(): raise E(400, "التصنيف غير متاح")
@@ -1055,7 +1058,8 @@ class H(BaseHTTPRequestHandler):
                 cond, neg = listing_flags(d, r["condition"], r["negotiable"])
                 new_imgs = listing_image_ids(c, u["id"], d["image_file_ids"], lid) if "image_file_ids" in d else None
                 now = int(time.time()); drop = []
-                c.execute("UPDATE listings SET category_id=?,region_id=?,title=?,description=?,price=?,data=?,condition=?,negotiable=?,status='pending',reject_reason=NULL,reviewed_by=NULL,reviewed_at=NULL,updated_at=? WHERE id=?", (cat_id, region, title, desc, price, data, cond, neg, now, lid))
+                anon = (1 if d.get("anonymous") in (1, True, "1", "true", "yes") else 0) if "anonymous" in d else r["anonymous"]
+                c.execute("UPDATE listings SET category_id=?,region_id=?,title=?,description=?,price=?,data=?,condition=?,negotiable=?,anonymous=?,status='pending',reject_reason=NULL,reviewed_by=NULL,reviewed_at=NULL,updated_at=? WHERE id=?", (cat_id, region, title, desc, price, data, cond, neg, anon, now, lid))
                 if new_imgs is not None:
                     old = market.images_for(c, [lid])[lid]; c.execute("DELETE FROM listing_images WHERE listing_id=?", (lid,))
                     for i, fid in enumerate(new_imgs): c.execute("INSERT INTO listing_images(listing_id,file_id,position,created_at) VALUES(?,?,?,?)", (lid, fid, i, now))
@@ -1112,7 +1116,7 @@ class H(BaseHTTPRequestHandler):
                 lim = max(1, min(toint(q.get("limit", ["20"])[0]), 50)); off = max(0, toint(q.get("offset", ["0"])[0]))
                 pre = ("WITH RECURSIVE " + ",".join(ctes) + " ") if ctes else ""; where = " AND ".join(sql_w)
                 total = c.execute(pre + "SELECT COUNT(*) FROM listings l WHERE " + where, (*cargs, *args)).fetchone()[0]
-                rows = [dict(r) for r in c.execute(pre + "SELECT l.id,l.title,l.description,l.price,l.data,l.category_id,l.region_id,l.condition,l.negotiable,l.contact_mode,l.closed_kind,l.created_at,CASE WHEN l.featured_until>" + str(int(time.time())) + " THEN 1 ELSE 0 END featured,u.name seller FROM listings l JOIN users u ON u.id=l.user_id WHERE " + where + " ORDER BY " + ("l.featured_until DESC,l.id DESC" if only_feat else SORTS[srt]) + " LIMIT ? OFFSET ?", (*cargs, *args, lim, off)).fetchall()]
+                rows = [dict(r) for r in c.execute(pre + "SELECT l.id,l.title,l.description,l.price,l.data,l.category_id,l.region_id,l.condition,l.negotiable,l.contact_mode,l.closed_kind,l.created_at,l.anonymous,CASE WHEN l.featured_until>" + str(int(time.time())) + " THEN 1 ELSE 0 END featured,CASE WHEN COALESCE(l.anonymous,0)=1 THEN 'مستخدم مجهول' ELSE u.name END seller FROM listings l JOIN users u ON u.id=l.user_id WHERE " + where + " ORDER BY " + ("l.featured_until DESC,l.id DESC" if only_feat else "CASE WHEN l.featured_until>" + str(int(time.time())) + " THEN 0 ELSE 1 END," + SORTS[srt]) + " LIMIT ? OFFSET ?", (*cargs, *args, lim, off)).fetchall()]
                 imgs = market.images_for(c, [r["id"] for r in rows])
                 for r in rows: r["images"] = imgs[r["id"]]
                 return self.send(200, rows, extra={"X-Total-Count": str(total)})
@@ -1133,14 +1137,15 @@ class H(BaseHTTPRequestHandler):
                         if not n: break
                         out.append({"id": n["id"], "name": n["name_ar"]}); rid = n["parent_id"]
                     return list(reversed(out))
+                seller_name = r["seller"] if (own or adm or not r["anonymous"]) else "مستخدم مجهول"
                 out = {"id": r["id"], "title": r["title"], "description": r["description"], "price": r["price"], "condition": r["condition"], "negotiable": r["negotiable"],
-                       "closed_kind": r["closed_kind"], "created_at": r["created_at"], "updated_at": r["updated_at"], "seller": r["seller"], "fields": fields,
+                       "closed_kind": r["closed_kind"], "created_at": r["created_at"], "updated_at": r["updated_at"], "seller": seller_name, "anonymous": bool(r["anonymous"]), "fields": fields,
                        "category": chain("categories", r["category_id"]), "region": chain("regions", r["region_id"]), "images": market.images_for(c, [r["id"]])[r["id"]], "is_owner": own, "contact_mode": r["contact_mode"], "featured": bool(r["featured_until"] and r["featured_until"] > time.time())}
                 if own or adm: out["status"] = r["status"]; out["reject_reason"] = r["reject_reason"] if own else None
                 out.update(lsocial.flags(c, u, r["id"]))  # is_favorite / reported للمسجّل فقط
                 return self.send(200, out)
             if method == "GET" and path == "/api/my/listings":
-                self.need(u); rows = [dict(r) for r in c.execute("SELECT id,title,price,status,reject_reason,created_at,contact_mode FROM listings WHERE user_id=? AND status!='deleted' ORDER BY id DESC", (u["id"],))]; imgs = market.images_for(c, [r["id"] for r in rows])
+                self.need(u); rows = [dict(r) for r in c.execute("SELECT id,title,description,price,status,reject_reason,created_at,contact_mode,anonymous,condition,negotiable,category_id,region_id,data FROM listings WHERE user_id=? AND status!='deleted' ORDER BY id DESC", (u["id"],))]; imgs = market.images_for(c, [r["id"] for r in rows])
                 for r in rows: r["images"] = imgs[r["id"]]
                 return self.send(200, rows)
             m = re.fullmatch(r"/api/listings/(\d+)/contact", path)
@@ -1149,7 +1154,7 @@ class H(BaseHTTPRequestHandler):
                 r = c.execute("SELECT l.user_id,u.name,u.phone FROM listings l JOIN users u ON u.id=l.user_id WHERE l.id=? AND l.status='approved'", (int(lid),)).fetchone()
                 if not r: raise E(404, "غير موجود")
                 if r["user_id"] != u["id"]: contact_guard(c, u, "listing.contact", lid, "تجاوزت الحد المسموح لعرض أرقام البائعين، حاول لاحقًا")
-                return self.send(200, {"seller": r["name"], "phone": r["phone"]})
+                return self.send(200, {"seller": ("مستخدم مجهول" if c.execute("SELECT COALESCE(anonymous,0) FROM listings WHERE id=?", (int(lid),)).fetchone()[0] else r["name"]), "phone": r["phone"]})
             m = re.fullmatch(r"/api/listings/(\d+)/delete", path)
             if method == "POST" and m:
                 self.need(u); r = c.execute("SELECT user_id FROM listings WHERE id=?", (int(m[1]),)).fetchone()
@@ -1221,9 +1226,36 @@ class H(BaseHTTPRequestHandler):
                 for kind, fid in docs.items(): c.execute("INSERT INTO courier_documents VALUES(?,?,?,?)", (u["id"], kind, fid, now))
                 audit(c, u["id"], "courier.apply", str(u["id"]), {"documents": sorted(docs)}); c.commit(); return self.send(201, {"status": "pending"})
             if method == "GET" and path == "/api/admin/couriers":
-                self.need(u, "admin", "staff"); rows = [dict(r) for r in c.execute("SELECT c.*,u.name,u.phone FROM couriers c JOIN users u ON u.id=c.user_id WHERE c.status=?", (q.get("status", ["pending"])[0],))]
-                for r in rows: r["documents"] = [dict(x) for x in c.execute("SELECT kind,file_id FROM courier_documents WHERE courier_id=? ORDER BY kind", (r["user_id"],))]
+                self.need(u, "admin")
+                status = q.get("status", ["pending"])[0]
+                term = str(q.get("q", [""])[0]).strip().casefold()
+                sql = "SELECT c.*,u.name,u.phone,r.name_ar AS region_name FROM couriers c JOIN users u ON u.id=c.user_id LEFT JOIN regions r ON r.id=c.region_id"
+                params = ()
+                if status != "all":
+                    sql += " WHERE c.status=?"; params = (status,)
+                sql += " ORDER BY c.created_at DESC"
+                rows = [dict(r) for r in c.execute(sql, params)]
+                if term:
+                    rows = [r for r in rows if term in str(r.get("name") or "").casefold() or term in str(r.get("phone") or "").casefold() or term in str(r.get("user_id") or "")]
+                for r in rows:
+                    r["documents"] = [dict(x) for x in c.execute("SELECT kind,file_id,created_at FROM courier_documents WHERE courier_id=? ORDER BY kind", (r["user_id"],))]
                 return self.send(200, rows)
+            m = re.fullmatch(r"/api/admin/couriers/(\d+)/region", path)
+            if method == "POST" and m:
+                self.need(u, "admin")
+                uid = int(m[1]); d = self.body()
+                try: rid = int(d.get("region_id"))
+                except (TypeError, ValueError): raise E(400, "اختر منطقة صالحة")
+                region = c.execute("SELECT id,name_ar FROM regions WHERE id=? AND is_active=1", (rid,)).fetchone()
+                if not region: raise E(400, "المنطقة غير موجودة أو غير مفعّلة")
+                courier_row = c.execute("SELECT region_id FROM couriers WHERE user_id=?", (uid,)).fetchone()
+                if not courier_row: raise E(404, "المندوب غير موجود")
+                old_rid = courier_row["region_id"]
+                if old_rid != rid:
+                    c.execute("UPDATE couriers SET region_id=? WHERE user_id=?", (rid, uid))
+                    audit(c, u["id"], "courier.region_update", str(uid), {"old_region_id": old_rid, "new_region_id": rid, "region_name": region["name_ar"]})
+                    c.commit()
+                return self.send(200, {"ok": True, "region_id": rid, "region_name": region["name_ar"]})
             m = re.fullmatch(r"/api/admin/couriers/(\d+)/review", path)
             if method == "POST" and m:
                 self.need(u, "admin"); rd = self.body(); st = rd.get("status")
@@ -1427,9 +1459,12 @@ class H(BaseHTTPRequestHandler):
                 if not c.execute("UPDATE delivery_orders SET search_started_at=?,updated_at=? WHERE id=? AND customer_id=? AND status='searching'", (now, now, oid, u["id"])).rowcount: raise E(409, "لا يمكن إعادة البحث لهذا الطلب")
                 c.execute("DELETE FROM order_offers WHERE order_id=?", (oid,)); audit(c, u["id"], "order.retry_search", str(oid)); c.commit(); push_new_order(oid); return self.send(200, {"status": "searching"})
             if method == "GET" and path == "/api/courier/orders":
-                courier(); rows = [dict(r) for r in c.execute("SELECT o.origin_type,o.region_id,o.fare_status,o.offer_fee,o.id,o.pickup_text,o.dropoff_text,o.details,o.fee,o.status,CASE WHEN o.status IN " + ACTIVE + " THEN cu.name END customer_name,CASE WHEN o.status IN " + ACTIVE + " THEN cu.phone END customer_phone,CASE WHEN o.status IN " + ACTIVE + " THEN o.dropoff_lat END dropoff_lat,CASE WHEN o.status IN " + ACTIVE + " THEN o.dropoff_lng END dropoff_lng FROM delivery_orders o JOIN users cu ON cu.id=o.customer_id WHERE o.courier_id=? ORDER BY o.id DESC", (u["id"],))]
+                courier(); rows = [dict(r) for r in c.execute("SELECT o.origin_type,o.region_id,o.fare_status,o.offer_fee,o.id,o.pickup_text,o.dropoff_text,o.details,o.fee,o.status,CASE WHEN o.status IN " + ACTIVE + " THEN cu.name END customer_name,CASE WHEN o.status IN " + ACTIVE + " THEN cu.phone END customer_phone,CASE WHEN o.status IN " + ACTIVE + " THEN o.dropoff_lat END dropoff_lat,CASE WHEN o.status IN " + ACTIVE + " THEN o.dropoff_lng END dropoff_lng,CASE WHEN o.status IN " + ACTIVE + " AND o.origin_type=? THEN o.pd_cust_phone END pd_cust_phone,CASE WHEN o.status IN " + ACTIVE + " AND o.origin_type=? THEN o.pd_price END pd_price,CASE WHEN o.status IN " + ACTIVE + " AND o.origin_type=? THEN o.pd_note END pd_note FROM delivery_orders o JOIN users cu ON cu.id=o.customer_id WHERE o.courier_id=? ORDER BY o.id DESC", (provider_delivery.KIND, provider_delivery.KIND, provider_delivery.KIND, u["id"]))]  # phase-74: تفاصيل طلب الصيدلية (رقم العميل/السعر/ملاحظة) للمندوب المقبول فقط وطالما الطلب نشط
                 for r in rows:
                     if r.get("origin_type") is None: r.pop("origin_type", None)
+                    if r["fare_status"] != "approved": r["pd_cust_phone"] = r["pd_price"] = r["pd_note"] = None
+                    for k_ in ("pd_cust_phone", "pd_price", "pd_note"):
+                        if r.get(k_) is None: r.pop(k_, None)  # الطلبات العادية والبيانات الفارغة: نفس شكل الاستجابة القديم
                     f = region_fee(c, r.pop("region_id"))
                     if r["fare_status"] != "approved": r["customer_name"] = r["customer_phone"] = r["dropoff_lat"] = r["dropoff_lng"] = None  # بيانات العميل لا تُكشف قبل موافقته على الأجرة
                 return self.send(200, rows)
@@ -1463,7 +1498,7 @@ class H(BaseHTTPRequestHandler):
                 if o["fare_status"] != "approved": raise E(409, "لا يمكن بدء التوصيل قبل موافقة العميل على الأجرة")
                 if not c.execute("UPDATE delivery_orders SET status=?,updated_at=? WHERE id=? AND courier_id=? AND status=?", (to, int(time.time()), oid, u["id"], o["status"])).rowcount: raise E(409, "تغيّرت حالة الطلب، حدّث الصفحة")  # لا نكتب فوق إلغاء/اعتراض حدث بالتوازي
                 ev(oid, o["status"], to)
-                if to in ("awaiting_confirmation", "completed"): charge_commission(c, oid)  # الطلبات العادية تُحصّل عند التأكيد؛ طلب الصيدلية عند الاستلام
+                if to in ("awaiting_confirmation", "completed") or (to == "picked_up" and o["origin_type"] == provider_delivery.KIND): charge_commission(c, oid)  # الطلبات العادية تُحصّل عند التأكيد؛ طلب الصيدلية عند الاستلام من الصيدلية (picked_up) — م2: التسليم للعميل بعدها لا يعيد التحصيل (charge_commission idempotent)
                 c.commit(); return self.send(200, {"status": to})
             if method == "GET" and path == "/api/features":  # أعلام عامة للواجهة (المنتجات مطفية افتراضيًا عند الإطلاق)
                 return self.send(200, {"products": products.enabled(c)})
@@ -1761,7 +1796,7 @@ class H(BaseHTTPRequestHandler):
                 for r in rows:
                     hay = " ".join((r["name_norm"], norm_ar(r["specialty"]), norm_ar(r["clinic_name"])))
                     if all(t in hay for t in toks): out.append((0 if toks and r["name_norm"].startswith(toks[0]) else 1, r["name_norm"], r))
-                out.sort(key=lambda x: x[:2]); return self.send(200, [doc_row(r, False) for _, _, r in out[:50]])
+                out.sort(key=lambda x: x[:2]); return self.send(200, [doc_row(r, False) for _, _, r in out])
             m = re.fullmatch(r"/api/doctors/(\d+)/photo", path)
             if method == "GET" and m:  # public, but only for published doctors; unpublished photos stay admin-only (via /api/files)
                 r = c.execute(DSEL + " WHERE d.id=? AND" + PUBW, (int(m[1]),)).fetchone()
@@ -1946,8 +1981,32 @@ class H(BaseHTTPRequestHandler):
             if method == "GET" and path == "/api/admin/orders":
                 self.need(u, "admin", "staff"); st = q.get("status", [None])[0]
                 return self.send(200, [dict(r) for r in c.execute("SELECT o.id,o.status,o.fee,o.commission,o.pickup_text,o.dropoff_text,o.created_at,cu.name customer,co.name courier,(SELECT detail FROM audit_log WHERE action='order.dispute' AND target=CAST(o.id AS TEXT) ORDER BY id DESC LIMIT 1) dispute FROM delivery_orders o JOIN users cu ON cu.id=o.customer_id LEFT JOIN users co ON co.id=o.courier_id WHERE (?1 IS NULL OR o.status=?1) ORDER BY o.id DESC LIMIT 100", (st,))])
+            if method == "POST" and path == "/api/admin/users/activate":
+                self.need(u, "admin")
+                d = self.body(); ph = str(d.get("phone", "")).strip(); nm = str(d.get("name", "")).strip()
+                if not PHONE.match(ph): raise E(400, "رقم الهاتف غير صحيح")
+                if not nm or len(nm) > 100: raise E(400, "اكتب اسم العميل (حتى 100 حرف)")
+                # Admin must verify phone ownership out-of-band before using this recovery path.
+                if c.execute("SELECT 1 FROM users WHERE phone=?", (ph,)).fetchone():
+                    raise E(409, "يوجد حساب بهذا الرقم بالفعل؛ ابحث عنه واستخدم استعادة كلمة المرور عند الحاجة")
+                now = int(time.time()); sl = secrets.token_hex(16)
+                # Never expose a generated password; the customer sets their own password with a one-time code.
+                unknown_pw = secrets.token_urlsafe(48)
+                code = "%08d" % secrets.randbelow(10 ** 8); rsl = secrets.token_hex(16)
+                try:
+                    c.execute("INSERT INTO users(phone,name,pw_hash,salt,role,created_at) VALUES(?,?,?,?, 'customer', ?)",
+                              (ph, nm, hp(unknown_pw, sl), sl, now))
+                except sqlite3.IntegrityError:
+                    raise E(409, "يوجد حساب بهذا الرقم بالفعل")
+                uid = c.execute("SELECT id FROM users WHERE phone=?", (ph,)).fetchone()["id"]
+                c.execute("INSERT INTO password_resets(user_id,code_hash,salt,expires,attempts,issued_by,created_at) VALUES(?,?,?,?,0,?,?)",
+                          (uid, hp(code, rsl), rsl, now + 1800, u["id"], now))
+                c.execute("DELETE FROM phone_verifications WHERE phone=? AND purpose='register'", (ph,))
+                audit(c, u["id"], "account.admin_activated", ph, {"user_id": uid, "password_setup": "one_time_code"})
+                c.commit()
+                return self.send(201, {"ok": True, "user_id": uid, "name": nm, "phone": ph, "setup_code": code, "expires_in": 1800})
             if method == "GET" and path == "/api/admin/users":
-                self.need(u, "admin"); t = "%" + q.get("q", [""])[0] + "%"
+                self.need(u, "admin"); t = "%" + q.get("q", [""])[0].strip() + "%"
                 return self.send(200, [dict(r) for r in c.execute("SELECT id,name,phone,role,created_at FROM users WHERE name LIKE ? OR phone LIKE ? ORDER BY id DESC LIMIT 50", (t, t))])
             if method == "GET" and path == "/api/admin/verifications":  # pending requests; the code itself is NOT shown: the admin must read it from the WhatsApp message
                 self.need(u, "admin", "staff")

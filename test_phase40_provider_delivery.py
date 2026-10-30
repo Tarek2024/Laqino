@@ -30,13 +30,13 @@ def cord(t, oid): return [o for o in call("GET", "/courier/orders", None, t)[1] 
 def mine(oid): return [o for o in call("GET", "/provider/delivery-requests", None, ph)[1]["items"] if o["id"] == oid][0]
 
 # ---- 1) المفتاح العام: مطفي افتراضيًا، للإدارة فقط، مدخلات صالحة فقط
-ok("default off, zero commission", call("GET", "/admin/provider-delivery", None, at)[1] == {"enabled": False, "commission": 0.0})
+ok("default off, zero commission", call("GET", "/admin/provider-delivery", None, at)[1] == {"enabled": False, "commission": 0.0, "late_minutes": 45})  # م2 (phase-75): أُضيف late_minutes
 ok("admin-only (customer 403)", call("GET", "/admin/provider-delivery", None, cust)[0] == 403 and call("POST", "/admin/provider-delivery", {"enabled": True, "commission": 0}, cust)[0] == 403)
 for bad in ({"enabled": "yes"}, {"enabled": True, "commission": -1}, {"enabled": True, "commission": "abc"}, {"enabled": True, "commission": 100001}, {"enabled": True, "commission": "nan"}):
     ok(f"invalid settings {bad} rejected", call("POST", "/admin/provider-delivery", bad, at)[0] == 400)
 ok("request refused while off", mk()[0] == 403 and sql("SELECT COUNT(*) FROM delivery_orders")[0][0] == 0)
-ok("list shows enabled=false", call("GET", "/provider/delivery-requests", None, ph)[1] == {"enabled": False, "items": []})
-ok("admin enables (free)", call("POST", "/admin/provider-delivery", {"enabled": True, "commission": 0}, at)[1] == {"enabled": True, "commission": 0.0})
+ok("list shows enabled=false", call("GET", "/provider/delivery-requests", None, ph)[1] == {"enabled": False, "late_minutes": 45, "items": []})
+ok("admin enables (free)", call("POST", "/admin/provider-delivery", {"enabled": True, "commission": 0}, at)[1] == {"enabled": True, "commission": 0.0, "late_minutes": 45})
 
 # ---- 2) الصلاحيات: صيدلية معتمدة فقط
 ok("customer cannot request", call("POST", "/provider/delivery-request", {}, cust)[0] == 403)
@@ -66,7 +66,8 @@ ok("cannot skip to picked_up", call("POST", f"/courier/orders/{oid}/status", {"t
 ok("cannot complete before heading", call("POST", f"/courier/orders/{oid}/status", {"to": "completed"}, c1)[0] == 409)
 ok("heading_pickup ok", call("POST", f"/courier/orders/{oid}/status", {"to": "heading_pickup"}, c1)[0] == 200)
 ok("pharmacy sees courier while active", mine(oid)["courier_name"] and mine(oid)["courier_phone"])
-ok("pickup completes the order", call("POST", f"/courier/orders/{oid}/status", {"to": "completed"}, c1)[1] == {"status": "completed"})
+call("POST", f"/courier/orders/{oid}/status", {"to": "picked_up"}, c1); call("POST", f"/courier/orders/{oid}/status", {"to": "heading_customer"}, c1)  # م2 (phase-75): الدورة تمتد للتسليم للعميل
+ok("delivery to customer completes the order", call("POST", f"/courier/orders/{oid}/status", {"to": "completed"}, c1)[1] == {"status": "completed"})
 ok("free commission: no wallet entry", sql("SELECT COUNT(*) FROM wallet_entries WHERE kind='commission' AND ref_id=?", oid)[0][0] == 0)
 m = mine(oid)
 ok("pharmacy sees times and no courier phone after finish", m["status"] == "completed" and m["accepted_at"] and m["picked_at"] and m["courier_phone"] is None)
@@ -83,7 +84,7 @@ call("POST", f"/courier/orders/{o3}/status", {"to": "heading_pickup"}, c1); ok("
 ok("admin sets fixed commission 5", call("POST", "/admin/provider-delivery", {"enabled": True, "commission": 5}, at)[1]["commission"] == 5)
 s4, r4 = mk(); o4 = r4["id"]
 ok("order stores commission", sql("SELECT commission,comm_type,comm_value FROM delivery_orders WHERE id=?", o4)[0] == (5.0, "fixed", 5.0))
-call("POST", f"/courier/orders/{o4}/accept", {}, c1); call("POST", f"/courier/orders/{o4}/status", {"to": "heading_pickup"}, c1); call("POST", f"/courier/orders/{o4}/status", {"to": "completed"}, c1)
+call("POST", f"/courier/orders/{o4}/accept", {}, c1); call("POST", f"/courier/orders/{o4}/status", {"to": "heading_pickup"}, c1); call("POST", f"/courier/orders/{o4}/status", {"to": "picked_up"}, c1)
 ok("commission charged once at pickup", sql("SELECT user_id,amount FROM wallet_entries WHERE kind='commission' AND ref_type='order' AND ref_id=?", o4) == [(u1, -5.0)])
 sql("DELETE FROM wallet_entries WHERE user_id=?", u2)  # مندوب بلا رصيد
 s5, r5 = mk(); ok("courier without balance cannot accept (402)", call("POST", f"/courier/orders/{r5['id']}/accept", {}, c2)[0] == 402)
