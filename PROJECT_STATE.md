@@ -1,6 +1,6 @@
 # لاقينو — ملف حالة المشروع (PROJECT_STATE.md)
 
-> **الحالة الحالية: الإصدار `phase-77` — كاش الخدمة `laqino-v120`** (المرجع الوحيد: ملف `VERSION`).
+> **الحالة الحالية: الإصدار `phase-81` — كاش الخدمة `laqino-v125`** (المرجع الوحيد: ملف `VERSION`).
 
 ## سجل التعديل — phase-77 (م4 من خطة «دفتر الصيدلية»)
 - `provider_delivery.py`: `admin_dash()` + `_rows_admin/_group/_comm/_csv_admin` — مساران GET (admin فقط): `/api/admin/provider-delivery/dashboard` و`/export`. ملخص عام، ترتيب صيدليات ومناديب (`sort=orders|cancel|late|commission`)، نسب الإلغاء/التأخير، العمولة الصافية من `wallet_entries`، تنبيهات (رقم عند 2+ صيدليات، مندوب تخلّى 3+). لا تغيير في `server.py`. إصلاح `_csv` للحقل الفارغ.
