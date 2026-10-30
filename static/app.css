@@ -269,6 +269,9 @@ body.app .courier-join-copy b{font-family:var(--fd);font-size:1rem;color:var(--n
 body.app .courier-join-copy small{font-size:.82rem;color:var(--mute);line-height:1.5}
 body.app .courier-join[open] summary{border-bottom:1px solid var(--line)}
 body.app .courier-join .bd{padding:10px 16px 16px}
+body.app .courier-join-link{text-align:center;margin:12px 0 18px;font-size:.9rem;font-weight:700}
+body.app .courier-join-link a{color:var(--navy);text-decoration:underline;text-underline-offset:4px}
+
 
 body.app .pnl .ti svg{width:24px;height:24px}
 body.app .pnl .pb{flex:1;min-width:0;display:flex;flex-direction:column;gap:2px}
