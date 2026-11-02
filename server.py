@@ -284,7 +284,7 @@ def init(admin_phone=None, admin_pw=None):
     notif.install(c)
     exchange.install(c)  # سوق الصيدليات (إضافة بعد الخطوة 7): exchange_deals/images/reports (idempotent)
     provider_delivery.bind(push_new_order, audit, default_delivery_region, COUNT_SQL["orders"]); provider_delivery.install(c)  # Phase 40: زر «اطلب دليفري» للصيدليات
-    shops.bind(audit); shops.install(c)  # Phase 66 (م1 المحلات): shop_types + shops + مفتاح shops_enabled مطفي (idempotent)
+    shops.bind(audit, UP); shops.install(c)  # Phase 66 (م1 المحلات): shop_types + shops + مفتاح shops_enabled مطفي (idempotent)
     shop_delivery.bind(push_new_order, push_stop_order, audit, default_delivery_region, COUNT_SQL["orders"], region_fee, commission_for, LIMITS["orders"]); shop_delivery.install(c)  # Phase 69 (م4 المحلات): المحل يطلب مندوب + العميل يطلب من المحل (بعد shops.install لأنه يعيد كتابة triggers ntf_shop_)
     products.install(c)  # Phase 2: product_offers + medical sub-categories (idempotent)
     rx.install(c)  # RX schema extensions (idempotent, additive migrations)
@@ -378,6 +378,8 @@ COUNT_SQL = {
         " AND id NOT IN (SELECT file_id FROM product_images)"
         " AND id NOT IN (SELECT file_id FROM exchange_images)"
         " AND id NOT IN (SELECT file_id FROM shop_item_images)"
+        " AND id NOT IN (SELECT logo_file_id FROM shops WHERE logo_file_id IS NOT NULL)"
+        " AND id NOT IN (SELECT cover_file_id FROM shops WHERE cover_file_id IS NOT NULL)"
 }
 def _exif_orientation(seg):
     """Read only the Orientation tag (1-8) from an APP1 'Exif' payload; None when absent or malformed."""
@@ -1319,7 +1321,18 @@ class H(BaseHTTPRequestHandler):
                 c.execute("UPDATE delivery_orders SET comm_type=?,comm_value=?,offer_fee=? WHERE id=?", (cm.get("commission_type", "fixed"), float(cm.get("commission_value", 0)), of, cur.lastrowid))
                 ev(cur.lastrowid, None, "searching"); c.commit(); push_new_order(cur.lastrowid); return self.send(201, {"id": cur.lastrowid, "status": "searching", "delivery_code": code})  # لا سعر للعميل: الأجرة يقترحها المندوب بعد القبول
             if method == "GET" and path == "/api/delivery/orders":
-                self.need(u); win = int(cfg(c, "search_timeout", 300)); rows = [dict(r, search_window=win) for r in c.execute("SELECT o.id,o.pickup_text,o.dropoff_text,CASE WHEN o.fare_status IN('proposed','approved') THEN o.fee END fee,o.offer_fee,o.fare_status,o.status,o.created_at,CASE WHEN o.search_started_at>0 THEN o.search_started_at ELSE o.created_at END search_started_at,CASE WHEN o.status IN " + ACTIVE + " THEN o.delivery_code END delivery_code,CASE WHEN o.fare_status IN('proposed','approved') OR (o.origin_type='shop_order' AND o.fare_status='draft') THEN o.courier_id END courier_id,CASE WHEN o.fare_status IN('proposed','approved') OR (o.origin_type='shop_order' AND o.fare_status='draft') THEN cu.name END courier_name,CASE WHEN o.status IN " + ACTIVE + " AND (o.fare_status='approved' OR (o.origin_type='shop_order' AND o.fare_status='draft')) THEN cu.phone END courier_phone,EXISTS(SELECT 1 FROM ratings r WHERE r.order_id=o.id) rated FROM delivery_orders o LEFT JOIN users cu ON cu.id=o.courier_id WHERE o.customer_id=? ORDER BY o.id DESC", (u["id"],))]; return self.send(200, rows)
+                self.need(u); win = int(cfg(c, "search_timeout", 300)); rows = [dict(r, search_window=win) for r in c.execute("SELECT o.id,o.pickup_text,o.dropoff_text,CASE WHEN o.fare_status IN('proposed','approved') THEN o.fee END fee,o.offer_fee,o.fare_status,o.status,o.created_at,CASE WHEN o.search_started_at>0 THEN o.search_started_at ELSE o.created_at END search_started_at,CASE WHEN o.status IN " + ACTIVE + " THEN o.delivery_code END delivery_code,CASE WHEN o.fare_status IN('proposed','approved') THEN o.courier_id END courier_id,CASE WHEN o.fare_status IN('proposed','approved') OR (o.origin_type=? AND o.status IN " + ACTIVE + ") THEN cu.name END courier_name,CASE WHEN o.status IN " + ACTIVE + " AND (o.fare_status='approved' OR o.origin_type=?) THEN cu.phone END courier_phone,EXISTS(SELECT 1 FROM ratings r WHERE r.order_id=o.id) rated,sl.shop_status,sl.shop_accepted_at,sl.shop_ready_at,sl.items_json,sl.items_total,sl.note shop_note,sh.name_ar shop_name FROM delivery_orders o LEFT JOIN users cu ON cu.id=o.courier_id LEFT JOIN shop_delivery_links sl ON sl.order_id=o.id AND sl.kind='shop_order' LEFT JOIN shops sh ON sh.id=sl.shop_id WHERE o.customer_id=? ORDER BY o.id DESC", (shop_delivery.ORDER, shop_delivery.ORDER, u["id"]))]
+                for r in rows:  # م85: مراحل المحل لأوردرات المحلات فقط؛ باقي الأنواع لا تظهر لها هذه الحقول أصلًا
+                    raw = r.pop("items_json"); sf = ("shop_status", "shop_accepted_at", "shop_ready_at", "items_total", "shop_note", "shop_name")
+                    if r["shop_status"] is None:
+                        for k in sf: r.pop(k)
+                        continue
+                    try: its = json.loads(raw or "[]")
+                    except ValueError: its = []
+                    r["shop_items"] = [{"name": i.get("name"), "price": i.get("price"), "qty": i.get("qty"), "line_total": round(float(i.get("price") or 0) * int(i.get("qty") or 0), 2)} for i in its if isinstance(i, dict)]  # م86: أصناف الطلب وكمياتها وأثمانها (لقطة وقت الطلب)
+                    r["delivery_fee"] = r["fee"]  # الأجرة تظهر فقط بعد اقتراح المندوب (نفس قاعدة fee)
+                    r["grand_total"] = round(float(r["items_total"] or 0) + float(r["fee"]), 2) if r["fee"] is not None else None
+                return self.send(200, rows)  # م84: في أوردر المحل (shop_order) يظهر اسم المندوب ورقمه للعميل فور القبول (قبل موافقته على الأجرة)؛ باقي الأنواع كما هي
             m = re.fullmatch(r"/api/delivery/orders/(\d+)/fare/(approve|reject)", path)
             if method == "POST" and m:  # موافقة العميل على أجرة المندوب (شرط لبدء التوصيل) أو رفضها (يعود الطلب لباقي المناديب ولا يُعرض مجددًا لهذا المندوب)
                 self.need(u); oid, act = int(m[1]), m[2]; d = self.body(); c.commit(); c.execute("BEGIN IMMEDIATE"); now = int(time.time())
@@ -1644,7 +1657,7 @@ class H(BaseHTTPRequestHandler):
                 self.need(u); cid = int(m[1])
                 cr = c.execute("SELECT * FROM couriers WHERE user_id=? AND status='approved'", (cid,)).fetchone()
                 # يراه: المندوب نفسه، الإدارة، أو عميل مندوبه هذا (أجرة مقترحة/موافَق عليها) — لا كشف عام لبيانات المناديب
-                if not cr or not (cid == u["id"] or u["role"] in ("admin", "staff") or c.execute("SELECT 1 FROM delivery_orders WHERE customer_id=? AND courier_id=? AND (fare_status IN('proposed','approved') OR (origin_type='shop_order' AND fare_status='draft'))", (u["id"], cid)).fetchone()): raise E(404, "غير موجود")
+                if not cr or not (cid == u["id"] or u["role"] in ("admin", "staff") or c.execute("SELECT 1 FROM delivery_orders WHERE customer_id=? AND courier_id=? AND fare_status IN('proposed','approved')", (u["id"], cid)).fetchone()): raise E(404, "غير موجود")
                 if m[2] == "photo":
                     f = c.execute("SELECT * FROM files WHERE id=?", (cr["avatar_file_id"],)).fetchone() if cr["avatar_file_id"] else None
                     if not f: raise E(404, "لا توجد صورة")
@@ -2237,6 +2250,7 @@ class H(BaseHTTPRequestHandler):
                     if c.execute("SELECT 1 FROM listing_images WHERE file_id=?", (f["id"],)).fetchone(): raise E(409, "هذه الصورة مرتبطة بإعلان؛ عدّل الإعلان لإزالتها")
                     if c.execute("SELECT 1 FROM product_images WHERE file_id=?", (f["id"],)).fetchone(): raise E(409, "هذه الصورة مرتبطة بعرض منتج؛ عدّل العرض لإزالتها")
                     if c.execute("SELECT 1 FROM shop_item_images WHERE file_id=?", (f["id"],)).fetchone(): raise E(409, "هذه الصورة مرتبطة بصنف في محلك؛ عدّل الصنف لإزالتها")
+                    if c.execute("SELECT 1 FROM shops WHERE logo_file_id=? OR cover_file_id=?", (f["id"], f["id"])).fetchone(): raise E(409, "هذه الصورة لوجو أو غلاف محلك؛ غيّرها من تبويب المحل")
                     if c.execute("SELECT 1 FROM chat_messages WHERE file_id=?", (f["id"],)).fetchone(): raise E(409, "هذه الصورة جزء من محادثة")
                     if c.execute("SELECT 1 FROM service_request_images WHERE file_id=?", (f["id"],)).fetchone(): raise E(409, "هذه الصورة مرفقة بطلب خدمة؛ احذفها من الطلب")
                     if not rx.remove_image(c, f["id"]): c.execute("UPDATE prescriptions SET file_id=NULL,status='closed' WHERE file_id=?", (f["id"],))  # الصورة الوحيدة: تُغلق الروشتة كما كان؛ ولو بقيت صور أخرى تبقى الروشتة مفتوحة

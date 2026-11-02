@@ -689,3 +689,8 @@ body.app .sbar .market-add{display:inline-flex!important;align-items:center;just
 body.app .market-seller-only{display:flex;align-items:center;gap:0;margin-top:8px;padding-top:8px;border-top:1px solid #dce5f0;color:#34425b;font-size:13px;font-weight:700;line-height:1.5;overflow-wrap:anywhere}
 body.app .market-seller-only:empty{display:none}
 @media(prefers-color-scheme:dark){body.app .market-seller-only{color:#d0d9e8;border-top-color:#394454}}
+
+/* م85: مراحل طلب المحل عند العميل */
+body.app .shtrk{list-style:none;margin:8px 0;padding:10px 12px;background:#f5f8fd;border-radius:14px;display:flex;flex-direction:column;gap:6px}body.app .shtrk li{position:relative;padding-right:24px;color:#8a94a6;font-size:.92em}body.app .shtrk li:before{content:'○';position:absolute;right:0;top:0}body.app .shtrk li.d{color:#14753a}body.app .shtrk li.d:before{content:'✓'}body.app .shtrk li.c{color:#0f2a5c;font-weight:700}body.app .shtrk li.c:before{content:'●';color:#f28c1b}
+/* م86: فاتورة طلب المحل عند العميل */
+body.app .shbill{margin:8px 0;padding:10px 12px;background:#fff;border:1px solid #e3e9f3;border-radius:14px;display:flex;flex-direction:column;gap:6px}body.app .shb-h{font-weight:700;color:#0f2a5c}body.app .shb-r{display:flex;justify-content:space-between;gap:10px;align-items:baseline}body.app .shb-r b{white-space:nowrap}body.app .shb-t{border-top:1px dashed #cfd8e6;padding-top:6px;font-size:1.05em;color:#0f2a5c}body.app .shb-n{color:#6b7587}

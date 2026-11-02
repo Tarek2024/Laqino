@@ -16,6 +16,8 @@ import notif, shops, provider_delivery as pd
 
 PICKUP, ORDER = "shop_pickup", "shop_order"  # قيم delivery_orders.origin_type
 MAX_LINES, MAX_QTY, MAX_PER_HOUR = 20, 50, 10
+PRE_PICKUP = ("searching", "assigned", "heading_pickup")  # م85: المراحل اللي ينفع فيها المحل يقبل/يعلّم جاهز (قبل ما المندوب يستلم)
+PRE_PICKUP_SQL = "('searching','assigned','heading_pickup')"
 _H = {}
 SCHEMA = """
 CREATE TABLE IF NOT EXISTS shop_delivery_links(order_id INTEGER PRIMARY KEY REFERENCES delivery_orders(id), shop_id INTEGER NOT NULL REFERENCES shops(id),
@@ -32,7 +34,13 @@ def bind(push, push_stop, audit, region, count_sql, region_fee, commission_for, 
 def install(c):
     """جدول الربط + إشعار المحل بطلب العميل. آمن للتكرار؛ يُستدعى بعد shops.install (الذي يعيد كتابة triggers ntf_shop_)."""
     c.executescript(SCHEMA)
+    cols = {r[1] for r in c.execute("PRAGMA table_info(shop_delivery_links)")}  # م85 (phase-85): دورة المحل (new→accepted→ready) في أعمدة جديدة هنا فقط؛ حالات delivery_orders لا تتغيّر. ترحيل idempotent بلا حذف شيء
+    for col, ddl in (("shop_status", "TEXT NOT NULL DEFAULT 'new'"), ("shop_accepted_at", "INTEGER"), ("shop_ready_at", "INTEGER")):
+        if col not in cols: c.execute("ALTER TABLE shop_delivery_links ADD COLUMN %s %s" % (col, ddl))
     c.execute("DROP TRIGGER IF EXISTS ntf_shop_dl_new")
+    c.execute("DROP TRIGGER IF EXISTS ntf_shop_dl_stage")
+    stage = notif._ins("o.customer_id", "shop.stage", "CASE NEW.shop_status WHEN 'accepted' THEN 'المحل قبل طلبك' ELSE 'طلبك جاهز للاستلام من المحل' END", body="'طلب رقم ' || NEW.order_id", link="orders", ref_type="order", ref_id="NEW.order_id", frm="FROM delivery_orders o", where="WHERE o.id=NEW.order_id")
+    c.execute("CREATE TRIGGER ntf_shop_dl_stage AFTER UPDATE OF shop_status ON shop_delivery_links WHEN NEW.kind='shop_order' AND NEW.shop_status IN ('accepted','ready') AND OLD.shop_status IS NOT NEW.shop_status BEGIN %s END" % stage)
     body = notif._ins("(shops.owner_id)", "shop.order", "طلب جديد من عميل", body="'طلب رقم ' || NEW.order_id", link="shoporders", ref_type="order", ref_id="NEW.order_id", frm="FROM shops", where="WHERE shops.id=NEW.shop_id")
     c.execute("CREATE TRIGGER ntf_shop_dl_new AFTER INSERT ON shop_delivery_links WHEN NEW.kind='shop_order' BEGIN %s END" % body)
     c.commit()
@@ -58,7 +66,7 @@ def _int(v):
 
 def handle(h, c, u, method, path, q):
     """True إن عالج الطلب. h = معالج السيرفر (send/body). الأخطاء تُرجَع مباشرة عبر h.send."""
-    mo = re.fullmatch(r"/api/owner/shops/(\d{1,9})/(delivery-request|delivery-requests|orders)(?:/(\d{1,9})/(reject))?", path)
+    mo = re.fullmatch(r"/api/owner/shops/(\d{1,9})/(delivery-request|delivery-requests|orders)(?:/(\d{1,9})/(reject|accept|ready))?", path)
     mc = re.fullmatch(r"/api/shops/(\d{1,9})/(menu|order)", path)
     md = re.fullmatch(r"/api/owner/shops/(\d{1,9})/delivery-requests/(\d{1,9})/delivered", path)  # م79: «تم التسليم» يدويًا من المحل (مثل الصيدلية)
     if path != "/api/admin/shop-delivery" and not mo and not mc and not md: return False
@@ -188,14 +196,27 @@ def handle(h, c, u, method, path, q):
             rows.append(r)
         return ok({"enabled": on, "late_minutes": lm, "items": rows})
     if what == "orders" and not mo[4]:
-        rows = []
+        rows = []  # م84: اسم/رقم المندوب يظهران للمحل فور القبول (قبل موافقة العميل على الأجرة)
         for r in c.execute(
-                "SELECT o.id,o.status,o.fare_status,o.created_at,l.items_json,l.items_total,l.note,CASE WHEN o.status IN " + pd.ACTIVE + " AND o.fare_status='approved' THEN cu.name END courier_name,"
-                "CASE WHEN o.status IN " + pd.ACTIVE + " AND o.fare_status='approved' THEN cu.phone END courier_phone "
+                "SELECT o.id,o.status,o.fare_status,o.created_at,l.shop_status,l.shop_accepted_at,l.shop_ready_at,l.items_json,l.items_total,l.note,CASE WHEN o.status IN " + pd.ACTIVE + " THEN cu.name END courier_name,"
+                "CASE WHEN o.status IN " + pd.ACTIVE + " THEN cu.phone END courier_phone "
                 "FROM shop_delivery_links l JOIN delivery_orders o ON o.id=l.order_id LEFT JOIN users cu ON cu.id=o.courier_id WHERE l.shop_id=? AND l.kind=? ORDER BY o.id DESC LIMIT 50", (sid, ORDER)):
             rows.append({"id": r["id"], "status": r["status"], "created_at": r["created_at"], "items": json.loads(r["items_json"] or "[]"), "items_total": r["items_total"], "note": r["note"] or "",
-                         "courier_name": r["courier_name"], "courier_phone": r["courier_phone"], "can_reject": r["status"] in ("searching", "assigned", "heading_pickup")})
+                         "courier_name": r["courier_name"], "courier_phone": r["courier_phone"], "can_reject": r["status"] in ("searching", "assigned", "heading_pickup"),
+                         "shop_status": r["shop_status"], "shop_accepted_at": r["shop_accepted_at"], "shop_ready_at": r["shop_ready_at"], "can_progress": r["status"] in PRE_PICKUP})
         return ok({"enabled": on, "items": rows})
+    if what == "orders" and mo[4] in ("accept", "ready"):  # م85: دورة المحل — «قبلت الطلب» ثم «جاهز للاستلام»؛ تُكتب في shop_delivery_links فقط (delivery_orders لا تُمس)
+        oid = int(mo[3]); acc = mo[4] == "accept"; now = int(time.time())
+        l = c.execute("SELECT l.shop_status,o.status FROM shop_delivery_links l JOIN delivery_orders o ON o.id=l.order_id WHERE l.order_id=? AND l.shop_id=? AND l.kind=?", (oid, sid, ORDER)).fetchone()
+        if not l: return err(404, "الطلب غير موجود")
+        if l["status"] not in PRE_PICKUP: return err(409, "لا يمكن تغيير حالة الطلب بعد استلام المندوب له أو إغلاقه")
+        if acc and l["shop_status"] != "new": return err(409, "تم قبول هذا الطلب بالفعل")
+        if not acc and l["shop_status"] == "new": return err(409, "اقبل الطلب أولًا")
+        if not acc and l["shop_status"] == "ready": return err(409, "الطلب مُعلَّم جاهزًا بالفعل")
+        new, frm_ = ("accepted", "new") if acc else ("ready", "accepted")
+        if not c.execute("UPDATE shop_delivery_links SET shop_status=?,%s=? WHERE order_id=? AND shop_id=? AND kind=? AND shop_status=? AND EXISTS(SELECT 1 FROM delivery_orders WHERE id=? AND status IN %s)" % ("shop_accepted_at" if acc else "shop_ready_at", PRE_PICKUP_SQL), (new, now, oid, sid, ORDER, frm_, oid)).rowcount: return err(409, "تغيّرت حالة الطلب، حدّث الصفحة")
+        audit("shop.order_" + new, str(oid), {"shop": sid}); c.commit()
+        return ok({"id": oid, "shop_status": new})
     if what == "orders":  # رفض المحل لطلب عميل قبل أن يستلمه المندوب
         oid = int(mo[3])
         l = c.execute("SELECT 1 FROM shop_delivery_links WHERE order_id=? AND shop_id=? AND kind=?", (oid, sid, ORDER)).fetchone()

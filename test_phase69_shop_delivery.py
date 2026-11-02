@@ -125,7 +125,7 @@ for x in sql("SELECT order_id FROM shop_delivery_links WHERE kind='shop_order' A
 # ---- 6) المحل يرى الطلبات
 lst = call("GET", "/owner/shops/%d/orders" % S1, None, own)[1]
 it = [x for x in lst["items"] if x["id"] == oo][0]
-ok("shop sees the order with items, total, note and no customer data", it["items_total"] == 81.0 and it["note"] == "من غير بصل" and [(x["name"], x["qty"]) for x in it["items"]] == [("كشري", 2), ("فول", 1)] and set(it) == {"id", "status", "created_at", "items", "items_total", "note", "courier_name", "courier_phone", "can_reject"} and it["courier_name"] is None and it["can_reject"])
+ok("shop sees the order with items, total, note and no customer data", it["items_total"] == 81.0 and it["note"] == "من غير بصل" and [(x["name"], x["qty"]) for x in it["items"]] == [("كشري", 2), ("فول", 1)] and set(it) == {"id", "status", "created_at", "items", "items_total", "note", "courier_name", "courier_phone", "can_reject", "shop_status", "shop_accepted_at", "shop_ready_at", "can_progress"} and it["courier_name"] is None and it["can_reject"] and it["shop_status"] == "new")
 ok("another shop owner cannot list or reject them", call("GET", "/owner/shops/%d/orders" % S1, None, own2)[0] == 404 and call("POST", "/owner/shops/%d/orders/%d/reject" % (S2, oo), {}, own2)[0] == 404 and call("POST", "/owner/shops/%d/orders/%d/reject" % (S1, oo), {}, own2)[0] == 404)
 ok("a pickup order cannot be rejected through the orders route", call("POST", "/owner/shops/%d/orders/%d/reject" % (S1, po), {}, own)[0] == 404)
 

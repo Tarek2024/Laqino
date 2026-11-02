@@ -7,9 +7,10 @@
 #   إدارة:  GET /api/admin/shops?status=&region_id=&type_id=&q=  |  POST /api/admin/shops/<id>/(review|edit)
 #           GET|POST /api/admin/shop-types  |  POST /api/admin/shop-types/<id>/edit  |  GET|POST /api/admin/shops-settings
 #   م3:     GET /api/owner/shops/<id>/items  |  POST /api/owner/shops/<id>/items  |  POST /api/owner/shops/<id>/items/<iid>/(edit|delete)   (الصور عبر /api/files ثم تُربط بـ image_ids)
+# م2 (phase-83) هوية المحل: لوجو وغلاف اختياريان (shops.logo_file_id / cover_file_id)؛ POST /api/owner/shops/<id>/identity للمالك، وGET /api/shops/<id>/profile عام.
 # المفتاح العام settings.shops_enabled (مطفي افتراضيًا). الصلاحية = وجود محل معتمد للمالك (shops.owner_id + status='approved') وليس دور users.role.
 # الأسعار في المشروع بالجنيه (REAL) فلا أعمدة سعر هنا؛ جداول الأصناف في م3.
-import re, time, sqlite3, json
+import os, re, time, sqlite3, json
 import notif
 
 MAX_PENDING, MAX_ACTIVE, MAX_TYPES = 3, 5, 50
@@ -37,9 +38,10 @@ CREATE INDEX IF NOT EXISTS ix_shop_item_images ON shop_item_images(item_id,posit
 _H = {}
 
 
-def bind(audit):
-    """يُستدعى من server.init: سجل التدقيق (الوحدة لا تستورد server)."""
+def bind(audit, up=None):
+    """يُستدعى من server.init: سجل التدقيق ومجلد الرفع (الوحدة لا تستورد server). up اختياري للتوافق مع الاستدعاءات القديمة."""
     _H["audit"] = audit
+    if up is not None: _H["up"] = up
 
 
 def enabled(c):
@@ -63,13 +65,29 @@ def region_ok(c, region_id):
 def public_image(c, file_id):
     """م5: صورة صنف نشط في محل معتمد تُعرض لأي مستخدم مسجَّل (والمفتاح العام مفعّل). غير ذلك يبقى الملف خاصًا بصاحبه."""
     if not enabled(c): return False
-    r = c.execute("SELECT s.region_id FROM shop_item_images i JOIN shop_items x ON x.id=i.item_id AND x.status='active' JOIN shops s ON s.id=x.shop_id AND s.status='approved' WHERE i.file_id=?", (file_id,)).fetchone()
+    r = c.execute("SELECT s.region_id FROM shop_item_images i JOIN shop_items x ON x.id=i.item_id AND x.status='active' JOIN shops s ON s.id=x.shop_id AND s.status='approved' WHERE i.file_id=? "
+                  "UNION ALL SELECT region_id FROM shops WHERE status='approved' AND (logo_file_id=? OR cover_file_id=?)", (file_id, file_id, file_id)).fetchone()  # phase-83: ولوجو/غلاف المحل المعتمد
     return bool(r) and region_ok(c, r[0])
+
+
+def shop_image_file(c, shop_id, file_id):
+    """phase-82 (م1 تطوير المحلات): صورة صنف نشط تخص هذا المحل بالذات وهو معتمد في منطقة مفعّلة → (path, mime) وإلا None.
+    تخدم المسار العام GET /api/shops/<id>/images/<fid> (بلا تسجيل دخول، يخزّنها المتصفح). أي ملف خارج صور أصناف المحل يبقى خاصًا بصاحبه."""
+    if not enabled(c): return None
+    r = c.execute("SELECT s.region_id,f.path,f.mime FROM shops s JOIN files f ON f.id IN (s.logo_file_id,s.cover_file_id) WHERE s.id=? AND s.status='approved' AND f.id=?", (shop_id, file_id)).fetchone()  # phase-83: لوجو/غلاف
+    if r: return (r["path"], r["mime"]) if region_ok(c, r["region_id"]) else None
+    r = c.execute("SELECT s.region_id,f.path,f.mime FROM shop_item_images i JOIN shop_items x ON x.id=i.item_id AND x.status='active' "
+                  "JOIN shops s ON s.id=x.shop_id AND s.status='approved' JOIN files f ON f.id=i.file_id WHERE s.id=? AND i.file_id=?", (shop_id, file_id)).fetchone()
+    if not r or not region_ok(c, r["region_id"]): return None
+    return r["path"], r["mime"]
 
 
 def install(c):
     """الجداول وبذر الأنواع الأولية (مرة واحدة فقط، فلا يعيد إنشاء ما حذفته/عطّلته الإدارة) وإشعارات triggers بنفس بادئة ntf_ (تُزال مع notif)."""
     c.executescript(SCHEMA)
+    cols = {r[1] for r in c.execute("PRAGMA table_info(shops)")}  # phase-83: أعمدة الهوية (ترحيل idempotent بلا حذف شيء)
+    for col in ("logo_file_id", "cover_file_id"):
+        if col not in cols: c.execute("ALTER TABLE shops ADD COLUMN %s INTEGER" % col)
     if not c.execute("SELECT 1 FROM shop_types LIMIT 1").fetchone() and not c.execute("SELECT 1 FROM settings WHERE key='shop_types_seeded'").fetchone():
         now = int(time.time())
         for sl, nm, ic, srt in SEED: c.execute("INSERT OR IGNORE INTO shop_types(slug,name_ar,icon,sort,is_active,require_image,created_at) VALUES(?,?,?,?,1,0,?)", (sl, nm, ic, srt, now))
@@ -144,7 +162,8 @@ def _price(v):
 # الملف يُقبل فقط لو رفعه صاحب المحل عبر /api/files العام ولم يُربط بأي شيء آخر (لا يُستعمل ملف روشتة أو إعلان أو مستند كصورة صنف)
 _LINKED = ("SELECT file_id FROM listing_images UNION SELECT file_id FROM product_images UNION SELECT file_id FROM exchange_images UNION SELECT file_id FROM service_request_images UNION SELECT file_id FROM rx_images "
            "UNION SELECT file_id FROM courier_documents UNION SELECT file_id FROM market_files UNION SELECT file_id FROM chat_messages WHERE file_id IS NOT NULL UNION SELECT file_id FROM prescriptions WHERE file_id IS NOT NULL "
-           "UNION SELECT avatar_file_id FROM couriers WHERE avatar_file_id IS NOT NULL UNION SELECT photo_file_id FROM doctors WHERE photo_file_id IS NOT NULL UNION SELECT photo_file_id FROM labs WHERE photo_file_id IS NOT NULL")
+           "UNION SELECT avatar_file_id FROM couriers WHERE avatar_file_id IS NOT NULL UNION SELECT photo_file_id FROM doctors WHERE photo_file_id IS NOT NULL UNION SELECT photo_file_id FROM labs WHERE photo_file_id IS NOT NULL "
+           "UNION SELECT logo_file_id FROM shops WHERE logo_file_id IS NOT NULL UNION SELECT cover_file_id FROM shops WHERE cover_file_id IS NOT NULL")
 
 
 def _image_ids(c, uid, raw, item_id=None):
@@ -154,6 +173,20 @@ def _image_ids(c, uid, raw, item_id=None):
         r = c.execute("SELECT f.owner_id,(SELECT item_id FROM shop_item_images WHERE file_id=f.id) it,(SELECT 1 WHERE f.id IN (%s)) lk FROM files f WHERE f.id=?" % _LINKED, (fid,)).fetchone()
         if not r or r["owner_id"] != uid or r["lk"] or (r["it"] is not None and r["it"] != item_id): raise ValueError("صورة غير صالحة")
     return raw
+
+
+def _identity_file(c, uid, fid, shop, slot):
+    """phase-83: ملف لوجو/غلاف: صورة رفعها المالك ولم تُربط بأي شيء آخر (إلا نفس خانته الحالية)."""
+    if isinstance(fid, bool) or not isinstance(fid, int): raise ValueError("صورة غير صالحة")
+    r = c.execute("SELECT owner_id,mime,(SELECT item_id FROM shop_item_images WHERE file_id=f.id) it,(SELECT 1 WHERE f.id IN (%s)) lk FROM files f WHERE f.id=?" % _LINKED, (fid,)).fetchone()
+    if not r or r["owner_id"] != uid or not str(r["mime"]).startswith("image/") or r["it"] is not None: raise ValueError("صورة غير صالحة")
+    if r["lk"] and shop[slot] != fid: raise ValueError("صورة غير صالحة")
+    return fid
+
+
+def _no_image_count(c, shop_id):
+    """phase-83: عدد الأصناف النشطة بلا أي صورة (لتنبيه صاحب المحل)."""
+    return c.execute("SELECT COUNT(*) FROM shop_items x WHERE x.shop_id=? AND x.status='active' AND NOT EXISTS(SELECT 1 FROM shop_item_images i WHERE i.item_id=x.id)", (shop_id,)).fetchone()[0]
 
 
 def _items(c, shop_id, item_id=None):
@@ -183,6 +216,25 @@ def handle(h, c, u, method, path, q):
         if not enabled(c): return ok({"enabled": False, "items": []})
         return ok({"enabled": True, "items": [dict(r) for r in c.execute("SELECT id,slug,name_ar,icon,require_image FROM shop_types WHERE is_active=1 ORDER BY sort,id")]})
 
+    # ---- phase-82: صورة صنف محل معتمد للعرض العام (بلا تسجيل دخول) مع كاش للمتصفح؛ غير ذلك 404 دون كشف وجود الملف
+    mi = re.fullmatch(r"/api/shops/(\d{1,9})/images/(\d{1,9})", path)
+    if mi:
+        if method != "GET": return False
+        r = shop_image_file(c, int(mi[1]), int(mi[2]))
+        if not r or not _H.get("up"): return err(404, "غير موجود")
+        try:
+            with open(os.path.join(_H["up"], r[0]), "rb") as fh: raw = fh.read()
+        except OSError: return err(404, "غير موجود")
+        h.send(200, None, r[1], raw, {"Cache-Control": "public, max-age=3600"}); return True
+
+    # ---- phase-83: هوية المحل للعرض العام (اسم/نوع/حالة/لوجو/غلاف)؛ المحل غير المعتمد أو خارج المناطق المفعّلة = 404
+    mp = re.fullmatch(r"/api/shops/(\d{1,9})/profile", path)
+    if mp and method == "GET":
+        r = c.execute("SELECT s.id,s.name_ar,s.type_id,s.region_id,s.address,s.is_open,s.logo_file_id,s.cover_file_id,t.name_ar type_name,t.icon type_icon,rg.name_ar region_name FROM shops s JOIN shop_types t ON t.id=s.type_id JOIN regions rg ON rg.id=s.region_id WHERE s.id=? AND s.status='approved'", (int(mp[1]),)).fetchone() if enabled(c) else None
+        if not r or not region_ok(c, r["region_id"]): return err(404, "المحل غير موجود")
+        return ok({"id": r["id"], "name_ar": r["name_ar"], "type_id": r["type_id"], "type_name": r["type_name"], "type_icon": r["type_icon"], "region_name": r["region_name"], "address": r["address"],
+                   "is_open": bool(r["is_open"]), "logo_file_id": r["logo_file_id"], "cover_file_id": r["cover_file_id"]})
+
     # ---- م5: تصفح المحلات المعتمدة (عام، قراءة فقط). المفتوحة أولًا، حد 60، بحث بالاسم، فلتر منطقة/نوع.
     if (method, path) == ("GET", "/api/shops"):
         if not enabled(c): return ok({"enabled": False, "items": []})
@@ -197,12 +249,13 @@ def handle(h, c, u, method, path, q):
                 w.append(col + "=?"); a.append(v)
         if g("q"):
             w.append("s.name_ar LIKE ? ESCAPE '\\'"); a.append("%" + g("q").strip()[:40].replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_") + "%")
-        rows = c.execute("SELECT s.id,s.name_ar,s.type_id,s.region_id,s.address,s.is_open,t.name_ar type_name,r.name_ar region_name,"
+        rows = c.execute("SELECT s.id,s.name_ar,s.type_id,s.region_id,s.address,s.is_open,s.logo_file_id,s.cover_file_id,t.name_ar type_name,r.name_ar region_name,"
                          "(SELECT COUNT(*) FROM shop_items x WHERE x.shop_id=s.id AND x.status='active' AND x.is_available=1) n,"
                          "(SELECT i.file_id FROM shop_item_images i JOIN shop_items x ON x.id=i.item_id WHERE x.shop_id=s.id AND x.status='active' AND x.is_available=1 ORDER BY x.sort,x.id,i.rowid LIMIT 1) cover "
                          "FROM shops s JOIN shop_types t ON t.id=s.type_id JOIN regions r ON r.id=s.region_id WHERE " + " AND ".join(w) + " ORDER BY s.is_open DESC,s.name_ar LIMIT 60", a).fetchall()
         return ok({"enabled": True, "items": [{"id": r["id"], "name_ar": r["name_ar"], "type_id": r["type_id"], "type_name": r["type_name"], "region_id": r["region_id"], "region_name": r["region_name"],
-                                                "address": r["address"], "is_open": bool(r["is_open"]), "item_count": r["n"], "cover_file_id": r["cover"]} for r in rows]})
+                                                "address": r["address"], "is_open": bool(r["is_open"]), "item_count": r["n"], "logo_file_id": r["logo_file_id"],
+                                                "cover_file_id": r["cover_file_id"] or r["cover"], "has_own_cover": bool(r["cover_file_id"])} for r in rows]})
 
     # ---- التقديم
     if (method, path) == ("POST", "/api/shops/apply"):
@@ -227,7 +280,25 @@ def handle(h, c, u, method, path, q):
     # ---- المالك
     if (method, path) == ("GET", "/api/owner/shops"):
         if not u: return err(401, "سجّل الدخول أولًا")
-        return ok({"enabled": enabled(c), "items": [_shop_row(r) for r in c.execute(SHOP_SEL + "WHERE s.owner_id=? ORDER BY s.id", (u["id"],))]})
+        return ok({"enabled": enabled(c), "items": [{**_shop_row(r), "logo_file_id": r["logo_file_id"], "cover_file_id": r["cover_file_id"],
+                                                      "items_total": c.execute("SELECT COUNT(*) FROM shop_items WHERE shop_id=? AND status='active'", (r["id"],)).fetchone()[0],
+                                                      "items_without_images": _no_image_count(c, r["id"])} for r in c.execute(SHOP_SEL + "WHERE s.owner_id=? ORDER BY s.id", (u["id"],))]})
+    m = re.fullmatch(r"/api/owner/shops/(\d{1,9})/identity", path)  # phase-83: لوجو/غلاف (اختياريان). المفتاح الغائب لا يتغير، وnull يمسح.
+    if m and method == "POST":
+        if not u: return err(401, "سجّل الدخول أولًا")
+        s, e = need_shop_owner(c, u, int(m[1]))
+        if e: return err(*e)
+        d = h.body(); new = {}
+        if not any(k in d for k in ("logo_file_id", "cover_file_id")): return err(400, "حدّد اللوجو أو الغلاف")
+        try:
+            for k in ("logo_file_id", "cover_file_id"):
+                if k in d: new[k] = None if d[k] is None else _identity_file(c, u["id"], d[k], s, k)
+            lg, cv = new.get("logo_file_id", s["logo_file_id"]), new.get("cover_file_id", s["cover_file_id"])
+            if lg is not None and lg == cv: raise ValueError("اللوجو والغلاف لازم يكونوا صورتين مختلفتين")
+        except ValueError as ex: return err(400, str(ex))
+        c.execute("UPDATE shops SET logo_file_id=?,cover_file_id=?,updated_at=? WHERE id=?", (lg, cv, int(time.time()), s["id"]))
+        audit("shop.identity", s["id"], {"logo": lg, "cover": cv}); c.commit()
+        return ok({"id": s["id"], "logo_file_id": lg, "cover_file_id": cv})
     m = re.fullmatch(r"/api/owner/shops/(\d{1,9})/(open|close)", path)
     if m and method == "POST":
         if not u: return err(401, "سجّل الدخول أولًا")
@@ -325,7 +396,7 @@ def handle(h, c, u, method, path, q):
         shop, e = need_shop_owner(c, u, int(m[1]))
         if e: return err(*e)
         iid, act = (int(m[2]), m[3]) if m[2] else (None, None)
-        if method == "GET" and not iid: return ok({"items": _items(c, shop["id"]), "max_items": MAX_ITEMS, "max_images": MAX_IMAGES,
+        if method == "GET" and not iid: return ok({"items": _items(c, shop["id"]), "max_items": MAX_ITEMS, "max_images": MAX_IMAGES, "items_without_images": _no_image_count(c, shop["id"]),
                                                    "require_image": bool(c.execute("SELECT require_image FROM shop_types WHERE id=?", (shop["type_id"],)).fetchone()[0])})
         if method != "POST": return err(405, "غير مسموح")
         d = h.body(); now = int(time.time())

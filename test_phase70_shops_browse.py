@@ -37,7 +37,7 @@ ok("region filter", [x["id"] for x in call("GET", "/shops?region_id=4")[1]["item
 ok("type filter", [x["id"] for x in call("GET", "/shops?type_id=1")[1]["items"]] == [S])
 ok("name search, and LIKE wildcards are escaped", [x["id"] for x in call("GET", "/shops?q=" + urllib.request.quote("الأمل"))[1]["items"]] == [S] and call("GET", "/shops?q=%25")[1]["items"] == [] and call("GET", "/shops?q=_")[1]["items"] == [])
 ok("bad filters are 400", call("GET", "/shops?region_id=abc")[0] == 400 and call("GET", "/shops?type_id=" + "9" * 12)[0] == 400)
-ok("no private fields leak", all(set(x) == {"id", "name_ar", "type_id", "type_name", "region_id", "region_name", "address", "is_open", "item_count", "cover_file_id"} for x in call("GET", "/shops")[1]["items"]))
+ok("no private fields leak", all(set(x) == {"id", "name_ar", "type_id", "type_name", "region_id", "region_name", "address", "is_open", "item_count", "cover_file_id", "logo_file_id", "has_own_cover"} for x in call("GET", "/shops")[1]["items"]))
 
 # 3) الأصناف والصور
 f1 = upload(own)[1]["id"]; f2 = upload(own)[1]["id"]
