@@ -32,6 +32,7 @@ CREATE TABLE IF NOT EXISTS listings(id INTEGER PRIMARY KEY, user_id INTEGER NOT 
  region_id INTEGER NOT NULL REFERENCES regions(id), title TEXT NOT NULL, description TEXT, price REAL, data TEXT,
  status TEXT NOT NULL DEFAULT 'pending' CHECK(status IN('pending','approved','rejected','deleted')), reject_reason TEXT, created_at INTEGER NOT NULL);
 CREATE INDEX IF NOT EXISTS ix_listings ON listings(status,category_id,region_id);
+CREATE INDEX IF NOT EXISTS ix_listings_owner_id ON listings(user_id,id DESC);
 CREATE TABLE IF NOT EXISTS couriers(user_id INTEGER PRIMARY KEY REFERENCES users(id), status TEXT NOT NULL DEFAULT 'pending' CHECK(status IN('pending','approved','suspended','rejected')),
  region_id INTEGER NOT NULL REFERENCES regions(id), is_available INTEGER NOT NULL DEFAULT 1, created_at INTEGER NOT NULL);
 CREATE TABLE IF NOT EXISTS region_fees(region_id INTEGER PRIMARY KEY REFERENCES regions(id), fee REAL NOT NULL CHECK(fee>=0));
@@ -45,6 +46,8 @@ CREATE TABLE IF NOT EXISTS delivery_orders(id INTEGER PRIMARY KEY, customer_id I
  commission REAL NOT NULL DEFAULT 0, created_at INTEGER NOT NULL, updated_at INTEGER NOT NULL);
 CREATE TABLE IF NOT EXISTS order_events(id INTEGER PRIMARY KEY, order_id INTEGER NOT NULL, actor_id INTEGER, from_status TEXT, to_status TEXT NOT NULL, at INTEGER NOT NULL);
 CREATE INDEX IF NOT EXISTS ix_orders ON delivery_orders(status,region_id);
+CREATE INDEX IF NOT EXISTS ix_delivery_customer_id ON delivery_orders(customer_id,id DESC);
+CREATE INDEX IF NOT EXISTS ix_order_events_order_status_at ON order_events(order_id,to_status,at);
 CREATE TABLE IF NOT EXISTS settings(key TEXT PRIMARY KEY, value TEXT NOT NULL);
 CREATE TABLE IF NOT EXISTS wallet_entries(id INTEGER PRIMARY KEY, user_id INTEGER NOT NULL REFERENCES users(id), kind TEXT NOT NULL CHECK(kind IN('topup','commission','reversal')),
  amount REAL NOT NULL, ref_type TEXT NOT NULL, ref_id INTEGER NOT NULL, created_at INTEGER NOT NULL, UNIQUE(kind,ref_type,ref_id));
