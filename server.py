@@ -3,7 +3,7 @@ import notif, account
 from http.server import ThreadingHTTPServer, BaseHTTPRequestHandler
 from urllib.parse import urlparse, parse_qs, quote
 import market
-import gsearch, products, provider_delivery, shops, shop_delivery, shop_delivery_stats, rx, chat, svc, overview, fcm, exchange, lsocial, bulk_import
+import gsearch, products, product_orders, provider_delivery, shops, shop_delivery, shop_delivery_stats, rx, chat, svc, overview, fcm, exchange, lsocial, bulk_import
 DB = os.environ.get("LAQINO_DB", "laqino.db")
 UP = os.environ.get("LAQINO_UPLOADS", "uploads")
 ROOT = os.path.realpath(os.path.join(os.path.dirname(os.path.abspath(__file__)), "static"))
@@ -287,6 +287,7 @@ def init(admin_phone=None, admin_pw=None):
     shops.bind(audit, UP); shops.install(c)  # Phase 66 (م1 المحلات): shop_types + shops + مفتاح shops_enabled مطفي (idempotent)
     shop_delivery.bind(push_new_order, push_stop_order, audit, default_delivery_region, COUNT_SQL["orders"], region_fee, commission_for, LIMITS["orders"]); shop_delivery.install(c)  # Phase 69 (م4 المحلات): المحل يطلب مندوب + العميل يطلب من المحل (بعد shops.install لأنه يعيد كتابة triggers ntf_shop_)
     products.install(c)  # Phase 2: product_offers + medical sub-categories (idempotent)
+    product_orders.bind(push_new_order, push_stop_order, audit, region_fee, commission_for, COUNT_SQL["orders"], LIMITS["orders"]); product_orders.install(c)  # Phase 87: «اطلب من الصيدلية مباشرة» (بعد notif.install لأن triggers ntf_po_ تُنشأ هنا)
     rx.install(c)  # RX schema extensions (idempotent, additive migrations)
     try: c.execute("ALTER TABLE listings ADD COLUMN featured_until INTEGER")  # المرحلة 30: تمييز الإعلان حتى تاريخ (NULL = غير مميز). بعد market.migrate لأنه قد يعيد بناء الجدول
     except sqlite3.OperationalError: pass
@@ -623,6 +624,18 @@ def chat_push(uid):
         except Exception: pass
     threading.Thread(target=run, daemon=True).start()
 chat.push_hook = chat_push
+def product_order_push(uid):
+    """م87: يوقظ أجهزة الصيدلية عند طلب منتجات جديد (بلا بيانات؛ sw.js يسأل /api/push/state عن العدد). best-effort في خيط خلفي."""
+    def run():
+        try:
+            time.sleep(0.25)  # ليلتزم الـtrigger الذي كتب الإشعار قبل أن يعيد الجهاز عدّ الإشعارات
+            c = db()
+            try:
+                if c.execute("SELECT 1 FROM push_subs WHERE user_id=?", (uid,)).fetchone() or fcm.has_tokens(c, uid): _push_to_users(c, [uid], 3600, kind="product")
+            finally: c.close()
+        except Exception as e: print("product order push failed:", e, file=sys.stderr)
+    threading.Thread(target=run, daemon=True).start()
+product_orders.push_hook = product_order_push
 chat.UPLOADS = UP  # صور المحادثة تُحفظ في مجلد الرفع نفسه
 exchange.UP = UP
 svc.UPLOADS = UP  # صور طلبات الخدمة (الخطوة 2) في مجلد الرفع نفسه
@@ -788,6 +801,7 @@ class H(BaseHTTPRequestHandler):
             u = self.user(c)
             if notif.handle(self, c, u, method, path, q): return
             if gsearch.handle(self, c, u, method, path, q): return
+            if product_orders.handle(self, c, u, method, path, q): return  # م87: قبل products.handle لأنه يردّ 404 على أي مسار تحت /api/medical/pharmacies/
             if products.handle(self, c, u, method, path, q): return
             if provider_delivery.handle(self, c, u, method, path, q): return
             if shops.handle(self, c, u, method, path, q): return
@@ -1321,16 +1335,19 @@ class H(BaseHTTPRequestHandler):
                 c.execute("UPDATE delivery_orders SET comm_type=?,comm_value=?,offer_fee=? WHERE id=?", (cm.get("commission_type", "fixed"), float(cm.get("commission_value", 0)), of, cur.lastrowid))
                 ev(cur.lastrowid, None, "searching"); c.commit(); push_new_order(cur.lastrowid); return self.send(201, {"id": cur.lastrowid, "status": "searching", "delivery_code": code})  # لا سعر للعميل: الأجرة يقترحها المندوب بعد القبول
             if method == "GET" and path == "/api/delivery/orders":
-                self.need(u); win = int(cfg(c, "search_timeout", 300)); rows = [dict(r, search_window=win) for r in c.execute("SELECT o.id,o.pickup_text,o.dropoff_text,CASE WHEN o.fare_status IN('proposed','approved') THEN o.fee END fee,o.offer_fee,o.fare_status,o.status,o.created_at,CASE WHEN o.search_started_at>0 THEN o.search_started_at ELSE o.created_at END search_started_at,CASE WHEN o.status IN " + ACTIVE + " THEN o.delivery_code END delivery_code,CASE WHEN o.fare_status IN('proposed','approved') THEN o.courier_id END courier_id,CASE WHEN o.fare_status IN('proposed','approved') OR (o.origin_type=? AND o.status IN " + ACTIVE + ") THEN cu.name END courier_name,CASE WHEN o.status IN " + ACTIVE + " AND (o.fare_status='approved' OR o.origin_type=?) THEN cu.phone END courier_phone,EXISTS(SELECT 1 FROM ratings r WHERE r.order_id=o.id) rated,sl.shop_status,sl.shop_accepted_at,sl.shop_ready_at,sl.items_json,sl.items_total,sl.note shop_note,sh.name_ar shop_name FROM delivery_orders o LEFT JOIN users cu ON cu.id=o.courier_id LEFT JOIN shop_delivery_links sl ON sl.order_id=o.id AND sl.kind='shop_order' LEFT JOIN shops sh ON sh.id=sl.shop_id WHERE o.customer_id=? ORDER BY o.id DESC", (shop_delivery.ORDER, shop_delivery.ORDER, u["id"]))]
+                self.need(u); win = int(cfg(c, "search_timeout", 300)); rows = [dict(r, search_window=win) for r in c.execute("SELECT o.id,o.pickup_text,o.dropoff_text,CASE WHEN o.fare_status IN('proposed','approved') THEN o.fee END fee,o.offer_fee,o.fare_status,o.status,o.created_at,CASE WHEN o.search_started_at>0 THEN o.search_started_at ELSE o.created_at END search_started_at,CASE WHEN o.status IN " + ACTIVE + " THEN o.delivery_code END delivery_code,CASE WHEN o.fare_status IN('proposed','approved') THEN o.courier_id END courier_id,CASE WHEN o.fare_status IN('proposed','approved') OR (o.origin_type IN (?,?) AND o.status IN " + ACTIVE + ") THEN cu.name END courier_name,CASE WHEN o.status IN " + ACTIVE + " AND (o.fare_status='approved' OR o.origin_type IN (?,?)) THEN cu.phone END courier_phone,EXISTS(SELECT 1 FROM ratings r WHERE r.order_id=o.id) rated,COALESCE(sl.shop_status,po.status) shop_status,COALESCE(sl.shop_accepted_at,po.accepted_at) shop_accepted_at,COALESCE(sl.shop_ready_at,po.ready_at) shop_ready_at,COALESCE(sl.items_json,po.items_json) items_json,COALESCE(sl.items_total,po.items_total) items_total,COALESCE(sl.note,po.note) shop_note,COALESCE(sh.name_ar,pp.name_ar) shop_name,CASE WHEN po.id IS NOT NULL THEN 'pharmacy' END place_kind FROM delivery_orders o LEFT JOIN users cu ON cu.id=o.courier_id LEFT JOIN shop_delivery_links sl ON sl.order_id=o.id AND sl.kind='shop_order' LEFT JOIN shops sh ON sh.id=sl.shop_id LEFT JOIN product_orders po ON po.order_id=o.id LEFT JOIN providers pp ON pp.user_id=po.provider_id WHERE o.customer_id=? ORDER BY o.id DESC", (shop_delivery.ORDER, product_orders.ORIGIN, shop_delivery.ORDER, product_orders.ORIGIN, u["id"]))]
                 for r in rows:  # م85: مراحل المحل لأوردرات المحلات فقط؛ باقي الأنواع لا تظهر لها هذه الحقول أصلًا
                     raw = r.pop("items_json"); sf = ("shop_status", "shop_accepted_at", "shop_ready_at", "items_total", "shop_note", "shop_name")
                     if r["shop_status"] is None:
                         for k in sf: r.pop(k)
+                        r.pop("place_kind", None)
                         continue
                     try: its = json.loads(raw or "[]")
                     except ValueError: its = []
                     r["shop_items"] = [{"name": i.get("name"), "price": i.get("price"), "qty": i.get("qty"), "line_total": round(float(i.get("price") or 0) * int(i.get("qty") or 0), 2)} for i in its if isinstance(i, dict)]  # م86: أصناف الطلب وكمياتها وأثمانها (لقطة وقت الطلب)
                     r["delivery_fee"] = r["fee"]  # الأجرة تظهر فقط بعد اقتراح المندوب (نفس قاعدة fee)
+                for r in rows:
+                    if r.get("place_kind") is None: r.pop("place_kind", None)  # م87: «pharmacy» فقط لطلبات المنتجات من الصيدلية؛ لا يظهر في باقي الأنواع
                     r["grand_total"] = round(float(r["items_total"] or 0) + float(r["fee"]), 2) if r["fee"] is not None else None
                 return self.send(200, rows)  # م84: في أوردر المحل (shop_order) يظهر اسم المندوب ورقمه للعميل فور القبول (قبل موافقته على الأجرة)؛ باقي الأنواع كما هي
             m = re.fullmatch(r"/api/delivery/orders/(\d+)/fare/(approve|reject)", path)
@@ -1377,8 +1394,9 @@ class H(BaseHTTPRequestHandler):
             if method == "POST" and path == "/api/push/state":  # public on purpose: sw.js cannot read the login token. Keyed by the device's own push endpoint; answers with a COUNT only
                 ep = str(self.body().get("endpoint", "")).strip(); r = c.execute("SELECT user_id FROM push_subs WHERE endpoint=?", (ep,)).fetchone() if 0 < len(ep) <= 600 else None
                 medical = c.execute("SELECT COUNT(*) FROM notifications WHERE user_id=? AND read_at IS NULL AND kind LIKE 'rx.%'", (r["user_id"],)).fetchone()[0] if r else 0
+                orders = c.execute("SELECT COUNT(*) FROM notifications WHERE user_id=? AND read_at IS NULL AND kind='provider.product_order'", (r["user_id"],)).fetchone()[0] if r else 0  # م87: طلبات منتجات جديدة عند الصيدلية (عدد فقط)
                 return self.send(200, {"pending": push_pending(c, r["user_id"]) if r else 0, "chat": chat.unread_total(c, r["user_id"]) if r else 0,
-                                       "medical": medical, "courier": bool(r and c.execute("SELECT 1 FROM couriers WHERE user_id=? AND status='approved'", (r["user_id"],)).fetchone())})  # counts/flags only, never data
+                                       "medical": medical, "orders": orders, "courier": bool(r and c.execute("SELECT 1 FROM couriers WHERE user_id=? AND status='approved'", (r["user_id"],)).fetchone())})  # counts/flags only, never data
             if method == "GET" and path == "/api/push/key":  # Phase 4: any logged-in user (chat wake-ups); same VAPID key as the courier route
                 self.need(u); return self.send(200, {"key": vapid_keys(c)[1]})
             if method == "POST" and path == "/api/push/subscribe":
@@ -2400,7 +2418,7 @@ def push_resume():
     try:
         win = int(cfg(c, "search_timeout", 300)); now = int(time.time())
         ids = [r[0] for r in c.execute("SELECT id FROM delivery_orders WHERE status='searching' AND courier_id IS NULL AND (CASE WHEN search_started_at>0 THEN search_started_at ELSE created_at END)+?>?", (win, now)).fetchall()]
-        uids = [r[0] for r in c.execute("SELECT DISTINCT user_id FROM push_subs").fetchall()]
+        uids = [r[0] for r in c.execute("SELECT DISTINCT s.user_id FROM push_subs s JOIN couriers cr ON cr.user_id=s.user_id WHERE cr.status='approved'").fetchall()]  # م87: المناديب فقط (هم من يحملون تنبيه طلب قد يعلق). كان البث لكل مشتركي التطبيق عند كل إعادة تشغيل فيصل إشعار لعملاء وصيدليات بلا سبب
     finally: c.close()
     def sweep():
         try:

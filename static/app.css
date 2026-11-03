@@ -694,3 +694,16 @@ body.app .market-seller-only:empty{display:none}
 body.app .shtrk{list-style:none;margin:8px 0;padding:10px 12px;background:#f5f8fd;border-radius:14px;display:flex;flex-direction:column;gap:6px}body.app .shtrk li{position:relative;padding-right:24px;color:#8a94a6;font-size:.92em}body.app .shtrk li:before{content:'○';position:absolute;right:0;top:0}body.app .shtrk li.d{color:#14753a}body.app .shtrk li.d:before{content:'✓'}body.app .shtrk li.c{color:#0f2a5c;font-weight:700}body.app .shtrk li.c:before{content:'●';color:#f28c1b}
 /* م86: فاتورة طلب المحل عند العميل */
 body.app .shbill{margin:8px 0;padding:10px 12px;background:#fff;border:1px solid #e3e9f3;border-radius:14px;display:flex;flex-direction:column;gap:6px}body.app .shb-h{font-weight:700;color:#0f2a5c}body.app .shb-r{display:flex;justify-content:space-between;gap:10px;align-items:baseline}body.app .shb-r b{white-space:nowrap}body.app .shb-t{border-top:1px dashed #cfd8e6;padding-top:6px;font-size:1.05em;color:#0f2a5c}body.app .shb-n{color:#6b7587}
+
+/* م87: الطلب المباشر من الصيدلية (قسم المنتجات) */
+body.app .padd{width:100%;min-height:40px;margin-top:8px;padding:6px 8px;border-radius:12px;font-size:.85rem;font-weight:700;background:var(--orange)!important;color:#fff!important;border:0!important;cursor:pointer}
+body.app .padd:focus-visible{outline:3px solid var(--navy);outline-offset:2px}
+#pcbar{position:fixed;inset-inline:10px;bottom:calc(74px + env(safe-area-inset-bottom));z-index:40;display:flex;align-items:center;justify-content:space-between;gap:10px;max-width:560px;margin-inline:auto;padding:10px 12px;border-radius:16px;background:#0f2a5c;color:#fff;box-shadow:0 6px 20px #0f2a5c55;font-size:.9rem}
+#pcbar[hidden]{display:none}#pcbar span{color:#ffd9a8;font-weight:700}#pcbar button{flex:none;min-height:40px;padding:6px 16px;border:0;border-radius:12px;background:#f28c1b;color:#fff;font-weight:700;cursor:pointer}
+body.app #pcs .pan{max-height:92vh;overflow-y:auto}
+body.app .pcl{display:flex;justify-content:space-between;align-items:center;gap:10px;padding:8px 0;border-bottom:1px solid #e3e9f4}body.app .pcl small{display:block;color:#6b7587}
+body.app .pcq{display:flex;align-items:center;gap:8px;flex:none}body.app .pcq button{width:38px;height:38px;min-height:38px;padding:0;border-radius:50%;font-size:1.2rem;line-height:1;background:#e3e9f4!important;color:#0f2a5c!important;border:0!important}
+body.app .pct{display:flex;justify-content:space-between;padding:10px 0;font-size:1.05rem;color:#0f2a5c}
+body.app #pcs textarea,body.app #pcs input{width:100%;margin:6px 0}
+body.app .po .st{margin:8px 0}
+body.app.pcb main{padding-bottom:calc(150px + env(safe-area-inset-bottom))}
