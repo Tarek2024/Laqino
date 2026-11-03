@@ -1376,7 +1376,7 @@ class H(BaseHTTPRequestHandler):
                     r["delivery_fee"] = r["fee"]  # الأجرة تظهر فقط بعد اقتراح المندوب (نفس قاعدة fee)
                 for r in rows:
                     if r.get("place_kind") is None: r.pop("place_kind", None)  # م87: «pharmacy» فقط لطلبات المنتجات من الصيدلية؛ لا يظهر في باقي الأنواع
-                    r["grand_total"] = round(float(r["items_total"] or 0) + float(r["fee"]), 2) if r["fee"] is not None else None
+                    if "items_total" in r: r["grand_total"] = round(float(r["items_total"] or 0) + float(r["fee"]), 2) if r["fee"] is not None else None
                 return self.send(200, rows)  # م84: في أوردر المحل (shop_order) يظهر اسم المندوب ورقمه للعميل فور القبول (قبل موافقته على الأجرة)؛ باقي الأنواع كما هي
             m = re.fullmatch(r"/api/delivery/orders/(\d+)/fare/(approve|reject)", path)
             if method == "POST" and m:  # موافقة العميل على أجرة المندوب (شرط لبدء التوصيل) أو رفضها (يعود الطلب لباقي المناديب ولا يُعرض مجددًا لهذا المندوب)
