@@ -266,6 +266,12 @@ def init(admin_phone=None, admin_pw=None):
     c.execute('CREATE INDEX IF NOT EXISTS ix_providers_region_distribution ON providers(region_id,status,distribution_enabled)')
     c.execute('CREATE UNIQUE INDEX IF NOT EXISTS ux_order_reqkey ON delivery_orders(customer_id,request_key) WHERE request_key IS NOT NULL')
     market.migrate(c, DB)  # Phase 2: market schema (listing statuses/columns, images, favorites, reports); idempotent
+    # إصلاح إضافي آمن: حقل السعر مطلوب في تصنيف الملابس؛ أعد إضافته فقط إن كان مفقودًا.
+    # لا نغيّر الحقول الأخرى أو إعدادات التصنيف أو الإعلانات القائمة.
+    clothing = c.execute("SELECT id FROM categories WHERE slug='souq-clothing' AND section='souq'").fetchone()
+    if clothing and not c.execute("SELECT 1 FROM category_fields WHERE category_id=? AND key='price'", (clothing['id'],)).fetchone():
+        c.execute("INSERT INTO category_fields(category_id,key,label_ar,type,required,searchable,options,sort) VALUES(?,?,?,?,?,?,?,?)",
+                  (clothing['id'], 'price', 'السعر', 'price', 1, 0, None, 10))
     if not c.execute("SELECT 1 FROM regions").fetchone():
         # geographic structure only; coverage is activated explicitly by admin
         c.execute("INSERT INTO regions(id,parent_id,level,slug,name_ar,is_active) VALUES(1,NULL,'country','eg','مصر',1)")
