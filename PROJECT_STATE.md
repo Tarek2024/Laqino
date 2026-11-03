@@ -1,11 +1,6 @@
 # لاقينو — ملف حالة المشروع (PROJECT_STATE.md)
 
-> **الحالة الحالية: الإصدار `phase-88` — كاش الخدمة `laqino-v132`** (المرجع الوحيد: ملف `VERSION`).
-
-## سجل التعديل — phase-88 (إصلاح تحميل حسابي)
-- `static/index.html`: عرض حسابي تدريجي؛ بيانات الطلبات والإعلانات بتحميل خلفي مع حد انتظار أولي 650ms، وبيانات التقديمات/المحلات والملف الشخصي لا توقف عرض الصفحة. أُلغي إعادة رسم الصفحة كل 8 ثوانٍ؛ بقي تحديث تتبع الطلبات النشطة عبر `tick()` عند تغيّر الحالة.
-- `server.py`: فهارس إضافية لاستعلام طلبات العميل وإعلاناته وأحداث الطلبات (`ix_delivery_customer_id`, `ix_listings_owner_id`, `ix_order_events_order_status_at`) دون حذف أو تعديل بيانات.
-- اختبار انحدار جديد: `test_phase88_account_loading.py`.
+> **الحالة الحالية: الإصدار `phase-86` — كاش الخدمة `laqino-v129`** (المرجع الوحيد: ملف `VERSION`).
 
 ## سجل التعديل — phase-77 (م4 من خطة «دفتر الصيدلية»)
 - `provider_delivery.py`: `admin_dash()` + `_rows_admin/_group/_comm/_csv_admin` — مساران GET (admin فقط): `/api/admin/provider-delivery/dashboard` و`/export`. ملخص عام، ترتيب صيدليات ومناديب (`sort=orders|cancel|late|commission`)، نسب الإلغاء/التأخير، العمولة الصافية من `wallet_entries`، تنبيهات (رقم عند 2+ صيدليات، مندوب تخلّى 3+). لا تغيير في `server.py`. إصلاح `_csv` للحقل الفارغ.
