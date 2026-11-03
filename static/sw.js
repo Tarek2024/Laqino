@@ -1,6 +1,21 @@
 // Service worker: caches only the static app shell. /api/* is NEVER cached (live data, tokens, private files).
-const V = "laqino-v130", SHELL = ["/", "/register.html", "/courier.html", "/pharmacy.html", "/shop.html", "/shops.html", "/shop-identity.js", "/admin.html", "/assets/logo.jpg", "/assets/mascot.jpg", "/assets/icon-192.png", "/manifest.webmanifest", "/offline.html", "/theme.css", "/app.css", "/panel.css", "/notif.js", "/native.js", "/perm.js", "/location.js", "/market.html", "/market-enhancements.css", "/market-enhancements.css?v=8", "/shell.css", "/shell.js", "/assets/mascot-cut.webp", "/pdelivery.js", "/pdelivery.css", "/pdelivery-admin.js", "/pdelivery-courier.js", "/pdelivery-dash.js", "/pdelivery-admin-dash.js"];
-self.addEventListener("install", e => { e.waitUntil(caches.open(V).then(c => c.addAll(SHELL)).then(() => self.skipWaiting())); });
+const V = "laqino-v131", SHELL = ["/", "/register.html", "/courier.html", "/pharmacy.html", "/shop.html", "/shops.html", "/shop-identity.js", "/admin.html", "/assets/logo.jpg", "/assets/mascot.jpg", "/assets/icon-192.png", "/manifest.webmanifest", "/offline.html", "/theme.css", "/app.css", "/panel.css", "/notif.js", "/native.js", "/perm.js", "/location.js", "/market.html", "/market-enhancements.css", "/market-enhancements.css?v=8", "/shell.css", "/shell.js", "/assets/mascot-cut.webp", "/pdelivery.js", "/pdelivery.css", "/pdelivery-admin.js", "/pdelivery-courier.js", "/pdelivery-dash.js", "/pdelivery-admin-dash.js"];
+self.addEventListener("install", e => {
+  e.waitUntil((async () => {
+    // Cache each shell file independently: one missing/failed asset must not block the whole app update.
+    let cache = null;
+    try { cache = await caches.open(V); } catch (_) {}
+    if (cache) {
+      await Promise.all(SHELL.map(async path => {
+        try {
+          const response = await fetch(path, { cache: "reload" });
+          if (response.ok && response.type !== "opaque") await cache.put(path, response);
+        } catch (_) {}
+      }));
+    }
+    await self.skipWaiting();
+  })());
+});
 self.addEventListener("activate", e => { e.waitUntil(caches.keys().then(ks => Promise.all(ks.filter(k => k !== V && k !== "laqino-meta").map(k => caches.delete(k)))).then(() => self.clients.claim())); });
 self.addEventListener("fetch", e => {
   const r = e.request, u = new URL(r.url);
