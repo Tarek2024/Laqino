@@ -28,4 +28,16 @@ ok("customer order/listing indexes are additive and present",
    all(x in server for x in ("ix_delivery_customer_id ON delivery_orders(customer_id,id DESC)",
                              "ix_listings_owner_id ON listings(user_id,id DESC)",
                              "ix_order_events_order_status_at ON order_events(order_id,to_status,at)")))
+# A newly created delivery order must invalidate any in-flight pre-creation
+# snapshot so the full order card is fetched again, not replaced by an empty state.
+ok("new delivery creation invalidates stale account order snapshots",
+   "window._mineDataEpoch=(window._mineDataEpoch||0)+1" in html and
+   "window._mineDataCache=null;window._mineDataPending=null" in html)
+ok("late pre-creation responses cannot overwrite the fresh account snapshot",
+   "if(epoch===(window._mineDataEpoch||0))window._mineDataCache=x" in html and
+   "tab===3&&epoch===(window._mineDataEpoch||0)" in html)
+ok("full delivery card, animated progress and courier fare approval remain present",
+   all(x in html for x in ("sc3(x)", "STEP[x.status]", "shopTrk(x)",
+                           "x.status=='assigned'&&x.fare_status=='proposed'",
+                           "window.fa=run", "window.oa=run")))
 print("PHASE 88 ACCOUNT LOADING CHECK: OK")
