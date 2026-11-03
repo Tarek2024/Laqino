@@ -266,12 +266,31 @@ def init(admin_phone=None, admin_pw=None):
     c.execute('CREATE INDEX IF NOT EXISTS ix_providers_region_distribution ON providers(region_id,status,distribution_enabled)')
     c.execute('CREATE UNIQUE INDEX IF NOT EXISTS ux_order_reqkey ON delivery_orders(customer_id,request_key) WHERE request_key IS NOT NULL')
     market.migrate(c, DB)  # Phase 2: market schema (listing statuses/columns, images, favorites, reports); idempotent
-    # إصلاح إضافي آمن: حقل السعر مطلوب في تصنيف الملابس؛ أعد إضافته فقط إن كان مفقودًا.
-    # لا نغيّر الحقول الأخرى أو إعدادات التصنيف أو الإعلانات القائمة.
-    clothing = c.execute("SELECT id FROM categories WHERE slug='souq-clothing' AND section='souq'").fetchone()
-    if clothing and not c.execute("SELECT 1 FROM category_fields WHERE category_id=? AND key='price'", (clothing['id'],)).fetchone():
-        c.execute("INSERT INTO category_fields(category_id,key,label_ar,type,required,searchable,options,sort) VALUES(?,?,?,?,?,?,?,?)",
-                  (clothing['id'], 'price', 'السعر', 'price', 1, 0, None, 10))
+    # إصلاح إضافي آمن: أضف/صحّح حقل السعر في كل تصنيفات الملابس داخل السوق،
+    # بما فيها التصنيفات التي أنشأتها الإدارة يدويًا بعد تشغيل النظام.
+    # التغيير لا يلمس التصنيفات الأخرى أو الإعلانات أو الحقول غير المرتبطة بالسعر.
+    clothing_categories = c.execute(
+        "SELECT id FROM categories WHERE section='souq' AND parent_id IS NOT NULL "
+        "AND (name_ar LIKE '%ملابس%' OR name_ar LIKE '%أزياء%' OR name_ar LIKE '%ازياء%' "
+        "OR lower(slug) LIKE '%cloth%' OR lower(slug) LIKE '%fashion%')"
+    ).fetchall()
+    for clothing in clothing_categories:
+        price_field = c.execute(
+            "SELECT id FROM category_fields WHERE category_id=? AND key='price'",
+            (clothing['id'],)
+        ).fetchone()
+        if not price_field:
+            c.execute(
+                "INSERT INTO category_fields(category_id,key,label_ar,type,required,searchable,options,sort) "
+                "VALUES(?,?,?,?,?,?,?,?)",
+                (clothing['id'], 'price', 'السعر', 'price', 1, 0, None, 10)
+            )
+        else:
+            c.execute(
+                "UPDATE category_fields SET label_ar='السعر',type='price',required=1 "
+                "WHERE id=? AND (type!='price' OR label_ar!='السعر' OR required!=1)",
+                (price_field['id'],)
+            )
     if not c.execute("SELECT 1 FROM regions").fetchone():
         # geographic structure only; coverage is activated explicitly by admin
         c.execute("INSERT INTO regions(id,parent_id,level,slug,name_ar,is_active) VALUES(1,NULL,'country','eg','مصر',1)")
