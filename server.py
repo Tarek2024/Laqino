@@ -32,6 +32,7 @@ CREATE TABLE IF NOT EXISTS listings(id INTEGER PRIMARY KEY, user_id INTEGER NOT 
  region_id INTEGER NOT NULL REFERENCES regions(id), title TEXT NOT NULL, description TEXT, price REAL, data TEXT,
  status TEXT NOT NULL DEFAULT 'pending' CHECK(status IN('pending','approved','rejected','deleted')), reject_reason TEXT, created_at INTEGER NOT NULL);
 CREATE INDEX IF NOT EXISTS ix_listings ON listings(status,category_id,region_id);
+CREATE INDEX IF NOT EXISTS ix_listings_owner_id ON listings(user_id,id DESC);
 CREATE TABLE IF NOT EXISTS couriers(user_id INTEGER PRIMARY KEY REFERENCES users(id), status TEXT NOT NULL DEFAULT 'pending' CHECK(status IN('pending','approved','suspended','rejected')),
  region_id INTEGER NOT NULL REFERENCES regions(id), is_available INTEGER NOT NULL DEFAULT 1, created_at INTEGER NOT NULL);
 CREATE TABLE IF NOT EXISTS region_fees(region_id INTEGER PRIMARY KEY REFERENCES regions(id), fee REAL NOT NULL CHECK(fee>=0));
@@ -45,6 +46,8 @@ CREATE TABLE IF NOT EXISTS delivery_orders(id INTEGER PRIMARY KEY, customer_id I
  commission REAL NOT NULL DEFAULT 0, created_at INTEGER NOT NULL, updated_at INTEGER NOT NULL);
 CREATE TABLE IF NOT EXISTS order_events(id INTEGER PRIMARY KEY, order_id INTEGER NOT NULL, actor_id INTEGER, from_status TEXT, to_status TEXT NOT NULL, at INTEGER NOT NULL);
 CREATE INDEX IF NOT EXISTS ix_orders ON delivery_orders(status,region_id);
+CREATE INDEX IF NOT EXISTS ix_delivery_customer_id ON delivery_orders(customer_id,id DESC);
+CREATE INDEX IF NOT EXISTS ix_order_events_order_status_at ON order_events(order_id,to_status,at);
 CREATE TABLE IF NOT EXISTS settings(key TEXT PRIMARY KEY, value TEXT NOT NULL);
 CREATE TABLE IF NOT EXISTS wallet_entries(id INTEGER PRIMARY KEY, user_id INTEGER NOT NULL REFERENCES users(id), kind TEXT NOT NULL CHECK(kind IN('topup','commission','reversal')),
  amount REAL NOT NULL, ref_type TEXT NOT NULL, ref_id INTEGER NOT NULL, created_at INTEGER NOT NULL, UNIQUE(kind,ref_type,ref_id));
@@ -263,6 +266,31 @@ def init(admin_phone=None, admin_pw=None):
     c.execute('CREATE INDEX IF NOT EXISTS ix_providers_region_distribution ON providers(region_id,status,distribution_enabled)')
     c.execute('CREATE UNIQUE INDEX IF NOT EXISTS ux_order_reqkey ON delivery_orders(customer_id,request_key) WHERE request_key IS NOT NULL')
     market.migrate(c, DB)  # Phase 2: market schema (listing statuses/columns, images, favorites, reports); idempotent
+    # إصلاح إضافي آمن: أضف/صحّح حقل السعر في كل تصنيفات الملابس داخل السوق،
+    # بما فيها التصنيفات التي أنشأتها الإدارة يدويًا بعد تشغيل النظام.
+    # التغيير لا يلمس التصنيفات الأخرى أو الإعلانات أو الحقول غير المرتبطة بالسعر.
+    clothing_categories = c.execute(
+        "SELECT id FROM categories WHERE section='souq' AND parent_id IS NOT NULL "
+        "AND (name_ar LIKE '%ملابس%' OR name_ar LIKE '%أزياء%' OR name_ar LIKE '%ازياء%' "
+        "OR lower(slug) LIKE '%cloth%' OR lower(slug) LIKE '%fashion%')"
+    ).fetchall()
+    for clothing in clothing_categories:
+        price_field = c.execute(
+            "SELECT id FROM category_fields WHERE category_id=? AND key='price'",
+            (clothing['id'],)
+        ).fetchone()
+        if not price_field:
+            c.execute(
+                "INSERT INTO category_fields(category_id,key,label_ar,type,required,searchable,options,sort) "
+                "VALUES(?,?,?,?,?,?,?,?)",
+                (clothing['id'], 'price', 'السعر', 'price', 1, 0, None, 10)
+            )
+        else:
+            c.execute(
+                "UPDATE category_fields SET label_ar='السعر',type='price',required=1 "
+                "WHERE id=? AND (type!='price' OR label_ar!='السعر' OR required!=1)",
+                (price_field['id'],)
+            )
     if not c.execute("SELECT 1 FROM regions").fetchone():
         # geographic structure only; coverage is activated explicitly by admin
         c.execute("INSERT INTO regions(id,parent_id,level,slug,name_ar,is_active) VALUES(1,NULL,'country','eg','مصر',1)")
