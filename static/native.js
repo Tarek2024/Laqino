@@ -124,6 +124,9 @@
         medical: '/',
         product: '/pharmacy.html',
         inquiry: '/pharmacy.html',
+        product_update: '/',
+        shop_update: '/',
+        order_update: '/',
         shop: '/shop.html#o'
       }[data.kind] || '/');
       window.location.assign(target);
