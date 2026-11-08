@@ -640,7 +640,8 @@ def _user_event_push(uid, kind, target="/"):
                 c.close()
         except Exception as e:
             print("user event push failed:", e, file=sys.stderr)
-    threading.Thread(target=run, daemon=True).start()
+    try: threading.Thread(target=run, daemon=True).start()
+    except Exception: pass
 
 
 def order_update_push(uid):
