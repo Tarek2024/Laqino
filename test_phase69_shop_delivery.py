@@ -119,6 +119,9 @@ server.fcm.send = _capture_shop_fcm
 
 # ---- 5) العميل يطلب من المحل: الإنشاء
 s, r = ordr(**GOOD, note="  من غير  بصل  ", request_key="ok1", dropoff_lat=30.0, dropoff_lng=31.0); oo = r["id"]
+_fcm_ok = _fcm_event.wait(3) and any(x[0] == [oid_] and x[2] == "shop" and x[3] == "/shop.html" for x in _fcm_hits)
+server.fcm.has_tokens, server.fcm.send = _fcm_has, _fcm_send
+ok("shop owner receives native FCM on the shop dashboard", _fcm_ok)
 ok("order created (201, total 81.0, delivery code)", s == 201 and r["status"] == "searching" and r["items_total"] == 81.0 and len(r["delivery_code"]) == 6)
 row = sql("SELECT origin_type,fee,commission,pickup_text,dropoff_text,details,fare_status,customer_id,region_id,comm_type,comm_value,dropoff_lat FROM delivery_orders WHERE id=?", oo)[0]
 ok("normal-flow order: region fee 25 (the shop's region), commission 4 (platform setting, not the pickup 2), fare 'none', pickup=shop, region=shop region", row[0] == "shop_order" and row[1] == 25 and row[2] == 4 and "مطعم الأمل" in row[3] and row[4] == "عمارة 5 شقة 3" and row[6] == "none" and row[7] == cid and row[8] == Z2 and row[9] == "fixed" and row[10] == 4 and row[11] == 30.0)
