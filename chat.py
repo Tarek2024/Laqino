@@ -91,20 +91,19 @@ def _audit(c, actor, action, target, detail=None):
 def _finish_send(c, other, t, now):
     """بعد حفظ رسالة (نص أو صورة): إشعار الجرس ثم إيقاظ best-effort للمستلم. أي خطأ في الإيقاظ لا يُفشل الرسالة."""
     _notify(c, other, t["id"], t["listing_title"]); c.commit()
-    # Threaded HTTP requests must check and reserve the cooldown atomically.
+    # Use a monotonic clock: wall-clock seconds can jump and are too coarse
+    # for a process-local cooldown shared by concurrent HTTP request threads.
     should_push = False
-    if push_hook:
+    hook = push_hook
+    if hook:
+        tick = time.monotonic()
+        key = (other, t["id"])
         with _PUSH_LOCK:
-            last = _LAST_PUSH.get((other, t["id"]), 0)
-            print("CHAT PUSH GATE:", "thread=", t["id"], "recipient=", other, "now=", now, "last=", last, "gap=", PUSH_GAP, "allow=", now - last >= PUSH_GAP)
-            if now - last >= PUSH_GAP:
+            last = _LAST_PUSH.get(key, 0.0)
+            if tick - last >= max(0, float(PUSH_GAP)):
                 if len(_LAST_PUSH) > 5000: _LAST_PUSH.clear()
-                _LAST_PUSH[(other, t["id"])] = now
+                _LAST_PUSH[key] = tick
                 should_push = True
-    if should_push:
-        try: push_hook(other)
-        except Exception as e:
-            import sys; sys.stderr.write("chat wake hook failed: %r\\n" % (e,))
 
 
 def _serve_image(h, c, tid, mid):
