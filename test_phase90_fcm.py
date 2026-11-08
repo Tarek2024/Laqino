@@ -38,6 +38,9 @@ def main():
         msg = fcm.build_message("device-token", kind, 120, "/")["message"]
         check(kind + " is a customer update routed to the app home",
               msg["data"] == {"kind": kind, "url": "/"} and msg["notification"]["body"] == fcm.TEXTS[kind])
+    market = fcm.build_message("device-token", "market", 120, "/market.html")["message"]
+    check("marketplace review push opens the market",
+          market["data"] == {"kind": "market", "url": "/market.html"} and market["notification"]["body"] == fcm.TEXTS["market"])
     bad = fcm.build_message("device-token", "shop", 120, "//attacker.example")["message"]
     check("external or malformed destinations are discarded", bad["data"] == {"kind": "shop"})
     unknown = fcm.build_message("device-token", "not-a-kind", 120)["message"]
