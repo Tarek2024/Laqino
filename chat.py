@@ -96,7 +96,6 @@ def _finish_send(c, other, t, now):
     if push_hook:
         with _PUSH_LOCK:
             last = _LAST_PUSH.get((other, t["id"]), 0)
-            print("CHAT PUSH GATE:", "thread=", t["id"], "recipient=", other, "now=", now, "last=", last, "gap=", PUSH_GAP, "allow=", now - last >= PUSH_GAP)
             if now - last >= PUSH_GAP:
                 if len(_LAST_PUSH) > 5000: _LAST_PUSH.clear()
                 _LAST_PUSH[(other, t["id"])] = now
