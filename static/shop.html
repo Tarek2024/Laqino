@@ -69,4 +69,5 @@ $('tb').innerHTML=tabs(n,no);
 const sid=$('shop-identity');if(sid&&window.LqShopIdentity)LqShopIdentity.mount(sid,+sid.dataset.shopId);
 document.querySelectorAll('img[data-im]').forEach(el=>img(el.dataset.im,el))}
 catch(e){$('tb').innerHTML='';m.innerHTML=`<div class="card"><p class="e">${esc(e&&e.message?e.message:e)}</p><small>تأكد من تسجيل الدخول من <a href="/">الصفحة الرئيسية</a>.</small></div>`}}
-load();</script><script>if("serviceWorker" in navigator)addEventListener("load",()=>navigator.serviceWorker.register("/sw.js").catch(()=>{}))</script></body></html>
+load();</script><script>if("serviceWorker" in navigator)addEventListener("load",()=>navigator.serviceWorker.register("/sw.js").catch(()=>{}))</script><script src="/native.js" defer></script>
+</body></html>
