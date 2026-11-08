@@ -10,7 +10,7 @@ def check(name, condition):
 
 
 def main():
-    shop = fcm.build_message("device-token", "shop", 120, "/shop.html")["message"]
+    shop = fcm.build_message("device-token", "shop", 120, "/shop.html#o")["message"]
     check("shop kind uses the shop notification text", shop["notification"]["body"] == fcm.TEXTS["shop"])
     check("shop push carries only kind and allowlisted internal destination",
           shop["data"] == {"kind": "shop", "url": "/shop.html"})
