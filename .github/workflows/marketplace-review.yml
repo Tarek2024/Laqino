@@ -30,6 +30,8 @@ jobs:
         run: python test_phase90_fcm.py
       - name: Run shop-order native push integration regression
         run: python test_phase69_shop_delivery.py
+      - name: Run pharmacy product-order push integration regression
+        run: python test_phase87_product_orders.py
       - uses: actions/setup-node@v4
         with:
           node-version: '20'
