@@ -72,6 +72,14 @@ ok("customer cannot cancel someone else's order (404)", call("POST", f"/my/produ
 
 # ---- 4) القبول = التحويل لدليفري
 s, r = A(phm, "accept"); did = r["order_id"]
+_old_has, _old_send = server.fcm.has_tokens, server.fcm.send
+_push_event, _push_hits = threading.Event(), []
+server.fcm.has_tokens = lambda c, uid: uid == cid
+def _capture_push(c, uids, ttl=300, kind="order", target=None):
+    if cid in uids:
+        _push_hits.append((kind, target)); _push_event.set()
+    return 1
+server.fcm.send = _capture_push
 ok("accept -> accepted and a delivery order is created from it", s == 200 and r["status"] == "accepted" and did and dcount() == n0 + 1)
 d = sql("SELECT origin_type,customer_id,pickup_text,dropoff_text,details,fee,commission,status,fare_status,region_id FROM delivery_orders WHERE id=?", did)[0]
 ok("delivery order: origin=product_order, customer, pickup=pharmacy, dropoff=customer address, items in details, searching", d[0] == "product_order" and d[1] == cid and "صيدلية النور" in d[2] and d[3] == "عمارة 5 شقة 3" and "2× كريم مرطب للبشرة" in d[4] and "1× شامبو أطفال" in d[4] and d[7] == "searching" and d[8] == "none" and d[9] == Z2)
