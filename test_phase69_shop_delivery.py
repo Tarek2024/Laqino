@@ -119,7 +119,7 @@ server.fcm.send = _capture_shop_fcm
 
 # ---- 5) العميل يطلب من المحل: الإنشاء
 s, r = ordr(**GOOD, note="  من غير  بصل  ", request_key="ok1", dropoff_lat=30.0, dropoff_lng=31.0); oo = r["id"]
-_fcm_ok = _fcm_event.wait(3) and any(x[0] == [oid_] and x[2] == "shop" and x[3] == "/shop.html" for x in _fcm_hits)
+_fcm_ok = _fcm_event.wait(3) and any(x[0] == [oid_] and x[2] == "shop" and x[3] == "/shop.html#o" for x in _fcm_hits)
 server.fcm.has_tokens, server.fcm.send = _fcm_has, _fcm_send
 ok("shop owner receives native FCM on the shop dashboard", _fcm_ok)
 ok("order created (201, total 81.0, delivery code)", s == 201 and r["status"] == "searching" and r["items_total"] == 81.0 and len(r["delivery_code"]) == 6)
