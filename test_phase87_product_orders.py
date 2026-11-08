@@ -25,6 +25,19 @@ for tp in call("GET", "/admin/topups", None, at)[1]: call("POST", f"/admin/topup
 call("POST", "/courier/online", {"online": True}, c1)
 for t, nm, uid in ((phm, "صيدلية النور", phid), (ph2, "صيدلية الأمل", ph2id)):
     call("POST", "/providers/apply", {"name_ar": nm, "region_id": Z2, "address": "شارع البحر"}, t); call("POST", f"/admin/providers/{uid}/review", {"status": "approved"}, at)
+# استفسار دواء جديد يجب أن يوقظ الصيدليات المعتمدة خارج التطبيق.
+_inquiry_has, _inquiry_send = server.fcm.has_tokens, server.fcm.send
+_inquiry_event, _inquiry_hits = threading.Event(), []
+server.fcm.has_tokens = lambda c, uid: uid == phid
+def _capture_inquiry_push(c, uids, ttl=300, kind="order", target=None):
+    if phid in uids:
+        _inquiry_hits.append((kind, target)); _inquiry_event.set()
+    return 1
+server.fcm.send = _capture_inquiry_push
+_inquiry_result = call("POST", "/medical/inquiries", {"medicine_name": "دواء تجريبي", "region_id": Z2}, cust)
+_inquiry_push = _inquiry_event.wait(3) and ("inquiry", "/pharmacy.html") in _inquiry_hits
+server.fcm.has_tokens, server.fcm.send = _inquiry_has, _inquiry_send
+ok("new medicine inquiry triggers native push to an approved pharmacy", _inquiry_result[0] == 201 and _inquiry_push)
 # قسم المنتجات: تصنيفات + مفتاح الإظهار + عروض منشورة
 call("POST", "/admin/products/seed-categories", {}, at); CAT = call("GET", "/medical/product-categories")[1]
 cat = sql("SELECT id FROM categories WHERE section='medical' AND parent_id IS NOT NULL ORDER BY id")[0][0]
@@ -71,7 +84,17 @@ ok("'ready' before 'accept' -> 409", A(phm, "ready")[0] == 409)
 ok("customer cannot cancel someone else's order (404)", call("POST", f"/my/product-orders/{pid_}/cancel", {}, other)[0] == 404)
 
 # ---- 4) القبول = التحويل لدليفري
+_old_has, _old_send = server.fcm.has_tokens, server.fcm.send
+_push_event, _push_hits = threading.Event(), []
+server.fcm.has_tokens = lambda c, uid: uid == cid
+def _capture_push(c, uids, ttl=300, kind="order", target=None):
+    if cid in uids:
+        _push_hits.append((kind, target)); _push_event.set()
+    return 1
+server.fcm.send = _capture_push
 s, r = A(phm, "accept"); did = r["order_id"]
+_accept_push = _push_event.wait(3) and ("product_update", "/") in _push_hits
+ok("native push sent to customer after pharmacy acceptance", _accept_push)
 ok("accept -> accepted and a delivery order is created from it", s == 200 and r["status"] == "accepted" and did and dcount() == n0 + 1)
 d = sql("SELECT origin_type,customer_id,pickup_text,dropoff_text,details,fee,commission,status,fare_status,region_id FROM delivery_orders WHERE id=?", did)[0]
 ok("delivery order: origin=product_order, customer, pickup=pharmacy, dropoff=customer address, items in details, searching", d[0] == "product_order" and d[1] == cid and "صيدلية النور" in d[2] and d[3] == "عمارة 5 شقة 3" and "2× كريم مرطب للبشرة" in d[4] and "1× شامبو أطفال" in d[4] and d[7] == "searching" and d[8] == "none" and d[9] == Z2)
@@ -87,7 +110,12 @@ av = [o for o in call("GET", "/courier/available", None, c1)[1] if o["id"] == di
 
 # ---- 5) «جاهز للاستلام» + دورة المندوب العادية
 ok("pharmacy list: now can_ready, cannot accept again", prow(phm, pid_)["can_ready"] and not prow(phm, pid_)["can_accept"])
-ok("ready -> ready and customer sees it + notification", A(phm, "ready") == (200, {"id": pid_, "status": "ready"}) and mine(cust, did)["shop_status"] == "ready" and [n["title"] for n in notes(cust, "product_order.stage")][0] == "طلبك جاهز للاستلام من الصيدلية")
+_push_event.clear(); _push_hits.clear()
+_ready_result = A(phm, "ready")
+_ready_push = _push_event.wait(3) and ("product_update", "/") in _push_hits
+server.fcm.has_tokens, server.fcm.send = _old_has, _old_send
+ok("ready -> ready and customer sees it + notification", _ready_result == (200, {"id": pid_, "status": "ready"}) and mine(cust, did)["shop_status"] == "ready" and [n["title"] for n in notes(cust, "product_order.stage")][0] == "طلبك جاهز للاستلام من الصيدلية")
+ok("native push sent to customer after pharmacy marks ready", _ready_push)
 ok("ready twice -> 409", A(phm, "ready")[0] == 409)
 ok("courier cycle: accept, propose fare, customer approves", call("POST", f"/courier/orders/{did}/accept", {}, c1)[0] == 200 and call("POST", f"/courier/orders/{did}/fare", {"fee": 20}, c1)[0] == 200 and call("POST", f"/delivery/orders/{did}/fare/approve", {"fee": 20}, cust)[0] == 200)
 m = mine(cust, did); ok("customer sees courier name+phone and bill with fee: 285.5 + 20 = 305.5", m["courier_name"] == "أحمد المندوب" and m["courier_phone"] and m["delivery_fee"] == 20 and m["grand_total"] == 305.5)
@@ -122,9 +150,10 @@ ok("after a server restart (init) the 2 product-order triggers still exist and n
 
 # ---- 9) الواجهات + متصفح حقيقي (هاتف 390×844): العميل يضيف ويطلب ← الصيدلية تقبل ← العميل يتابع المراحل ← اعتذار
 HERE = os.path.dirname(os.path.abspath(__file__)); rd = lambda f: open(os.path.join(HERE, "static", f), encoding="utf-8").read()
-ok("index.html wires cart + order sheet + pending cards + pharmacy stage labels", all(k in rd("index.html") for k in ("padd(", "pcSend", "pordCards(po)", "SHPH", "/my/product-orders")))
+ok("index.html wires cart + order sheet + pending cards + pharmacy stage labels", all(k in rd("index.html") for k in ("padd(", "pcSend", "pordCards=l", "SHPH", "/my/product-orders")))
 ok("pharmacy.html wires the orders section and actions", all(k in rd("pharmacy.html") for k in ("poAct(", "/provider/product-orders", "قبول الطلب وتحويله لدليفري", "اعتذار")))
-ok("courier.html labels product orders; sw.js shows the pharmacy push and cache is v130", "product_order" in rd("courier.html") and "porderNote" in rd("sw.js") and 'laqino-v130' in rd("sw.js"))
+CACHE = next(x.split("=", 1)[1].strip() for x in open(os.path.join(HERE, "VERSION"), encoding="utf-8") if x.startswith("cache="))
+ok("courier.html labels product orders; sw.js shows pharmacy push and matches VERSION", "product_order" in rd("courier.html") and "porderNote" in rd("sw.js") and CACHE in rd("sw.js"))
 cu2, cu2id = user("01298700011", "عميل المتصفح")
 from playwright.sync_api import sync_playwright
 with sync_playwright() as p:

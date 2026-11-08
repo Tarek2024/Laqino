@@ -1,6 +1,6 @@
-# HANDOFF — لاقينو (التحديث التراكمي phase-57)
+# HANDOFF — لاقينو (التحديث التراكمي phase-90)
 
-> الإصدار الحالي `phase-86`؛ كاش الواجهة `laqino-v129` (السابق laqino-v128). آخر تغيير: م2 «تطوير المحلات» — هوية المحل: لوجو وغلاف وصفحة محل بشبكة صور ومعاينة مكبّرة (راجع README_UPDATE.md).
+> الإصدار الحالي `phase-90`؛ كاش الواجهة `laqino-v134` (السابق laqino-v133). آخر تغيير: إصلاح تسجيل FCM وتوجيه الإشعارات للأقسام مع إضافة إشعار طلب المحل (راجع README_UPDATE.md).
 
 ## phase-55 — قفل البحث تلقائيًا لما الرد يكتمل
 - `rx.py`: جدول `rx_completed` + `is_completed` / `mark_completed` / `open_prescription_count`؛ `complete_claim_on_full_approval` و`_claim_next` بيستدعوا القفل؛ `stage_of` بترجع `completed`؛ حارس في `_claim_next` يمنع إعادة التوزيع (ويفتح البحث تاني لو الاكتمال اتراجع)؛ بحث النواقص الفرعي لما يكتمل بيقفل الأصل كمان؛ `/quotes` بترجع `completed` و`completed_at`.

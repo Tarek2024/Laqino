@@ -107,8 +107,21 @@ ok("dropoff required (>=3 chars)", bad(dropoff_text="") == 400 and bad(dropoff_t
 ok("invalid coordinates rejected", bad(dropoff_lat="x", dropoff_lng=1) == 400 and bad(dropoff_lat=95, dropoff_lng=1) == 400)
 ok("nothing was created by the invalid requests", sql("SELECT COUNT(*) FROM shop_delivery_links WHERE kind='shop_order'")[0][0] == 0)
 
+# اختبر إشعار FCM الأصلي لمالك المحل دون الاتصال بخدمة Firebase الحقيقية.
+_fcm_has, _fcm_send = server.fcm.has_tokens, server.fcm.send
+_fcm_event, _fcm_hits = threading.Event(), []
+server.fcm.has_tokens = lambda c, uid: uid == oid_
+def _capture_shop_fcm(c, uids, ttl=300, kind="order", target=None):
+    if oid_ in uids:
+        _fcm_hits.append((list(uids), ttl, kind, target)); _fcm_event.set()
+    return 1
+server.fcm.send = _capture_shop_fcm
+
 # ---- 5) العميل يطلب من المحل: الإنشاء
 s, r = ordr(**GOOD, note="  من غير  بصل  ", request_key="ok1", dropoff_lat=30.0, dropoff_lng=31.0); oo = r["id"]
+_fcm_ok = _fcm_event.wait(3) and any(x[0] == [oid_] and x[2] == "shop" and x[3] == "/shop.html#o" for x in _fcm_hits)
+server.fcm.has_tokens, server.fcm.send = _fcm_has, _fcm_send
+ok("shop owner receives native FCM on the shop dashboard", _fcm_ok)
 ok("order created (201, total 81.0, delivery code)", s == 201 and r["status"] == "searching" and r["items_total"] == 81.0 and len(r["delivery_code"]) == 6)
 row = sql("SELECT origin_type,fee,commission,pickup_text,dropoff_text,details,fare_status,customer_id,region_id,comm_type,comm_value,dropoff_lat FROM delivery_orders WHERE id=?", oo)[0]
 ok("normal-flow order: region fee 25 (the shop's region), commission 4 (platform setting, not the pickup 2), fare 'none', pickup=shop, region=shop region", row[0] == "shop_order" and row[1] == 25 and row[2] == 4 and "مطعم الأمل" in row[3] and row[4] == "عمارة 5 شقة 3" and row[6] == "none" and row[7] == cid and row[8] == Z2 and row[9] == "fixed" and row[10] == 4 and row[11] == 30.0)
@@ -129,9 +142,39 @@ ok("shop sees the order with items, total, note and no customer data", it["items
 ok("another shop owner cannot list or reject them", call("GET", "/owner/shops/%d/orders" % S1, None, own2)[0] == 404 and call("POST", "/owner/shops/%d/orders/%d/reject" % (S2, oo), {}, own2)[0] == 404 and call("POST", "/owner/shops/%d/orders/%d/reject" % (S1, oo), {}, own2)[0] == 404)
 ok("a pickup order cannot be rejected through the orders route", call("POST", "/owner/shops/%d/orders/%d/reject" % (S1, po), {}, own)[0] == 404)
 
+# اختبر تنبيه العميل الخارجي عند قبول المحل وتجهيز الطلب.
+_stage_has, _stage_send = server.fcm.has_tokens, server.fcm.send
+_stage_event, _stage_hits = threading.Event(), []
+server.fcm.has_tokens = lambda c, uid: uid == cid
+def _capture_shop_stage(c, uids, ttl=300, kind="order", target=None):
+    if cid in uids:
+        _stage_hits.append((kind, target)); _stage_event.set()
+    return 1
+server.fcm.send = _capture_shop_stage
+_stage_accept = call("POST", f"/owner/shops/{S1}/orders/{oo}/accept", {}, own)
+_stage_accept_push = _stage_event.wait(3) and ("shop_update", "/") in _stage_hits
+_stage_event.clear(); _stage_hits.clear()
+_stage_ready = call("POST", f"/owner/shops/{S1}/orders/{oo}/ready", {}, own)
+_stage_ready_push = _stage_event.wait(3) and ("shop_update", "/") in _stage_hits
+server.fcm.has_tokens, server.fcm.send = _stage_has, _stage_send
+ok("shop accepts order and customer receives native push", _stage_accept[0] == 200 and _stage_accept_push)
+ok("shop marks order ready and customer receives native push", _stage_ready[0] == 200 and _stage_ready_push)
+
 # ---- 7) دورة الطلب العادية كاملة: قبول → أجرة → موافقة → توصيل → تأكيد
 ok("courier sees it as shop order", any(a["id"] == oo and a["origin_type"] == "shop_order" for a in call("GET", "/courier/available", None, c1)[1]))
-ok("accept goes to fare draft (not direct)", call("POST", f"/courier/orders/{oo}/accept", {}, c1) == (200, {"ok": True, "fee": 25, "fare_status": "draft"}))
+_order_has, _order_send = server.fcm.has_tokens, server.fcm.send
+_order_event, _order_hits = threading.Event(), []
+server.fcm.has_tokens = lambda c, uid: uid == cid
+def _capture_order_update(c, uids, ttl=300, kind="order", target=None):
+    if cid in uids:
+        _order_hits.append((kind, target)); _order_event.set()
+    return 1
+server.fcm.send = _capture_order_update
+_accept_result = call("POST", f"/courier/orders/{oo}/accept", {}, c1)
+_order_push = _order_event.wait(3) and ("order_update", "/") in _order_hits
+server.fcm.has_tokens, server.fcm.send = _order_has, _order_send
+ok("accept goes to fare draft (not direct)", _accept_result == (200, {"ok": True, "fee": 25, "fare_status": "draft"}))
+ok("customer receives native push when courier accepts delivery", _order_push)
 ok("cannot start before the customer approves the fare", call("POST", f"/courier/orders/{oo}/status", {"to": "heading_pickup"}, c1)[0] == 409)
 ok("courier proposes 35, customer approves", call("POST", f"/courier/orders/{oo}/fare", {"fee": 35}, c1)[0] == 200 and call("POST", f"/delivery/orders/{oo}/fare/approve", {"fee": 35}, cust)[0] == 200)
 it = [x for x in call("GET", "/owner/shops/%d/orders" % S1, None, own)[1]["items"] if x["id"] == oo][0]

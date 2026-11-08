@@ -313,7 +313,7 @@ def init(admin_phone=None, admin_pw=None):
     exchange.install(c)  # سوق الصيدليات (إضافة بعد الخطوة 7): exchange_deals/images/reports (idempotent)
     provider_delivery.bind(push_new_order, audit, default_delivery_region, COUNT_SQL["orders"]); provider_delivery.install(c)  # Phase 40: زر «اطلب دليفري» للصيدليات
     shops.bind(audit, UP); shops.install(c)  # Phase 66 (م1 المحلات): shop_types + shops + مفتاح shops_enabled مطفي (idempotent)
-    shop_delivery.bind(push_new_order, push_stop_order, audit, default_delivery_region, COUNT_SQL["orders"], region_fee, commission_for, LIMITS["orders"]); shop_delivery.install(c)  # Phase 69 (م4 المحلات): المحل يطلب مندوب + العميل يطلب من المحل (بعد shops.install لأنه يعيد كتابة triggers ntf_shop_)
+    shop_delivery.bind(push_new_order, push_stop_order, audit, default_delivery_region, COUNT_SQL["orders"], region_fee, commission_for, LIMITS["orders"], shop_order_push, shop_customer_push); shop_delivery.install(c)  # Phase 69 (م4 المحلات): المحل يطلب مندوب + العميل يطلب من المحل (بعد shops.install لأنه يعيد كتابة triggers ntf_shop_)
     products.install(c)  # Phase 2: product_offers + medical sub-categories (idempotent)
     product_orders.bind(push_new_order, push_stop_order, audit, region_fee, commission_for, COUNT_SQL["orders"], LIMITS["orders"]); product_orders.install(c)  # Phase 87: «اطلب من الصيدلية مباشرة» (بعد notif.install لأن triggers ntf_po_ تُنشأ هنا)
     rx.install(c)  # RX schema extensions (idempotent, additive migrations)
@@ -563,7 +563,9 @@ def push_send(endpoint, priv, pub, ttl):
     try:
         with urllib.request.urlopen(rq, timeout=6) as r: return r.status
     except urllib.error.HTTPError as e: return e.code
-    except Exception: return 0
+    except Exception as e:
+        print("web push request failed:", type(e).__name__, repr(e), file=sys.stderr)
+        return 0
 def push_targets(c, oid):
     """Couriers to wake for an order: approved, covering the region, chose 'online' recently (heartbeat may be stale because the app is closed), enough wallet for the commission, not the customer, not already rejected it. Waking is NOT dispatch: offers/accept still require a fresh heartbeat."""
     o = c.execute("SELECT customer_id,region_id,commission,search_started_at,created_at FROM delivery_orders WHERE id=? AND status='searching'", (oid,)).fetchone()
@@ -616,16 +618,70 @@ def push_pending(c, uid):
     for o in c.execute("SELECT o.id,o.commission,o.region_id,o.search_started_at,o.created_at FROM delivery_orders o WHERE o.status='searching' AND o.courier_id IS NULL AND o.customer_id!=? AND (CASE WHEN o.search_started_at>0 THEN o.search_started_at ELSE o.created_at END)>? AND NOT EXISTS(SELECT 1 FROM order_offers f WHERE f.order_id=o.id AND f.courier_id=? AND f.status IN('rejected','lost'))", (uid, now - win, uid)).fetchall():  # المرحلة 64: التوسّع للمجاورة
         if free >= o["commission"] and can_extend(c, cr["region_id"], o, now): n += 1
     return n
-def _push_to_users(c, uids, ttl, native=True, kind="order"):
-    """Web Push (data-less) to every subscribed device, then (Phase 8) FCM to the user's Android app tokens. native=False for the final sweep: a generic FCM notification cannot be withdrawn."""
-    priv, pub = vapid_keys(c); n = 0
-    for uid in uids:
-        for sub in c.execute("SELECT endpoint FROM push_subs WHERE user_id=?", (uid,)).fetchall():
-            st = push_send(sub["endpoint"], priv, pub, ttl)
-            if st in (404, 410): c.execute("DELETE FROM push_subs WHERE endpoint=?", (sub["endpoint"],)); c.commit()
-            elif 200 <= st < 300: n += 1
-    if native: n += fcm.send(c, uids, ttl, kind)
+def _push_to_users(c, uids, ttl, native=True, kind="order", target=None):
+    """Web Push and Android FCM are independent best-effort channels; failure in either must not suppress the other."""
+    n = 0
+    try:
+        priv, pub = vapid_keys(c)
+        for uid in uids:
+            for sub in c.execute("SELECT endpoint FROM push_subs WHERE user_id=?", (uid,)).fetchall():
+                st = push_send(sub["endpoint"], priv, pub, ttl)
+                if st in (404, 410): c.execute("DELETE FROM push_subs WHERE endpoint=?", (sub["endpoint"],)); c.commit()
+                elif 200 <= st < 300: n += 1
+    except Exception as e:
+        print("web push failed:", e, file=sys.stderr)
+    if native:
+        try:
+            n += fcm.send(c, uids, ttl, kind, target=target) if target else fcm.send(c, uids, ttl, kind)
+        except Exception as e:
+            print("native FCM push failed:", e, file=sys.stderr)
     return n
+def _user_event_push(uid, kind, target="/"):
+    """إشعار عام آمن للمستخدم بعد حفظ الحدث؛ لا يحمل بيانات الطلب."""
+    def run():
+        try:
+            time.sleep(0.25)
+            c = db()
+            try:
+                if c.execute("SELECT 1 FROM push_subs WHERE user_id=?", (uid,)).fetchone() or fcm.has_tokens(c, uid):
+                    _push_to_users(c, [uid], 3600, kind=kind, target=target)
+            finally:
+                c.close()
+        except Exception as e:
+            print("user event push failed:", e, file=sys.stderr)
+    try: threading.Thread(target=run, daemon=True).start()
+    except Exception: pass
+
+
+def order_update_push(uid):
+    _user_event_push(uid, "order_update", "/")
+
+
+def product_customer_push(uid):
+    _user_event_push(uid, "product_update", "/")
+
+
+def shop_customer_push(uid):
+    _user_event_push(uid, "shop_update", "/")
+
+
+def inquiry_push(uid):
+    """إيقاظ الصيدلية خارجيًا عند استفسار دواء جديد في منطقتها."""
+    def run():
+        try:
+            time.sleep(0.25)
+            c = db()
+            try:
+                if c.execute("SELECT 1 FROM push_subs WHERE user_id=?", (uid,)).fetchone() or fcm.has_tokens(c, uid):
+                    _push_to_users(c, [uid], 3600, kind="inquiry", target="/pharmacy.html")
+            finally:
+                c.close()
+        except Exception as e:
+            print("inquiry push failed:", e, file=sys.stderr)
+    threading.Thread(target=run, daemon=True).start()
+notif.push_hook = inquiry_push
+
+
 def medical_push(uid, kind="rx.update"):
     """Wake the user's devices for an unread medical notification. Push payload is generic and contains no request details."""
     def run():
@@ -634,7 +690,9 @@ def medical_push(uid, kind="rx.update"):
             c = db()
             try:
                 if c.execute("SELECT 1 FROM push_subs WHERE user_id=?", (uid,)).fetchone() or fcm.has_tokens(c, uid):
-                    _push_to_users(c, [uid], 3600, kind="medical")
+                    # نوع إشعار الروشتة يحدد صاحب الوجهة: عروض/اعتماد الصيدلية مقابل رد العميل.
+                    target = "/pharmacy.html" if kind in ("rx.offer", "rx.approved", "rx.rejected") else "/"
+                    _push_to_users(c, [uid], 3600, kind="medical", target=target)
             finally: c.close()
         except Exception as e: print("medical push failed:", e, file=sys.stderr)
     threading.Thread(target=run, daemon=True).start()
@@ -647,9 +705,14 @@ def chat_push(uid):
         try:
             c = db()
             try:
-                if c.execute("SELECT 1 FROM push_subs WHERE user_id=?", (uid,)).fetchone() or fcm.has_tokens(c, uid): _push_to_users(c, [uid], 3600, kind="chat")
-            finally: c.close()
-        except Exception: pass
+                has_web = bool(c.execute("SELECT 1 FROM push_subs WHERE user_id=?", (uid,)).fetchone())
+                has_native = fcm.has_tokens(c, uid)
+                if has_web or has_native:
+                    _push_to_users(c, [uid], 3600, kind="chat")
+            finally:
+                c.close()
+        except Exception as e:
+            print("chat push failed:", e, file=sys.stderr)
     threading.Thread(target=run, daemon=True).start()
 chat.push_hook = chat_push
 def product_order_push(uid):
@@ -664,6 +727,22 @@ def product_order_push(uid):
         except Exception as e: print("product order push failed:", e, file=sys.stderr)
     threading.Thread(target=run, daemon=True).start()
 product_orders.push_hook = product_order_push
+product_orders.customer_push_hook = product_customer_push
+
+def shop_order_push(uid):
+    """إشعار خارجي لمالك المحل عند وصول طلب عميل جديد؛ مستقل عن تنبيه المندوب."""
+    def run():
+        try:
+            time.sleep(0.25)
+            c = db()
+            try:
+                if c.execute("SELECT 1 FROM push_subs WHERE user_id=?", (uid,)).fetchone() or fcm.has_tokens(c, uid):
+                    _push_to_users(c, [uid], 3600, kind="shop", target="/shop.html#o")
+            finally:
+                c.close()
+        except Exception as e:
+            print("shop order push failed:", e, file=sys.stderr)
+    threading.Thread(target=run, daemon=True).start()
 chat.UPLOADS = UP  # صور المحادثة تُحفظ في مجلد الرفع نفسه
 exchange.UP = UP
 svc.UPLOADS = UP  # صور طلبات الخدمة (الخطوة 2) في مجلد الرفع نفسه
@@ -1248,9 +1327,12 @@ class H(BaseHTTPRequestHandler):
                 self.need(u, "admin", "staff"); d = self.body(); st = d.get("status")
                 if st not in ("approved", "rejected"): raise E(400, "حالة غير صالحة")
                 if st == "rejected" and not d.get("reason"): raise E(400, "اذكر سبب الرفض")
+                owner = c.execute("SELECT user_id FROM listings WHERE id=? AND status='pending'", (int(m[1]),)).fetchone()
                 n = c.execute("UPDATE listings SET status=?,reject_reason=? WHERE id=? AND status='pending'", (st, d.get("reason"), int(m[1]))).rowcount
                 if not n: raise E(409, "الإعلان غير قيد المراجعة")
-                audit(c, u["id"], "listing." + st, m[1], d); c.commit(); return self.send(200, {"ok": True})
+                audit(c, u["id"], "listing." + st, m[1], d); c.commit()
+                if owner: _user_event_push(owner["user_id"], "market", "/market.html")
+                return self.send(200, {"ok": True})
             sweep(c)
             NEXT = {"assigned": "heading_pickup", "heading_pickup": "picked_up", "picked_up": "heading_customer", "heading_customer": "arrived", "arrived": "awaiting_confirmation"}
             def ev(oid, frm, to): c.execute("INSERT INTO order_events(order_id,actor_id,from_status,to_status,at) VALUES(?,?,?,?,?)", (oid, u["id"], frm, to, int(time.time())))
@@ -1502,7 +1584,7 @@ class H(BaseHTTPRequestHandler):
                     direct = pk_ or (need_["offer_fee"] is not None and not counter)  # طلب الصيدلية يُقبل مباشرة بلا تفاوض أجرة
                     c.execute("UPDATE delivery_orders SET fare_status=? WHERE id=?", ("approved" if direct else "draft", oid))  # draft: المندوب يرى الأجرة المرجعية ويعدّلها ثم يرسلها للعميل
                     if direct: audit(c, u["id"], "order.fare_accepted_offer", str(oid), {"fee": need_["offer_fee"]})
-                    ev(oid, "searching", "assigned"); c.commit(); push_stop_order(oid); return self.send(200, {"ok": True, "fee": dflt["fee"] if dflt else None, "fare_status": "approved" if direct else "draft"})
+                    ev(oid, "searching", "assigned"); c.commit(); push_stop_order(oid); order_update_push(need_["customer_id"]); return self.send(200, {"ok": True, "fee": dflt["fee"] if dflt else None, "fare_status": "approved" if direct else "draft"})
                 except E: c.rollback() if c.in_transaction else None; raise
             m = re.fullmatch(r"/api/courier/orders/(\d+)/reject", path)
             if method == "POST" and m:
@@ -1512,14 +1594,14 @@ class H(BaseHTTPRequestHandler):
                 c.commit(); return self.send(200, {"ok": True})  # the order stays searching for every other eligible courier
             m = re.fullmatch(r"/api/courier/orders/(\d+)/handover", path)
             if method == "POST" and m:
-                courier(); oid = int(m[1]); o = c.execute("SELECT status,delivery_code FROM delivery_orders WHERE id=? AND courier_id=?", (oid, u["id"])).fetchone()
+                courier(); oid = int(m[1]); o = c.execute("SELECT status,delivery_code,customer_id FROM delivery_orders WHERE id=? AND courier_id=?", (oid, u["id"])).fetchone()
                 if not o: raise E(404, "غير موجود")
                 if o["status"] != "awaiting_confirmation": raise E(409, "الطلب ليس بانتظار التأكيد")
                 key = "otp|%d" % oid
                 if throttled(c, key, 5, 900): raise E(429, "محاولات كثيرة، اطلب من العميل التأكيد من تطبيقه")
                 if not o["delivery_code"] or not secrets.compare_digest(str(self.body().get("code", "")).strip(), o["delivery_code"]): note_fail(c, key); raise E(403, "رمز التسليم غير صحيح")
                 if not c.execute("UPDATE delivery_orders SET status='completed',updated_at=? WHERE id=? AND status='awaiting_confirmation'", (int(time.time()), oid)).rowcount: raise E(409, "تم إغلاق الطلب")
-                ev(oid, "awaiting_confirmation", "completed"); charge_commission(c, oid); audit(c, u["id"], "order.otp_complete", str(oid)); c.commit(); return self.send(200, {"status": "completed"})
+                ev(oid, "awaiting_confirmation", "completed"); charge_commission(c, oid); audit(c, u["id"], "order.otp_complete", str(oid)); c.commit(); order_update_push(o["customer_id"]); return self.send(200, {"status": "completed"})
             m = re.fullmatch(r"/api/delivery/orders/(\d+)/retry", path)
             if method == "POST" and m:
                 self.need(u); oid = int(m[1]); now = int(time.time())
@@ -1542,18 +1624,18 @@ class H(BaseHTTPRequestHandler):
                 except (TypeError, ValueError): raise E(400, "أجرة غير صالحة")
                 c.commit(); c.execute("BEGIN IMMEDIATE")
                 try:
-                    o = c.execute("SELECT region_id,status,fare_status,commission,comm_type,comm_value FROM delivery_orders WHERE id=? AND courier_id=?", (oid, u["id"])).fetchone()
+                    o = c.execute("SELECT region_id,status,fare_status,commission,comm_type,comm_value,customer_id FROM delivery_orders WHERE id=? AND courier_id=?", (oid, u["id"])).fetchone()
                     if not o: raise E(404, "غير موجود")
                     if o["status"] != "assigned" or o["fare_status"] not in ("draft", "proposed"): raise E(409, "لا يمكن تعديل الأجرة في الحالة الحالية")
                     if not (0 < fee <= 100000): raise E(400, "أجرة غير صالحة")  # بلا حدود أدنى/أقصى لكل منطقة (مناطق غير مضافة)؛ العميل هو من يوافق أو يرفض
                     comm = commission_for(c, fee, o["comm_type"], o["comm_value"]); free = wallet_free(c, u["id"])[1]  # free يخصم عمولة هذا الطلب القديمة المحجوزة، فنضيفها قبل المقارنة
                     if free + o["commission"] < comm: raise E(402, "رصيدك غير كافٍ لعمولة هذه الأجرة")
                     if not c.execute("UPDATE delivery_orders SET fee=?,commission=?,fare_status='proposed',updated_at=? WHERE id=? AND courier_id=? AND status='assigned' AND fare_status IN('draft','proposed')", (fee, comm, int(time.time()), oid, u["id"])).rowcount: raise E(409, "تغيّرت حالة الطلب، حدّث الصفحة")
-                    audit(c, u["id"], "order.fare_propose", str(oid), {"fee": fee}); c.commit(); return self.send(200, {"fee": fee, "fare_status": "proposed"})
+                    audit(c, u["id"], "order.fare_propose", str(oid), {"fee": fee}); c.commit(); order_update_push(o["customer_id"]); return self.send(200, {"fee": fee, "fare_status": "proposed"})
                 except E: c.rollback() if c.in_transaction else None; raise
             m = re.fullmatch(r"/api/courier/orders/(\d+)/(status|release)", path)
             if method == "POST" and m:
-                courier(); oid = int(m[1]); o = c.execute("SELECT status,fare_status,origin_type FROM delivery_orders WHERE id=? AND courier_id=?", (oid, u["id"])).fetchone()
+                courier(); oid = int(m[1]); o = c.execute("SELECT status,fare_status,origin_type,customer_id FROM delivery_orders WHERE id=? AND courier_id=?", (oid, u["id"])).fetchone()
                 if not o: raise E(404, "غير موجود")
                 if m[2] == "release":
                     if o["status"] not in ("assigned", "heading_pickup"): raise E(409, "لا يمكن التخلي عن الطلب بعد الاستلام")
@@ -1566,7 +1648,7 @@ class H(BaseHTTPRequestHandler):
                 if not c.execute("UPDATE delivery_orders SET status=?,updated_at=? WHERE id=? AND courier_id=? AND status=?", (to, int(time.time()), oid, u["id"], o["status"])).rowcount: raise E(409, "تغيّرت حالة الطلب، حدّث الصفحة")  # لا نكتب فوق إلغاء/اعتراض حدث بالتوازي
                 ev(oid, o["status"], to)
                 if to in ("awaiting_confirmation", "completed") or (to == "picked_up" and o["origin_type"] in PICKUP_KINDS): charge_commission(c, oid)  # الطلبات العادية تُحصّل عند التأكيد؛ طلب الصيدلية عند الاستلام من الصيدلية (picked_up) — م2: التسليم للعميل بعدها لا يعيد التحصيل (charge_commission idempotent)
-                c.commit(); return self.send(200, {"status": to})
+                c.commit(); order_update_push(o["customer_id"]); return self.send(200, {"status": to})
             if method == "GET" and path == "/api/features":  # أعلام عامة للواجهة (المنتجات مطفية افتراضيًا عند الإطلاق)
                 return self.send(200, {"products": products.enabled(c)})
             if method == "POST" and path == "/api/admin/features":

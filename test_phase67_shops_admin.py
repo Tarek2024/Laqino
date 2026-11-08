@@ -96,6 +96,6 @@ ok("UI: empty search shows the empty message", "لا توجد محلات مطا�
 # ---- 8) ثوابت ثابتة في الملفات
 s = open(os.path.join(os.path.dirname(os.path.abspath(__file__)), "static", "admin.html"), encoding="utf-8").read()
 tabs = re.search(r"const TABS=\{(.*?)\};", s, re.S).group(1)
-ok("admin.html declares the shops tab (24 sections)", "shops:'المحلات'" in tabs and len(re.findall(r"(\w+):'", tabs)) == 24)
+ok("admin.html declares the shops tab (25 sections including Firebase)", "shops:'المحلات'" in tabs and "fcm:'حالة Firebase'" in tabs and len(re.findall(r"(\w+):'", tabs)) == 25)
 ok("admin.html never uses innerHTML with raw shop fields (all via esc)", "${x.name_ar}" not in s and "${x.address}" not in s)
 print("ALL PASS")

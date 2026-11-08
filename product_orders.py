@@ -15,7 +15,8 @@ ORIGIN = "product_order"  # قيمة delivery_orders.origin_type
 MAX_LINES, MAX_QTY, MAX_PER_HOUR, MAX_NEW = 20, 20, 10, 5
 PRE_PICKUP = ("searching", "assigned", "heading_pickup")  # المراحل اللي ينفع فيها للصيدلية تقبل/تجهّز/تعتذر (قبل ما المندوب يستلم)
 PRE_PICKUP_SQL = "('searching','assigned','heading_pickup')"
-push_hook = None  # server.py يضبطها: دالة(user_id) توقظ أجهزة الصيدلية (Web Push بلا بيانات + FCM)؛ best-effort
+push_hook = None  # server.py يضبطها: توقظ الصيدلية عند طلب منتجات جديد
+customer_push_hook = None  # server.py يضبطها: توقظ العميل عند قبول/تجهيز/رفض طلبه
 _H = {}
 SCHEMA = """
 CREATE TABLE IF NOT EXISTS product_orders(id INTEGER PRIMARY KEY, customer_id INTEGER NOT NULL REFERENCES users(id), provider_id INTEGER NOT NULL REFERENCES providers(user_id),
@@ -27,6 +28,12 @@ CREATE INDEX IF NOT EXISTS ix_po_prov ON product_orders(provider_id,status,id);
 CREATE INDEX IF NOT EXISTS ix_po_cust ON product_orders(customer_id,id);
 CREATE INDEX IF NOT EXISTS ix_po_order ON product_orders(order_id);
 """
+
+
+def _push_customer(uid):
+    if callable(customer_push_hook):
+        try: customer_push_hook(int(uid))
+        except Exception: pass  # الإيقاظ best-effort ولا يُفشل تحديث الطلب
 
 
 def bind(push, push_stop, audit, region_fee, commission_for, count_sql, cust_limit):
@@ -163,7 +170,7 @@ def handle(h, c, u, method, path, q):
         c.execute("UPDATE delivery_orders SET details=? WHERE id=?", ("طلب منتجات من صيدلية %s — رقم الطلب %d\n%s" % (pv["name_ar"], did, det[:900]), did))
         c.execute("UPDATE product_orders SET order_id=? WHERE id=?", (did, oid))
         c.execute("INSERT INTO order_events(order_id,actor_id,from_status,to_status,at) VALUES(?,?,?,?,?)", (did, po["customer_id"], None, "searching", now))
-        audit("product_order.accept", str(oid), {"delivery_order": did}); c.commit(); _H["push"](did)
+        audit("product_order.accept", str(oid), {"delivery_order": did}); c.commit(); _H["push"](did); _push_customer(po["customer_id"])
         return ok({"id": oid, "status": "accepted", "order_id": did})
     if act == "ready":
         if po["status"] == "new": return err(409, "اقبل الطلب أولًا")
@@ -171,16 +178,16 @@ def handle(h, c, u, method, path, q):
         if po["status"] != "accepted": return err(409, "لا يمكن تغيير حالة الطلب الآن")
         if not c.execute("UPDATE product_orders SET status='ready',ready_at=?,updated_at=? WHERE id=? AND status='accepted' AND EXISTS(SELECT 1 FROM delivery_orders WHERE id=? AND status IN %s)" % PRE_PICKUP_SQL, (now, now, oid, po["order_id"])).rowcount:
             return err(409, "لا يمكن تغيير حالة الطلب بعد استلام المندوب له أو إغلاقه")
-        audit("product_order.ready", str(oid)); c.commit(); return ok({"id": oid, "status": "ready"})
+        audit("product_order.ready", str(oid)); c.commit(); _push_customer(po["customer_id"]); return ok({"id": oid, "status": "ready"})
     # reject: «جديد» ← يُرفض بلا دليفري؛ «مقبول/جاهز» ← يُلغى طلب التوصيل ما دام المندوب لم يستلم
     reason = re.sub(r"\s+", " ", str((h.body() or {}).get("reason") or "")).strip()[:200] or None
     if po["status"] == "new":
         if not c.execute("UPDATE product_orders SET status='rejected',reject_reason=?,updated_at=? WHERE id=? AND status='new'", (reason, now, oid)).rowcount: return err(409, "تغيّرت حالة الطلب، حدّث الصفحة")
-        audit("product_order.reject", str(oid)); c.commit(); return ok({"id": oid, "status": "rejected"})
+        audit("product_order.reject", str(oid)); c.commit(); _push_customer(po["customer_id"]); return ok({"id": oid, "status": "rejected"})
     if po["status"] not in ("accepted", "ready"): return err(409, "لا يمكن رفض الطلب في حالته الحالية")
     d = c.execute("SELECT status FROM delivery_orders WHERE id=?", (po["order_id"],)).fetchone()
     if not d or not c.execute("UPDATE delivery_orders SET status='cancelled',updated_at=? WHERE id=? AND status IN %s" % PRE_PICKUP_SQL, (now, po["order_id"])).rowcount: return err(409, "لا يمكن رفض الطلب بعد استلام المندوب له أو إغلاقه")
     c.execute("INSERT INTO order_events(order_id,actor_id,from_status,to_status,at) VALUES(?,?,?,?,?)", (po["order_id"], u["id"], d["status"], "cancelled", now))
     c.execute("UPDATE product_orders SET status='rejected',reject_reason=?,updated_at=? WHERE id=?", (reason, now, oid))
-    audit("product_order.reject", str(oid), {"delivery_order": po["order_id"]}); c.commit(); _H["push_stop"](po["order_id"])
+    audit("product_order.reject", str(oid), {"delivery_order": po["order_id"]}); c.commit(); _H["push_stop"](po["order_id"]); _push_customer(po["customer_id"])
     return ok({"id": oid, "status": "rejected"})

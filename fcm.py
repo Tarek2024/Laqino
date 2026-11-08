@@ -11,7 +11,7 @@ import base64, json, os, re, sys, threading, time, urllib.error, urllib.parse, u
 SCOPE = "https://www.googleapis.com/auth/firebase.messaging"
 MAX_PER_USER = 5
 TOKEN_RE = re.compile(r"^[A-Za-z0-9_:\-\.]{20,4096}$")
-TEXTS = {"order": "طلب توصيل جديد في منطقتك", "chat": "عندك رسالة جديدة", "medical": "عندك تحديث بخصوص طلبك الطبي", "product": "عندك طلب منتجات جديد من عميل"}
+TEXTS = {"order": "طلب توصيل جديد في منطقتك", "chat": "عندك رسالة جديدة", "medical": "عندك تحديث بخصوص طلبك الطبي", "product": "عندك طلب منتجات جديد من عميل", "shop": "عندك طلب جديد من عميل", "inquiry": "استفسار دواء جديد في منطقتك", "product_update": "عندك تحديث بخصوص طلب منتجاتك", "shop_update": "عندك تحديث بخصوص طلبك من المحل", "order_update": "عندك تحديث بخصوص طلب التوصيل", "market": "عندك تحديث بخصوص إعلانك في سوق لاقينو"}
 TITLE = "لاقينو"
 CHANNEL = "laqino_alerts"   # يجب أن تنشئه نسخة الأندرويد (native.js يفعل ذلك)
 
@@ -101,19 +101,22 @@ def _base():
     return b.rstrip("/") or "https://fcm.googleapis.com"
 
 
-def build_message(token, kind, ttl):
+def build_message(token, kind, ttl, target=None):
     kind = kind if kind in TEXTS else "order"
-    return {"message": {"token": token, "notification": {"title": TITLE, "body": TEXTS[kind]}, "data": {"kind": kind},
+    data = {"kind": kind}
+    if target in ("/", "/pharmacy.html", "/shop.html", "/shop.html#o", "/courier.html", "/market.html", "/market.html#/chats"):
+        data["url"] = target
+    return {"message": {"token": token, "notification": {"title": TITLE, "body": TEXTS[kind]}, "data": data,
                         "android": {"priority": "HIGH", "ttl": "%ds" % max(30, min(int(ttl), 3600)), "collapse_key": kind,
                                     "notification": {"tag": kind, "channel_id": CHANNEL}}}}
 
 
-def send_one(sa, token, kind, ttl):
+def send_one(sa, token, kind, ttl, target=None):
     """يرجع (status, dead): dead=True إن كان التوكن لم يعد صالحًا (يُحذف). لا يرمي."""
     try:
         at = access_token(sa)
         rq = urllib.request.Request("%s/v1/projects/%s/messages:send" % (_base(), urllib.parse.quote(sa["project_id"], safe="")),
-                                    json.dumps(build_message(token, kind, ttl)).encode(),
+                                    json.dumps(build_message(token, kind, ttl, target)).encode(),
                                     {"Authorization": "Bearer " + at, "Content-Type": "application/json"}, method="POST")
         with urllib.request.urlopen(rq, timeout=10) as r:
             return r.status, False
@@ -137,7 +140,7 @@ def has_tokens(c, uid):
     return bool(c.execute("SELECT 1 FROM fcm_tokens WHERE user_id=?", (uid,)).fetchone())
 
 
-def send(c, uids, ttl=300, kind="order"):
+def send(c, uids, ttl=300, kind="order", target=None):
     """يوقظ أجهزة أندرويد المستخدمين. يرجع عدد الرسائل المقبولة. لا يرمي أبدًا، ولا يفعل شيئًا إن كان FCM غير مفعّل."""
     try:
         sa = service_account()
@@ -146,7 +149,7 @@ def send(c, uids, ttl=300, kind="order"):
         n = 0
         for uid in uids:
             for r in c.execute("SELECT token FROM fcm_tokens WHERE user_id=?", (uid,)).fetchall():
-                st, dead = send_one(sa, r["token"], kind, ttl)
+                st, dead = send_one(sa, r["token"], kind, ttl, target) if target else send_one(sa, r["token"], kind, ttl)
                 if dead:
                     c.execute("DELETE FROM fcm_tokens WHERE token=?", (r["token"],)); c.commit()
                 elif 200 <= st < 300:

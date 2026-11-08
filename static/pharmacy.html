@@ -79,4 +79,6 @@ m.innerHTML=(msg?`<p class="${isErr?'e':'okm'}">${esc(msg)}</p>`:'')+sec('o',kp(
 $('tb').innerHTML=tabs(p.length+i.length+pord.filter(x=>x.status=='new').length);
 document.querySelectorAll('img[data-im]').forEach(el=>img(el.dataset.im,el));p.forEach(qinit);pimgs();exload();tick();rxDeep(p)}
 catch(e){$('tb').innerHTML='';m.innerHTML=`<div class="card"><b>طلب انضمام صيدلية</b><input id="an" placeholder="اسم الصيدلية"><input id="aa" placeholder="العنوان"><button onclick="ap()">إرسال للإدارة</button>${msg?`<p class="e">${esc(msg)}</p>`:`<small>${esc(e)}</small>`}</div>`}}
-load();</script><script src="/pdelivery.js"></script><script>if("serviceWorker" in navigator)addEventListener("load",()=>navigator.serviceWorker.register("/sw.js").catch(()=>{}))</script></body></html>
+load();</script><script src="/pdelivery.js"></script><script>if("serviceWorker" in navigator)addEventListener("load",()=>navigator.serviceWorker.register("/sw.js").catch(()=>{}))</script><script src="/perm.js" defer></script>
+<script src="/native.js" defer></script>
+</body></html>

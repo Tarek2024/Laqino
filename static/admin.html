@@ -18,7 +18,7 @@ let T=sessionStorage.getItem('at')||'',tab='overview',openF=0,OV=null;const A=do
 const esc=x=>String(x??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const api=async(p,body)=>{const r=await fetch('/api'+p,{method:body===undefined?'GET':'POST',headers:{'Content-Type':'application/json',...(T?{Authorization:'Bearer '+T}:{})},body:body===undefined?undefined:JSON.stringify(body)});const j=await r.json();if(!r.ok)throw j.error;return j};
 const fail=e=>{const x=document.getElementById('err');x.className='';x.textContent=e};const okm=m=>{const x=document.getElementById('err');x.className='good';x.textContent=m};const dt=t=>new Date(t*1000).toLocaleString('ar-EG');
-const TABS={overview:'نظرة عامة',couriers:'المندوبون',topups:'الشحن',listings:'الإعلانات',chats:'بلاغات المحادثات',svcreq:'طلبات الخدمات',products:'منتجات الصيدليات',exchange:'سوق الصيدليات',orders:'الطلبات',users:'المستخدمون',providers:'الصيدليات',rx:'الروشتات',reports:'التقارير',audit:'السجل',regions:'المناطق',cats:'التصنيفات',settings:'العمولة والرسوم',dispatch:'التوزيع والاتصال',doctors:'الأطباء والتخصصات',services:'الخدمات',labs:'المعامل',wa:'تأكيد واتساب',homeui:'الأقسام والواجهة',shops:'المحلات'};
+const TABS={overview:'نظرة عامة',couriers:'المندوبون',topups:'الشحن',listings:'الإعلانات',chats:'بلاغات المحادثات',svcreq:'طلبات الخدمات',products:'منتجات الصيدليات',exchange:'سوق الصيدليات',orders:'الطلبات',users:'المستخدمون',providers:'الصيدليات',rx:'الروشتات',reports:'التقارير',audit:'السجل',regions:'المناطق',cats:'التصنيفات',settings:'العمولة والرسوم',dispatch:'التوزيع والاتصال',doctors:'الأطباء والتخصصات',services:'الخدمات',labs:'المعامل',wa:'تأكيد واتساب',homeui:'الأقسام والواجهة',shops:'المحلات',fcm:'حالة Firebase'};
 function login(){A.innerHTML='<main><div class="card"><b>دخول الإدارة</b><br><input id="p" placeholder="رقم الهاتف"><input id="w" type="password" placeholder="كلمة المرور"><br><button onclick="doLogin()">دخول</button><div id="err"></div></div></main>'}
 async function doLogin(){try{T=(await api('/login',{phone:p.value,password:w.value})).token;const m=await api('/me');if(m.role!='admin'&&m.role!='staff'){T='';throw 'هذا الحساب ليس من الإدارة'}sessionStorage.setItem('at',T);shell()}catch(e){fail(e)}}
 function logout(){if(T)api('/logout',{}).catch(()=>{});sessionStorage.removeItem('at');T='';document.getElementById('out').hidden=true;login()}
@@ -32,7 +32,7 @@ const NAV_GROUPS=[
 ['التوصيل والمندوبون',['couriers','topups','dispatch','regions']],
 ['المستخدمون والحسابات',['users']],
 ['تنظيم الموقع',['cats','homeui']],
-['النظام والتقارير',['settings','wa','reports','audit']]
+['النظام والتقارير',['settings','wa','reports','audit','fcm']]
 ];
 function shell(){document.getElementById('out').hidden=false;const nav=NAV_GROUPS.map(([title,keys])=>'<section class="nav-group"><div class="nav-title">'+esc(title)+'</div>'+keys.filter(k=>TABS[k]).map(k=>`<button type="button" data-k="${k}" class="${k==tab?'on':''}" aria-current="${k==tab?'page':'false'}" onclick="tab='${k}';shell()"><span>${esc(TABS[k])}</span>${k=='overview'?'':bdg(k)}</button>`).join('')+'</section>').join('');A.innerHTML='<nav aria-label="أقسام الإدارة">'+nav+'</nav><main><div id="err" role="status" aria-live="polite"></div><div id="v">جارٍ التحميل…</div></main>';V[tab]().catch(e=>{if(e=='سجّل الدخول أولًا')logout();else fail(e)});if(tab!='overview')badges()}
 const MS={available:'متوفر',unavailable:'غير متوفر',needs_confirmation:'يحتاج تأكيد'};const empty=t=>`<div class="card"><small>${t}</small></div>`,v=h=>document.getElementById('v').innerHTML=h;
@@ -45,6 +45,7 @@ window.sol=async id=>{const p=prompt('رقم هاتف حساب مقدم الخد
  const box=document.getElementById('actresult');if(box)box.innerHTML='<p class="good">تم تفعيل الحساب. سلّم كود الإعداد لصاحب الرقم بعد التحقق من هويته.</p><p><b>كود إعداد كلمة المرور (يظهر الآن فقط):</b> <code>'+esc(r.setup_code)+'</code></p><p><small>صالح لمدة 30 دقيقة. يفتح العميل «استعادة كلمة المرور» في لاقينو، ويكتب رقم الهاتف والكود وكلمة مرور جديدة.</small></p><button class="s" onclick="GenUICopyCode()">نسخ الكود</button>';
  window.__laqinoSetupCode=r.setup_code;
  }catch(e){fail(String(e))}
+
 };
 window.GenUICopyCode=()=>{const x=window.__laqinoSetupCode;if(x)navigator.clipboard?.writeText(x).then(()=>okm('تم نسخ الكود')).catch(()=>fail('انسخ الكود يدويًا'))};
 window.rc=async id=>{if(!confirm('أصدر الكود فقط بعد التحقق من هوية صاحب الحساب. متابعة؟'))return;try{const r=await api('/admin/users/'+id+'/reset-code',{});alert('كود الاستعادة: '+r.code+'\nالهاتف: '+r.phone+'\nصالح 30 دقيقة ولن يظهر مرة أخرى. أعطه لصاحب الحساب فقط.')}catch(e){alert(e)}};
@@ -209,6 +210,17 @@ v(`<div class="card"><label style="display:block"><input id="she" type="checkbox
 +(l.length?l.map(card).join(''):empty('لا توجد محلات مطابقة.'))
 +`<h3>أنواع المحلات</h3>`+ty.map(t=>`<div class="card"><div class="row"><input id="sti${t.id}" value="${esc(t.icon)}" style="width:64px" aria-label="الأيقونة"><input id="stn${t.id}" value="${esc(t.name_ar)}" aria-label="اسم النوع"><input id="sts${t.id}" type="number" value="${esc(t.sort)}" style="width:80px" aria-label="الترتيب"></div><div class="row"><label><input id="sta${t.id}" type="checkbox" ${t.is_active?'checked':''}> مفعّل</label><label><input id="str${t.id}" type="checkbox" ${t.require_image?'checked':''}> صورة الصنف إجبارية</label></div><small>معرّف: ${esc(t.slug)} — محلات معتمدة: ${esc(t.approved_shops)}</small><div class="row"><button class="s" onclick="shTs(${t.id})">حفظ</button></div></div>`).join('')
 +`<div class="card"><b>إضافة نوع جديد</b><div class="row"><input id="nti" placeholder="🏪" style="width:64px"><input id="ntn" placeholder="اسم النوع"><input id="nts" type="number" placeholder="الترتيب" style="width:80px"></div><button onclick="shTn()">إضافة</button></div>`)};
+
+V.fcm=async()=>{
+ const r=await api('/admin/fcm/status');
+ const enabled=!!r.enabled,devices=Number(r.devices||0);
+ v(`<div class="card"><b>حالة Firebase Cloud Messaging (FCM)</b>
+ <p><b>${enabled?'بيانات حساب الخدمة موجودة واجتازت الفحص الأولي':'حساب خدمة Firebase غير جاهز'}</b></p>
+ <div class="g"><div class="k">حالة الإعداد<b>${enabled?'موجودة':'غير متاحة'}</b></div><div class="k">الأجهزة المسجلة<b>${esc(devices)}</b></div></div>
+ <p><small>${enabled?'تمكن الخادم من قراءة ملف حساب الخدمة والتحقق مبدئيًا من الحقول الأساسية.':'راجع متغير LAQINO_FCM_SERVICE_ACCOUNT على الخادم: قد لا يكون مضبوطًا، أو أن الملف غير قابل للقراءة، أو ينقصه أحد الحقول المطلوبة.'}</small></p>
+ <p><small>تنبيه: هذه نتيجة فحص الإعدادات فقط، وليست اختبار إرسال إشعار فعلي إلى جهاز. يلزم اختبار عملي على جهاز Android بعد اكتمال إعداد التطبيق.</small></p>
+ <button class="s" onclick="shell()">تحديث الحالة</button></div>`);
+};
 </script><script>
 /* ---- المرحلة 23: استيراد الأطباء والمعامل من Excel (بطاقة تُلحق أسفل تبويبي «الأطباء» و«المعامل»؛ لا تغيير في أي كود قائم) ---- */
 let IMP={b64:'',name:'',pv:null};

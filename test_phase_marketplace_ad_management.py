@@ -43,7 +43,20 @@ lid=created["id"]
 ok("anonymous column is additive and defaults to zero for old rows", "anonymous" in [r[1] for r in sqlite3.connect(DB).execute("pragma table_info(listings)")])
 ok("pending ad is not publicly listed", all(x["id"]!=lid for x in call("GET","/listings")[1]))
 ok("owner can read own anonymous flag",call("GET",f"/my/listings/{lid}",None,seller)[1]["anonymous"]==1)
-ok("admin can approve listing",call("POST",f"/admin/listings/{lid}/review",{"status":"approved"},admin)[0]==200)
+_seller_id=sql("select id from users where phone=?",("01044440001",))[0][0]
+_old_has,_old_send=server.fcm.has_tokens,server.fcm.send
+_market_event,_market_hits=threading.Event(),[]
+server.fcm.has_tokens=lambda c,uid: uid==_seller_id
+def _capture_market_push(c,uids,ttl=300,kind="order",target=None):
+    if _seller_id in uids:
+        _market_hits.append((kind,target)); _market_event.set()
+    return 1
+server.fcm.send=_capture_market_push
+_review_result=call("POST",f"/admin/listings/{lid}/review",{"status":"approved"},admin)
+_market_push=_market_event.wait(3) and ("market","/market.html") in _market_hits
+server.fcm.has_tokens,server.fcm.send=_old_has,_old_send
+ok("admin can approve listing",_review_result[0]==200)
+ok("listing owner receives native marketplace review push",_market_push)
 pub=call("GET","/listings",None,buyer)[1]
 item=next(x for x in pub if x["id"]==lid)
 ok("public list hides account name for anonymous ad",item["seller"]=="مستخدم مجهول")

@@ -2,6 +2,9 @@
 import os, json, threading, urllib.request, urllib.error, tempfile, time, sqlite3
 os.environ["LAQINO_DB"] = tempfile.mktemp(suffix=".db"); os.environ["LAQINO_UPLOADS"] = tempfile.mkdtemp()
 import server
+import chat
+# Disable async push hooks before any API test can queue a delayed push.
+chat.push_hook = None
 from http.server import ThreadingHTTPServer
 server.init("01000000000", "AdminPass123")
 threading.Thread(target=ThreadingHTTPServer(("127.0.0.1", 8794), server.H).serve_forever, daemon=True).start(); time.sleep(.3)
@@ -32,7 +35,6 @@ def listing(title, mode=None, approve=True, anonymous=False):
 # ---------- المخطط والوضع الافتراضي
 cols = {r[1] for r in sql("PRAGMA table_info(listings)")}
 ok("listings.contact_mode column + chat tables exist", "contact_mode" in cols and {"chat_threads", "chat_messages", "chat_reports"} <= {r[0] for r in sql("select name from sqlite_master where type='table'")})
-import chat
 c0 = server.db(); chat.install(c0); chat.install(c0); c0.close(); ok("chat.install is idempotent", True)
 Ld = listing("افتراضي"); Lc = listing("محادثة فقط", "chat"); Lp = listing("رقم فقط", "phone"); Lb = listing("الاثنان", "both"); Lpend = listing("معلّق", "chat", approve=False)
 ok("default contact_mode is 'both' (keeps current behaviour)", call("GET", f"/listings/{Ld}")[1]["contact_mode"] == "both")
@@ -128,11 +130,13 @@ ok("market.html: messages inserted with textContent (no innerHTML)", ".innerHTML
 
 # ---------- إيقاظ الأجهزة (Web Push) للمحادثة + مسارات الاشتراك العامة
 os.environ["LAQINO_PUSH_ALLOW_ANY"] = "1"
+chat.push_hook = server.chat_push
 from http.server import BaseHTTPRequestHandler
 HITS = []
+PUSH_EVENT = threading.Event()
 class Cap(BaseHTTPRequestHandler):
     def do_POST(self):
-        HITS.append((self.path, self.headers.get("Authorization", ""), self.headers.get("Content-Length"))); self.send_response(201); self.end_headers()
+        HITS.append((self.path, self.headers.get("Authorization", ""), self.headers.get("Content-Length"))); PUSH_EVENT.set(); self.send_response(201); self.end_headers()
     def log_message(self, *a): pass
 threading.Thread(target=ThreadingHTTPServer(("127.0.0.1", 8796), Cap).serve_forever, daemon=True).start()
 EP = lambda n: f"http://127.0.0.1:8796/p/{n}"
@@ -141,17 +145,22 @@ ok("any logged-in user gets the VAPID key", len(call("GET", "/push/key", None, t
 ok("invalid endpoint -> 400", call("POST", "/push/subscribe", {"endpoint": "ftp://x"}, tk[B1])[0] == 400 and call("POST", "/push/subscribe", {}, tk[B1])[0] == 400)
 Lq = listing("للإيقاظ", "chat"); Tq = call("POST", f"/listings/{Lq}/chat", None, tk[B1])[1]["thread_id"]
 ok("subscribe seller + buyer devices", call("POST", "/push/subscribe", {"endpoint": EP("seller")}, tk[SELLER])[0] == 200 and call("POST", "/push/subscribe", {"endpoint": EP("buyer")}, tk[B1])[0] == 200)
-chat.PUSH_GAP = 30; HITS.clear(); call("POST", f"/chats/{Tq}/messages", {"text": "مرحبا"}, tk[B1]); time.sleep(1.2)
-ok("new message wakes ONLY the recipient's device (empty data-less push, VAPID auth)", [h[0] for h in HITS] == ["/p/seller"] and HITS[0][1].startswith("vapid ") and HITS[0][2] == "0")
-call("POST", f"/chats/{Tq}/messages", {"text": "تاني"}, tk[B1]); time.sleep(1.0)
-ok("second message within the gap is throttled (no extra push)", len(HITS) == 1)
+chat.PUSH_GAP = 30; chat._LAST_PUSH.clear(); HITS.clear(); PUSH_EVENT.clear()
+msg_status, msg_result = call("POST", f"/chats/{Tq}/messages", {"text": "مرحبا"}, tk[B1])
+PUSH_EVENT.wait(5.0)  # wait for the real background Web Push request, not a fixed short sleep
+print("CHAT PUSH DIAGNOSTIC:", "message_status=", msg_status, "hits=", repr(HITS), "subs=", sql("select user_id,endpoint from push_subs"))
+ok("new message wakes ONLY the recipient's device (empty data-less push, VAPID auth)", msg_status == 201 and len(HITS) == 1 and HITS[0][0] == "/p/seller" and HITS[0][1].startswith("vapid ") and HITS[0][2] == "0")
+before_second = dict(chat._LAST_PUSH)
+second_status, second_result = call("POST", f"/chats/{Tq}/messages", {"text": "تاني"}, tk[B1]); time.sleep(1.0)
+print("CHAT COOLDOWN TRACE:", {"before_second": before_second, "after_second": dict(chat._LAST_PUSH), "gap": chat.PUSH_GAP, "status": second_status, "hits": list(HITS), "key": (uid[SELLER], Tq)})
+ok("second message within the gap is throttled (no extra push)", second_status == 201 and len(HITS) == 1)
 chat.PUSH_GAP = 0; call("POST", f"/chats/{Tq}/messages", {"text": "ثالث"}, tk[B1]); time.sleep(1.2)
 ok("push again once the gap allows", len(HITS) == 2)
 st = call("POST", "/push/state", {"endpoint": EP("seller")})[1]
-ok("push state returns counts/flags only (chat unread, medical unread, pending, courier)", set(st) == {"pending", "chat", "medical", "courier"} and st["pending"] == 0 and st["medical"] >= 0 and st["courier"] is False and st["chat"] >= 3)
+ok("push state returns counts/flags only (chat unread, medical unread, product orders, pending, courier)", set(st) == {"pending", "chat", "medical", "orders", "courier"} and st["pending"] == 0 and st["medical"] >= 0 and st["orders"] == 0 and st["courier"] is False and st["chat"] >= 3)
 call("GET", f"/chats/{Tq}", None, tk[SELLER])
 ok("reading the thread lowers the unread count by its 3 messages", call("POST", "/push/state", {"endpoint": EP("seller")})[1]["chat"] == st["chat"] - 3)
-ok("unknown endpoint -> zeros (no information leak)", call("POST", "/push/state", {"endpoint": EP("nobody")})[1] == {"pending": 0, "chat": 0, "medical": 0, "courier": False})
+ok("unknown endpoint -> zeros (no information leak)", call("POST", "/push/state", {"endpoint": EP("nobody")})[1] == {"pending": 0, "chat": 0, "medical": 0, "orders": 0, "courier": False})
 call("POST", "/push/unsubscribe", {"endpoint": EP("seller")}, tk[SELLER]); HITS.clear(); chat.PUSH_GAP = 0
 call("POST", f"/chats/{Tq}/messages", {"text": "بعد الإيقاف"}, tk[B1]); time.sleep(1.0)
 ok("after unsubscribe no push is sent; the message still succeeds", HITS == [])
