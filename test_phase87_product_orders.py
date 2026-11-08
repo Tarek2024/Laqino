@@ -72,6 +72,8 @@ ok("customer cannot cancel someone else's order (404)", call("POST", f"/my/produ
 
 # ---- 4) القبول = التحويل لدليفري
 s, r = A(phm, "accept"); did = r["order_id"]
+_accept_push = _push_event.wait(3) and ("product_update", "/") in _push_hits
+ok("native push sent to customer after pharmacy acceptance", _accept_push)
 _old_has, _old_send = server.fcm.has_tokens, server.fcm.send
 _push_event, _push_hits = threading.Event(), []
 server.fcm.has_tokens = lambda c, uid: uid == cid
