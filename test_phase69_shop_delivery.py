@@ -162,7 +162,19 @@ ok("shop marks order ready and customer receives native push", _stage_ready[0] =
 
 # ---- 7) دورة الطلب العادية كاملة: قبول → أجرة → موافقة → توصيل → تأكيد
 ok("courier sees it as shop order", any(a["id"] == oo and a["origin_type"] == "shop_order" for a in call("GET", "/courier/available", None, c1)[1]))
-ok("accept goes to fare draft (not direct)", call("POST", f"/courier/orders/{oo}/accept", {}, c1) == (200, {"ok": True, "fee": 25, "fare_status": "draft"}))
+_order_has, _order_send = server.fcm.has_tokens, server.fcm.send
+_order_event, _order_hits = threading.Event(), []
+server.fcm.has_tokens = lambda c, uid: uid == cid
+def _capture_order_update(c, uids, ttl=300, kind="order", target=None):
+    if cid in uids:
+        _order_hits.append((kind, target)); _order_event.set()
+    return 1
+server.fcm.send = _capture_order_update
+_accept_result = call("POST", f"/courier/orders/{oo}/accept", {}, c1)
+_order_push = _order_event.wait(3) and ("order_update", "/") in _order_hits
+server.fcm.has_tokens, server.fcm.send = _order_has, _order_send
+ok("accept goes to fare draft (not direct)", _accept_result == (200, {"ok": True, "fee": 25, "fare_status": "draft"}))
+ok("customer receives native push when courier accepts delivery", _order_push)
 ok("cannot start before the customer approves the fare", call("POST", f"/courier/orders/{oo}/status", {"to": "heading_pickup"}, c1)[0] == 409)
 ok("courier proposes 35, customer approves", call("POST", f"/courier/orders/{oo}/fare", {"fee": 35}, c1)[0] == 200 and call("POST", f"/delivery/orders/{oo}/fare/approve", {"fee": 35}, cust)[0] == 200)
 it = [x for x in call("GET", "/owner/shops/%d/orders" % S1, None, own)[1]["items"] if x["id"] == oo][0]
