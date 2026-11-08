@@ -676,7 +676,7 @@ def shop_order_push(uid):
             c = db()
             try:
                 if c.execute("SELECT 1 FROM push_subs WHERE user_id=?", (uid,)).fetchone() or fcm.has_tokens(c, uid):
-                    _push_to_users(c, [uid], 3600, kind="shop", target="/shop.html")
+                    _push_to_users(c, [uid], 3600, kind="shop", target="/shop.html#o")
             finally:
                 c.close()
         except Exception as e:
