@@ -26,9 +26,9 @@ CREATE INDEX IF NOT EXISTS ix_sdl_shop ON shop_delivery_links(shop_id,kind,order
 """
 
 
-def bind(push, push_stop, audit, region, count_sql, region_fee, commission_for, cust_limit):
+def bind(push, push_stop, audit, region, count_sql, region_fee, commission_for, cust_limit, owner_push=None):
     """يُستدعى من server.init: دفع الطلب للمناديب، إيقاف تكرار الدفع، سجل التدقيق، منطقة افتراضية، عدّ الطلبات المفتوحة، أجرة المنطقة، حساب العمولة، سقف طلبات العميل."""
-    _H.update(push=push, push_stop=push_stop, audit=audit, region=region, count_sql=count_sql, region_fee=region_fee, commission_for=commission_for, cust_limit=cust_limit)
+    _H.update(push=push, push_stop=push_stop, audit=audit, region=region, count_sql=count_sql, region_fee=region_fee, commission_for=commission_for, cust_limit=cust_limit, owner_push=owner_push)
 
 
 def install(c):
@@ -161,6 +161,7 @@ def handle(h, c, u, method, path, q):
         c.execute("INSERT INTO shop_delivery_links(order_id,shop_id,kind,items_json,items_total,note,created_at) VALUES(?,?,?,?,?,?,?)", (oid, sid, ORDER, json.dumps(lines, ensure_ascii=False), total, note or None, now))
         c.execute("INSERT INTO order_events(order_id,actor_id,from_status,to_status,at) VALUES(?,?,?,?,?)", (oid, u["id"], None, "searching", now))
         audit("shop.order", str(oid), {"shop": sid, "total": total}); c.commit(); _H["push"](oid)
+        if _H.get("owner_push"): _H["owner_push"](s["owner_id"])
         return ok({"id": oid, "status": "searching", "delivery_code": code, "items_total": total}, 201)
 
     # ---- م79: تأكيد التسليم يدويًا من المحل (لو المندوب لم يضغطها) — صاحب الطلب فقط، بعد الاستلام فقط؛ لا يتطلب المفتاح العام كي لا يعلق أوردر شغّال
