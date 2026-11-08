@@ -21,7 +21,8 @@
     if (!P) return false;
     window.__laqNativeBooted = true;
 
-    var fcm = '', postedFor = '', busy = false;
+    var fcm = '', postedFor = '', attemptedFor = '', busy = false;
+    var nextSyncAt = 0, syncRetryDelay = 15000;
     var permissionBusy = false, permissionAsked = false, registerStarted = false;
     var lastPermissionCheck = 0;
     var originalFetch = window.fetch;
@@ -38,11 +39,30 @@
 
     function sync() {
       var token = tok();
-      if (!fcm || !token || busy || postedFor === token + '|' + fcm) return;
+      if (!fcm || !token || busy) return;
+      var pair = token + '|' + fcm;
+      if (attemptedFor !== pair) {
+        attemptedFor = pair;
+        nextSyncAt = 0;
+        syncRetryDelay = 15000;
+      }
+      if (postedFor === pair || Date.now() < nextSyncAt) return;
       busy = true;
       post('register', token, fcm)
-        .then(function (r) { if (r.ok) postedFor = token + '|' + fcm; })
-        .catch(function () {})
+        .then(function (r) {
+          if (r.ok) {
+            postedFor = pair;
+            nextSyncAt = 0;
+            syncRetryDelay = 15000;
+          } else {
+            nextSyncAt = Date.now() + syncRetryDelay;
+            syncRetryDelay = Math.min(syncRetryDelay * 2, 300000);
+          }
+        })
+        .catch(function () {
+          nextSyncAt = Date.now() + syncRetryDelay;
+          syncRetryDelay = Math.min(syncRetryDelay * 2, 300000);
+        })
         .then(function () { busy = false; });
     }
 
@@ -88,7 +108,7 @@
         var url = String(input && input.url || input);
         if (/\/api\/logout(?:\?|$)/.test(url) && fcm && tok()) {
           post('unregister', tok(), fcm).catch(function () {});
-          postedFor = '';
+          postedFor = ''; attemptedFor = ''; nextSyncAt = 0; syncRetryDelay = 15000;
         }
       } catch (e) {}
       return originalFetch.apply(this, arguments);
