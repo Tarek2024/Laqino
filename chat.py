@@ -32,7 +32,8 @@ CREATE TABLE IF NOT EXISTS chat_threads(id INTEGER PRIMARY KEY,
  buyer_id INTEGER NOT NULL REFERENCES users(id), seller_id INTEGER NOT NULL REFERENCES users(id),
  created_at INTEGER NOT NULL, last_message_at INTEGER NOT NULL DEFAULT 0,
  buyer_read_id INTEGER NOT NULL DEFAULT 0, seller_read_id INTEGER NOT NULL DEFAULT 0,
- blocked_by INTEGER REFERENCES users(id), UNIQUE(listing_id, buyer_id));
+ blocked_by INTEGER REFERENCES users(id), push_notified_at INTEGER NOT NULL DEFAULT 0,
+ UNIQUE(listing_id, buyer_id));
 CREATE INDEX IF NOT EXISTS ix_chat_threads_buyer ON chat_threads(buyer_id, last_message_at);
 CREATE INDEX IF NOT EXISTS ix_chat_threads_seller ON chat_threads(seller_id, last_message_at);
 CREATE TABLE IF NOT EXISTS chat_messages(id INTEGER PRIMARY KEY,
@@ -56,6 +57,9 @@ def install(c):
     cols = {r[1] for r in c.execute("PRAGMA table_info(listings)")}
     if "contact_mode" not in cols:
         c.execute("ALTER TABLE listings ADD COLUMN contact_mode TEXT NOT NULL DEFAULT 'both' CHECK(contact_mode IN('chat','phone','both'))")
+    tcols = {r[1] for r in c.execute("PRAGMA table_info(chat_threads)")}
+    if "push_notified_at" not in tcols:
+        c.execute("ALTER TABLE chat_threads ADD COLUMN push_notified_at INTEGER NOT NULL DEFAULT 0")
     mcols = {r[1] for r in c.execute("PRAGMA table_info(chat_messages)")}
     if "file_id" not in mcols:  # الخطوة 1: صورة اختيارية في الرسالة (الرسالة النصية القديمة file_id=NULL فلا تتأثر)
         c.execute("ALTER TABLE chat_messages ADD COLUMN file_id INTEGER REFERENCES files(id)")
@@ -89,25 +93,33 @@ def _audit(c, actor, action, target, detail=None):
 
 
 def _finish_send(c, other, t, now):
-    """بعد حفظ رسالة (نص أو صورة): إشعار الجرس ثم إيقاظ best-effort للمستلم. أي خطأ في الإيقاظ لا يُفشل الرسالة."""
-    _notify(c, other, t["id"], t["listing_title"]); c.commit()
-    # Use a monotonic clock: wall-clock seconds can jump and are too coarse
-    # for a process-local cooldown shared by concurrent HTTP request threads.
-    should_push = False
+    """Persist the per-thread push cooldown atomically, then wake the recipient best-effort."""
+    _notify(c, other, t["id"], t["listing_title"])
+    c.commit()
     hook = push_hook
-    if hook:
-        tick = time.monotonic()
-        key = (other, t["id"])
-        with _PUSH_LOCK:
-            last = _LAST_PUSH.get(key, 0.0)
-            if tick - last >= max(0, float(PUSH_GAP)):
-                if len(_LAST_PUSH) > 5000: _LAST_PUSH.clear()
-                _LAST_PUSH[key] = tick
-                should_push = True
+    if not hook:
+        return
+    try:
+        gap = max(0, int(float(PUSH_GAP)))
+        # Database-backed compare-and-set works across request threads, workers and restarts.
+        cur = c.execute(
+            "UPDATE chat_threads SET push_notified_at=? "
+            "WHERE id=? AND (push_notified_at=0 OR push_notified_at<=?)",
+            (int(now), t["id"], int(now) - gap),
+        )
+        c.commit()
+        should_push = cur.rowcount == 1
+    except Exception as e:
+        c.rollback()
+        import sys
+        sys.stderr.write("chat push cooldown claim failed: %r\\n" % (e,))
+        return
     if should_push:
-        try: hook(other)
+        try:
+            hook(other)
         except Exception as e:
-            import sys; sys.stderr.write("chat wake hook failed: %r\\n" % (e,))
+            import sys
+            sys.stderr.write("chat wake hook failed: %r\\n" % (e,))
 
 
 def _serve_image(h, c, tid, mid):
