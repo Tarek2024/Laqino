@@ -703,9 +703,12 @@ def chat_push(uid):
         try:
             c = db()
             try:
-                if c.execute("SELECT 1 FROM push_subs WHERE user_id=?", (uid,)).fetchone() or fcm.has_tokens(c, uid): _push_to_users(c, [uid], 3600, kind="chat")
-            finally: c.close()
-        except Exception: pass
+                if c.execute("SELECT 1 FROM push_subs WHERE user_id=?", (uid,)).fetchone() or fcm.has_tokens(c, uid):
+                    _push_to_users(c, [uid], 3600, kind="chat")
+            finally:
+                c.close()
+        except Exception as e:
+            print("chat push failed:", e, file=sys.stderr)
     threading.Thread(target=run, daemon=True).start()
 chat.push_hook = chat_push
 def product_order_push(uid):
