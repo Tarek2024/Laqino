@@ -563,7 +563,9 @@ def push_send(endpoint, priv, pub, ttl):
     try:
         with urllib.request.urlopen(rq, timeout=6) as r: return r.status
     except urllib.error.HTTPError as e: return e.code
-    except Exception: return 0
+    except Exception as e:
+        print("web push request failed:", type(e).__name__, repr(e), file=sys.stderr)
+        return 0
 def push_targets(c, oid):
     """Couriers to wake for an order: approved, covering the region, chose 'online' recently (heartbeat may be stale because the app is closed), enough wallet for the commission, not the customer, not already rejected it. Waking is NOT dispatch: offers/accept still require a fresh heartbeat."""
     o = c.execute("SELECT customer_id,region_id,commission,search_started_at,created_at FROM delivery_orders WHERE id=? AND status='searching'", (oid,)).fetchone()
