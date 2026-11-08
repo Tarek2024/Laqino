@@ -1,6 +1,7 @@
 """Phase 90: FCM payload safety, destinations and legacy-call compatibility."""
 import sqlite3
 import fcm
+import notif
 
 
 def check(name, condition):
@@ -47,6 +48,33 @@ def main():
     finally:
         fcm.service_account, fcm.send_one = old_account, old_send
         db.close()
+
+    # New medicine inquiries should wake only approved pharmacies in the requested regions.
+    nd = sqlite3.connect(":memory:")
+    nd.row_factory = sqlite3.Row
+    nd.executescript("""
+        CREATE TABLE medicine_inquiries(id INTEGER PRIMARY KEY, medicine_name TEXT, customer_id INTEGER, status TEXT);
+        CREATE TABLE providers(user_id INTEGER PRIMARY KEY, status TEXT, region_id INTEGER);
+        CREATE TABLE notifications(id INTEGER PRIMARY KEY, user_id INTEGER, kind TEXT, title TEXT, body TEXT,
+                                   link TEXT, ref_type TEXT, ref_id INTEGER, created_at INTEGER);
+    """)
+    nd.execute("INSERT INTO medicine_inquiries VALUES(101,'دواء تجريبي',20,'open')")
+    nd.executemany("INSERT INTO providers VALUES(?,?,?)", [
+        (10, "approved", 4), (11, "approved", 4), (12, "pending", 4),
+        (13, "approved", 8), (20, "approved", 4)
+    ])
+    nd.commit()
+    old_hook, pushed = notif.push_hook, []
+    notif.push_hook = pushed.append
+    try:
+        count = notif.inquiry_created(nd, 101, [4])
+        check("new inquiry push hook targets only approved pharmacies in-region",
+              count == 2 and pushed == [10, 11])
+        check("inquiry notifications retain their pharmacy destination",
+              nd.execute("SELECT COUNT(*) FROM notifications WHERE kind='provider.inquiry' AND link='pharmacy'").fetchone()[0] == 2)
+    finally:
+        notif.push_hook = old_hook
+        nd.close()
 
 
 if __name__ == "__main__":
