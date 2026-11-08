@@ -107,6 +107,16 @@ ok("dropoff required (>=3 chars)", bad(dropoff_text="") == 400 and bad(dropoff_t
 ok("invalid coordinates rejected", bad(dropoff_lat="x", dropoff_lng=1) == 400 and bad(dropoff_lat=95, dropoff_lng=1) == 400)
 ok("nothing was created by the invalid requests", sql("SELECT COUNT(*) FROM shop_delivery_links WHERE kind='shop_order'")[0][0] == 0)
 
+# اختبر إشعار FCM الأصلي لمالك المحل دون الاتصال بخدمة Firebase الحقيقية.
+_fcm_has, _fcm_send = server.fcm.has_tokens, server.fcm.send
+_fcm_event, _fcm_hits = threading.Event(), []
+server.fcm.has_tokens = lambda c, uid: uid == oid_
+def _capture_shop_fcm(c, uids, ttl=300, kind="order", target=None):
+    if oid_ in uids:
+        _fcm_hits.append((list(uids), ttl, kind, target)); _fcm_event.set()
+    return 1
+server.fcm.send = _capture_shop_fcm
+
 # ---- 5) العميل يطلب من المحل: الإنشاء
 s, r = ordr(**GOOD, note="  من غير  بصل  ", request_key="ok1", dropoff_lat=30.0, dropoff_lng=31.0); oo = r["id"]
 ok("order created (201, total 81.0, delivery code)", s == 201 and r["status"] == "searching" and r["items_total"] == 81.0 and len(r["delivery_code"]) == 6)
