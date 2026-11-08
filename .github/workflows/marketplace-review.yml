@@ -24,6 +24,10 @@ jobs:
         run: python -m pip install cryptography
       - name: Run chat privacy and compatibility regression tests
         run: python test_phase4_chat.py
+      - name: Run Phase 90 FCM payload and destination regression tests
+        run: python test_phase90_fcm.py
+      - name: Run shop-order native push integration regression
+        run: python test_phase69_shop_delivery.py
       - uses: actions/setup-node@v4
         with:
           node-version: '20'
