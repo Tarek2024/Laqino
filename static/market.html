@@ -412,5 +412,6 @@ $("mychats").addEventListener("click", function () { location.hash = "#/chats"; 
 function myRegion() { try { var id = +localStorage.getItem("rg") || 0; if (!id) return; var o = h("option", {value: id, text: "منطقتي: " + (localStorage.getItem("rgn") || "المحفوظة")}); $("reg").insertBefore(o, $("reg").children[1] || null); $("reg").value = String(id); } catch (e) {} }
 myRegion(); fillCats(); fillRegions(); route();
 </script>
+<script src="/native.js" defer></script>
 </body>
 </html>
