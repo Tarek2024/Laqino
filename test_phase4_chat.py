@@ -142,6 +142,7 @@ ok("invalid endpoint -> 400", call("POST", "/push/subscribe", {"endpoint": "ftp:
 Lq = listing("للإيقاظ", "chat"); Tq = call("POST", f"/listings/{Lq}/chat", None, tk[B1])[1]["thread_id"]
 ok("subscribe seller + buyer devices", call("POST", "/push/subscribe", {"endpoint": EP("seller")}, tk[SELLER])[0] == 200 and call("POST", "/push/subscribe", {"endpoint": EP("buyer")}, tk[B1])[0] == 200)
 chat.PUSH_GAP = 30; HITS.clear(); call("POST", f"/chats/{Tq}/messages", {"text": "مرحبا"}, tk[B1]); time.sleep(1.2)
+print("CHAT PUSH TEST HITS:", repr(HITS), "SUBS:", sql("select user_id,endpoint from push_subs"))
 ok("new message wakes ONLY the recipient's device (empty data-less push, VAPID auth)", [h[0] for h in HITS] == ["/p/seller"] and HITS[0][1].startswith("vapid ") and HITS[0][2] == "0")
 call("POST", f"/chats/{Tq}/messages", {"text": "تاني"}, tk[B1]); time.sleep(1.0)
 ok("second message within the gap is throttled (no extra push)", len(HITS) == 1)
