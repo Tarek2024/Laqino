@@ -149,7 +149,7 @@ def send(c, uids, ttl=300, kind="order", target=None):
         n = 0
         for uid in uids:
             for r in c.execute("SELECT token FROM fcm_tokens WHERE user_id=?", (uid,)).fetchall():
-                st, dead = send_one(sa, r["token"], kind, ttl, target)
+                st, dead = send_one(sa, r["token"], kind, ttl, target) if target else send_one(sa, r["token"], kind, ttl)
                 if dead:
                     c.execute("DELETE FROM fcm_tokens WHERE token=?", (r["token"],)); c.commit()
                 elif 200 <= st < 300:
