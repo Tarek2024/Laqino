@@ -19,6 +19,10 @@ def main():
           "laq_perm_later_notif" in native and "3 * 24 * 60 * 60 * 1000" in native)
     check("FCM registration retries use bounded backoff",
           "nextSyncAt" in native and "Math.min(syncRetryDelay * 2, 300000)" in native)
+    check("notification tap routes cover chat, courier, pharmacy, market and shop",
+          all(route in native for route in ("chat: '/market.html#/chats'", "order: '/courier.html'",
+                                            "inquiry: '/pharmacy.html'", "market: '/market.html'",
+                                            "shop: '/shop.html#o'", "product_update: '/'")))
     for page in ("index.html", "register.html", "courier.html", "market.html", "pharmacy.html", "shop.html", "shops.html"):
         source = Path("static", page).read_text(encoding="utf-8")
         check(page + " loads permission helper before native bridge",
