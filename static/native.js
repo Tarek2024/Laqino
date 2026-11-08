@@ -115,6 +115,7 @@
         '/courier.html': '/courier.html',
         '/pharmacy.html': '/pharmacy.html',
         '/shop.html': '/shop.html',
+        '/shop.html#o': '/shop.html#o',
         '/market.html#/chats': '/market.html#/chats'
       };
       var target = allowed[data.url] || ({
@@ -122,7 +123,7 @@
         order: '/courier.html',
         medical: '/',
         product: '/pharmacy.html',
-        shop: '/shop.html'
+        shop: '/shop.html#o'
       }[data.kind] || '/');
       window.location.assign(target);
     });
