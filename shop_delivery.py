@@ -31,6 +31,14 @@ def bind(push, push_stop, audit, region, count_sql, region_fee, commission_for, 
     _H.update(push=push, push_stop=push_stop, audit=audit, region=region, count_sql=count_sql, region_fee=region_fee, commission_for=commission_for, cust_limit=cust_limit, owner_push=owner_push, customer_push=customer_push)
 
 
+def _best_effort_push(key, uid):
+    try:
+        callback = _H.get(key)
+        if callback: callback(int(uid))
+    except Exception:
+        pass  # الإشعار لا يجوز أن يفشل عملية الطلب الأصلية
+
+
 def install(c):
     """جدول الربط + إشعار المحل بطلب العميل. آمن للتكرار؛ يُستدعى بعد shops.install (الذي يعيد كتابة triggers ntf_shop_)."""
     c.executescript(SCHEMA)
@@ -161,7 +169,7 @@ def handle(h, c, u, method, path, q):
         c.execute("INSERT INTO shop_delivery_links(order_id,shop_id,kind,items_json,items_total,note,created_at) VALUES(?,?,?,?,?,?,?)", (oid, sid, ORDER, json.dumps(lines, ensure_ascii=False), total, note or None, now))
         c.execute("INSERT INTO order_events(order_id,actor_id,from_status,to_status,at) VALUES(?,?,?,?,?)", (oid, u["id"], None, "searching", now))
         audit("shop.order", str(oid), {"shop": sid, "total": total}); c.commit(); _H["push"](oid)
-        if _H.get("owner_push"): _H["owner_push"](s["owner_id"])
+        _best_effort_push("owner_push", s["owner_id"])
         return ok({"id": oid, "status": "searching", "delivery_code": code, "items_total": total}, 201)
 
     # ---- م79: تأكيد التسليم يدويًا من المحل (لو المندوب لم يضغطها) — صاحب الطلب فقط، بعد الاستلام فقط؛ لا يتطلب المفتاح العام كي لا يعلق أوردر شغّال
@@ -217,7 +225,7 @@ def handle(h, c, u, method, path, q):
         new, frm_ = ("accepted", "new") if acc else ("ready", "accepted")
         if not c.execute("UPDATE shop_delivery_links SET shop_status=?,%s=? WHERE order_id=? AND shop_id=? AND kind=? AND shop_status=? AND EXISTS(SELECT 1 FROM delivery_orders WHERE id=? AND status IN %s)" % ("shop_accepted_at" if acc else "shop_ready_at", PRE_PICKUP_SQL), (new, now, oid, sid, ORDER, frm_, oid)).rowcount: return err(409, "تغيّرت حالة الطلب، حدّث الصفحة")
         audit("shop.order_" + new, str(oid), {"shop": sid}); c.commit()
-        if _H.get("customer_push"): _H["customer_push"](l["customer_id"])
+        _best_effort_push("customer_push", l["customer_id"])
         return ok({"id": oid, "shop_status": new})
     if what == "orders":  # رفض المحل لطلب عميل قبل أن يستلمه المندوب
         oid = int(mo[3])
@@ -227,7 +235,7 @@ def handle(h, c, u, method, path, q):
         if not c.execute("UPDATE delivery_orders SET status='cancelled',updated_at=? WHERE id=? AND status IN ('searching','assigned','heading_pickup')", (now, oid)).rowcount: return err(409, "لا يمكن رفض الطلب في حالته الحالية")
         c.execute("INSERT INTO order_events(order_id,actor_id,from_status,to_status,at) VALUES(?,?,?,?,?)", (oid, u["id"], o["status"], "cancelled", now))
         audit("shop.order_reject", str(oid), {"shop": sid}); c.commit(); _H["push_stop"](oid)
-        if _H.get("customer_push"): _H["customer_push"](o["customer_id"])
+        _best_effort_push("customer_push", o["customer_id"])
         return ok({"status": "cancelled"})
     # POST delivery-request: ضغطة واحدة — بلا أجرة ولا تفاصيل؛ عنوان العميل اختياري (نفس منطق الصيدلية)
     if not on: return err(403, "طلب المندوب من المحل غير مفعّل حاليًا")
