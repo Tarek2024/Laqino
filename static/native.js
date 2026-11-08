@@ -43,13 +43,24 @@
         .then(function () { busy = false; });
     }
 
+    function permissionDeferred() {
+      try {
+        var later = Number(localStorage.getItem('laq_perm_later_notif') || 0);
+        if (!later) return false;
+        if (Date.now() - later < 3 * 24 * 60 * 60 * 1000) return true;
+        permissionAsked = false;
+      } catch (e) {}
+      return false;
+    }
+
     function ensurePermissionAndRegistration() {
       if (!tok() || permissionBusy || Date.now() - lastPermissionCheck < 4000) return;
       permissionBusy = true;
       lastPermissionCheck = Date.now();
       Promise.resolve(P.checkPermissions())
         .then(function (p) {
-          if (p.receive === 'prompt' && !permissionAsked) {
+          var deferred = permissionDeferred();
+          if (p.receive === 'prompt' && !deferred && !permissionAsked) {
             permissionAsked = true;
             var explain = window.LaqPerm ? window.LaqPerm.explain('notif') : Promise.resolve(true);
             return explain.then(function (ok) { return ok ? P.requestPermissions() : p; });
