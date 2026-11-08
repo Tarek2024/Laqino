@@ -221,6 +221,17 @@ v(`<div class="card"><label style="display:block"><input id="she" type="checkbox
 +(l.length?l.map(card).join(''):empty('لا توجد محلات مطابقة.'))
 +`<h3>أنواع المحلات</h3>`+ty.map(t=>`<div class="card"><div class="row"><input id="sti${t.id}" value="${esc(t.icon)}" style="width:64px" aria-label="الأيقونة"><input id="stn${t.id}" value="${esc(t.name_ar)}" aria-label="اسم النوع"><input id="sts${t.id}" type="number" value="${esc(t.sort)}" style="width:80px" aria-label="الترتيب"></div><div class="row"><label><input id="sta${t.id}" type="checkbox" ${t.is_active?'checked':''}> مفعّل</label><label><input id="str${t.id}" type="checkbox" ${t.require_image?'checked':''}> صورة الصنف إجبارية</label></div><small>معرّف: ${esc(t.slug)} — محلات معتمدة: ${esc(t.approved_shops)}</small><div class="row"><button class="s" onclick="shTs(${t.id})">حفظ</button></div></div>`).join('')
 +`<div class="card"><b>إضافة نوع جديد</b><div class="row"><input id="nti" placeholder="🏪" style="width:64px"><input id="ntn" placeholder="اسم النوع"><input id="nts" type="number" placeholder="الترتيب" style="width:80px"></div><button onclick="shTn()">إضافة</button></div>`)};
+
+V.fcm=async()=>{
+ const r=await api('/admin/fcm/status');
+ const enabled=!!r.enabled,devices=Number(r.devices||0);
+ v(`<div class="card"><b>حالة Firebase Cloud Messaging (FCM)</b>
+ <p><b>${enabled?'بيانات حساب الخدمة موجودة واجتازت الفحص الأولي':'حساب خدمة Firebase غير جاهز'}</b></p>
+ <div class="g"><div class="k">حالة الإعداد<b>${enabled?'موجودة':'غير متاحة'}</b></div><div class="k">الأجهزة المسجلة<b>${esc(devices)}</b></div></div>
+ <p><small>${enabled?'تمكن الخادم من قراءة ملف حساب الخدمة والتحقق مبدئيًا من الحقول الأساسية.':'راجع متغير LAQINO_FCM_SERVICE_ACCOUNT على الخادم: قد لا يكون مضبوطًا، أو أن الملف غير قابل للقراءة، أو ينقصه أحد الحقول المطلوبة.'}</small></p>
+ <p><small>تنبيه: هذه نتيجة فحص الإعدادات فقط، وليست اختبار إرسال إشعار فعلي إلى جهاز. يلزم اختبار عملي على جهاز Android بعد اكتمال إعداد التطبيق.</small></p>
+ <button class="s" onclick="shell()">تحديث الحالة</button></div>`);
+};
 </script><script>
 /* ---- المرحلة 23: استيراد الأطباء والمعامل من Excel (بطاقة تُلحق أسفل تبويبي «الأطباء» و«المعامل»؛ لا تغيير في أي كود قائم) ---- */
 let IMP={b64:'',name:'',pv:null};
