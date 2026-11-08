@@ -79,4 +79,6 @@ window.ord=async()=>{if(BUSY||!Object.keys(CART).length)return;BUSY=1;const b=$(
  catch(e){msg=esc(e&&e.message?e.message:e);isErr=1;const da=$('da')?$('da').value:'',dn=$('dn')?$('dn').value:'',c=CART;await menu();CART=c;Object.keys(c).forEach(i=>{const q=$('q'+i);if(q)q.textContent=c[i].q});if($('da')){$('da').value=da;$('dn').value=dn;$('ct').textContent=total()+' ج';$('ob').disabled=!Object.keys(c).length}msg='';isErr=0}
  BUSY=0};
 addEventListener('hashchange',()=>{const k=+(location.hash.match(/^#s(\d{1,9})$/)||[])[1]||0;if(k!=SID){SID=k;SID?menu():list()}});
-SID?menu():list();</script><script>if("serviceWorker" in navigator)addEventListener("load",()=>navigator.serviceWorker.register("/sw.js").catch(()=>{}))</script></body></html>
+SID?menu():list();</script><script>if("serviceWorker" in navigator)addEventListener("load",()=>navigator.serviceWorker.register("/sw.js").catch(()=>{}))</script><script src="/perm.js" defer></script>
+<script src="/native.js" defer></script>
+</body></html>
