@@ -150,9 +150,10 @@ ok("after a server restart (init) the 2 product-order triggers still exist and n
 
 # ---- 9) الواجهات + متصفح حقيقي (هاتف 390×844): العميل يضيف ويطلب ← الصيدلية تقبل ← العميل يتابع المراحل ← اعتذار
 HERE = os.path.dirname(os.path.abspath(__file__)); rd = lambda f: open(os.path.join(HERE, "static", f), encoding="utf-8").read()
-ok("index.html wires cart + order sheet + pending cards + pharmacy stage labels", all(k in rd("index.html") for k in ("padd(", "pcSend", "pordCards(po)", "SHPH", "/my/product-orders")))
+ok("index.html wires cart + order sheet + pending cards + pharmacy stage labels", all(k in rd("index.html") for k in ("padd(", "pcSend", "pordCards=l", "SHPH", "/my/product-orders")))
 ok("pharmacy.html wires the orders section and actions", all(k in rd("pharmacy.html") for k in ("poAct(", "/provider/product-orders", "قبول الطلب وتحويله لدليفري", "اعتذار")))
-ok("courier.html labels product orders; sw.js shows the pharmacy push and cache is v130", "product_order" in rd("courier.html") and "porderNote" in rd("sw.js") and 'laqino-v130' in rd("sw.js"))
+CACHE = next(x.split("=", 1)[1].strip() for x in open(os.path.join(HERE, "VERSION"), encoding="utf-8") if x.startswith("cache="))
+ok("courier.html labels product orders; sw.js shows pharmacy push and matches VERSION", "product_order" in rd("courier.html") and "porderNote" in rd("sw.js") and CACHE in rd("sw.js"))
 cu2, cu2id = user("01298700011", "عميل المتصفح")
 from playwright.sync_api import sync_playwright
 with sync_playwright() as p:
