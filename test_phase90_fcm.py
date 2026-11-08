@@ -23,6 +23,10 @@ def main():
     inquiry = fcm.build_message("device-token", "inquiry", 120, "/pharmacy.html")["message"]
     check("new pharmacy inquiry has its own message kind and route",
           inquiry["data"] == {"kind": "inquiry", "url": "/pharmacy.html"} and inquiry["notification"]["body"] == fcm.TEXTS["inquiry"])
+    for kind in ("product_update", "shop_update", "order_update"):
+        msg = fcm.build_message("device-token", kind, 120, "/")["message"]
+        check(kind + " is a customer update routed to the app home",
+              msg["data"] == {"kind": kind, "url": "/"} and msg["notification"]["body"] == fcm.TEXTS[kind])
     bad = fcm.build_message("device-token", "shop", 120, "//attacker.example")["message"]
     check("external or malformed destinations are discarded", bad["data"] == {"kind": "shop"})
     unknown = fcm.build_message("device-token", "not-a-kind", 120)["message"]
