@@ -59,7 +59,7 @@
         .then(function (p) {
           if (p && p.receive === 'granted' && !registerStarted) {
             registerStarted = true;
-            return P.register().catch(function (e) {
+            return Promise.resolve(P.register()).catch(function (e) {
               registerStarted = false;
               throw e;
             });
