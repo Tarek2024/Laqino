@@ -313,7 +313,7 @@ def init(admin_phone=None, admin_pw=None):
     exchange.install(c)  # سوق الصيدليات (إضافة بعد الخطوة 7): exchange_deals/images/reports (idempotent)
     provider_delivery.bind(push_new_order, audit, default_delivery_region, COUNT_SQL["orders"]); provider_delivery.install(c)  # Phase 40: زر «اطلب دليفري» للصيدليات
     shops.bind(audit, UP); shops.install(c)  # Phase 66 (م1 المحلات): shop_types + shops + مفتاح shops_enabled مطفي (idempotent)
-    shop_delivery.bind(push_new_order, push_stop_order, audit, default_delivery_region, COUNT_SQL["orders"], region_fee, commission_for, LIMITS["orders"]); shop_delivery.install(c)  # Phase 69 (م4 المحلات): المحل يطلب مندوب + العميل يطلب من المحل (بعد shops.install لأنه يعيد كتابة triggers ntf_shop_)
+    shop_delivery.bind(push_new_order, push_stop_order, audit, default_delivery_region, COUNT_SQL["orders"], region_fee, commission_for, LIMITS["orders"], shop_order_push); shop_delivery.install(c)  # Phase 69 (م4 المحلات): المحل يطلب مندوب + العميل يطلب من المحل (بعد shops.install لأنه يعيد كتابة triggers ntf_shop_)
     products.install(c)  # Phase 2: product_offers + medical sub-categories (idempotent)
     product_orders.bind(push_new_order, push_stop_order, audit, region_fee, commission_for, COUNT_SQL["orders"], LIMITS["orders"]); product_orders.install(c)  # Phase 87: «اطلب من الصيدلية مباشرة» (بعد notif.install لأن triggers ntf_po_ تُنشأ هنا)
     rx.install(c)  # RX schema extensions (idempotent, additive migrations)
@@ -616,7 +616,7 @@ def push_pending(c, uid):
     for o in c.execute("SELECT o.id,o.commission,o.region_id,o.search_started_at,o.created_at FROM delivery_orders o WHERE o.status='searching' AND o.courier_id IS NULL AND o.customer_id!=? AND (CASE WHEN o.search_started_at>0 THEN o.search_started_at ELSE o.created_at END)>? AND NOT EXISTS(SELECT 1 FROM order_offers f WHERE f.order_id=o.id AND f.courier_id=? AND f.status IN('rejected','lost'))", (uid, now - win, uid)).fetchall():  # المرحلة 64: التوسّع للمجاورة
         if free >= o["commission"] and can_extend(c, cr["region_id"], o, now): n += 1
     return n
-def _push_to_users(c, uids, ttl, native=True, kind="order"):
+def _push_to_users(c, uids, ttl, native=True, kind="order", target=None):
     """Web Push (data-less) to every subscribed device, then (Phase 8) FCM to the user's Android app tokens. native=False for the final sweep: a generic FCM notification cannot be withdrawn."""
     priv, pub = vapid_keys(c); n = 0
     for uid in uids:
@@ -624,7 +624,7 @@ def _push_to_users(c, uids, ttl, native=True, kind="order"):
             st = push_send(sub["endpoint"], priv, pub, ttl)
             if st in (404, 410): c.execute("DELETE FROM push_subs WHERE endpoint=?", (sub["endpoint"],)); c.commit()
             elif 200 <= st < 300: n += 1
-    if native: n += fcm.send(c, uids, ttl, kind)
+    if native: n += fcm.send(c, uids, ttl, kind, target=target)
     return n
 def medical_push(uid, kind="rx.update"):
     """Wake the user's devices for an unread medical notification. Push payload is generic and contains no request details."""
@@ -634,7 +634,9 @@ def medical_push(uid, kind="rx.update"):
             c = db()
             try:
                 if c.execute("SELECT 1 FROM push_subs WHERE user_id=?", (uid,)).fetchone() or fcm.has_tokens(c, uid):
-                    _push_to_users(c, [uid], 3600, kind="medical")
+                    row = c.execute("SELECT link FROM notifications WHERE user_id=? AND kind LIKE 'rx.%' ORDER BY id DESC LIMIT 1", (uid,)).fetchone()
+                    target = "/pharmacy.html" if row and row["link"] == "pharmacy" else "/"
+                    _push_to_users(c, [uid], 3600, kind="medical", target=target)
             finally: c.close()
         except Exception as e: print("medical push failed:", e, file=sys.stderr)
     threading.Thread(target=run, daemon=True).start()
@@ -664,6 +666,21 @@ def product_order_push(uid):
         except Exception as e: print("product order push failed:", e, file=sys.stderr)
     threading.Thread(target=run, daemon=True).start()
 product_orders.push_hook = product_order_push
+
+def shop_order_push(uid):
+    """إشعار خارجي لمالك المحل عند وصول طلب عميل جديد؛ مستقل عن تنبيه المندوب."""
+    def run():
+        try:
+            time.sleep(0.25)
+            c = db()
+            try:
+                if c.execute("SELECT 1 FROM push_subs WHERE user_id=?", (uid,)).fetchone() or fcm.has_tokens(c, uid):
+                    _push_to_users(c, [uid], 3600, kind="shop", target="/shop.html")
+            finally:
+                c.close()
+        except Exception as e:
+            print("shop order push failed:", e, file=sys.stderr)
+    threading.Thread(target=run, daemon=True).start()
 chat.UPLOADS = UP  # صور المحادثة تُحفظ في مجلد الرفع نفسه
 exchange.UP = UP
 svc.UPLOADS = UP  # صور طلبات الخدمة (الخطوة 2) في مجلد الرفع نفسه
