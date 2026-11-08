@@ -33,6 +33,8 @@ def listing(title, mode=None, approve=True, anonymous=False):
 cols = {r[1] for r in sql("PRAGMA table_info(listings)")}
 ok("listings.contact_mode column + chat tables exist", "contact_mode" in cols and {"chat_threads", "chat_messages", "chat_reports"} <= {r[0] for r in sql("select name from sqlite_master where type='table'")})
 import chat
+# Disable background push hooks during earlier chat API tests; they can race with the dedicated push capture test.
+chat.push_hook = None
 c0 = server.db(); chat.install(c0); chat.install(c0); c0.close(); ok("chat.install is idempotent", True)
 Ld = listing("افتراضي"); Lc = listing("محادثة فقط", "chat"); Lp = listing("رقم فقط", "phone"); Lb = listing("الاثنان", "both"); Lpend = listing("معلّق", "chat", approve=False)
 ok("default contact_mode is 'both' (keeps current behaviour)", call("GET", f"/listings/{Ld}")[1]["contact_mode"] == "both")
@@ -128,6 +130,7 @@ ok("market.html: messages inserted with textContent (no innerHTML)", ".innerHTML
 
 # ---------- إيقاظ الأجهزة (Web Push) للمحادثة + مسارات الاشتراك العامة
 os.environ["LAQINO_PUSH_ALLOW_ANY"] = "1"
+chat.push_hook = server.chat_push
 from http.server import BaseHTTPRequestHandler
 HITS = []
 PUSH_EVENT = threading.Event()
@@ -148,7 +151,6 @@ PUSH_EVENT.wait(5.0)  # wait for the real background Web Push request, not a fix
 print("CHAT PUSH DIAGNOSTIC:", "message_status=", msg_status, "hits=", repr(HITS), "subs=", sql("select user_id,endpoint from push_subs"))
 ok("new message wakes ONLY the recipient's device (empty data-less push, VAPID auth)", msg_status == 201 and len(HITS) == 1 and HITS[0][0] == "/p/seller" and HITS[0][1].startswith("vapid ") and HITS[0][2] == "0")
 call("POST", f"/chats/{Tq}/messages", {"text": "تاني"}, tk[B1]); time.sleep(1.0)
-print("CHAT THROTTLE DIAGNOSTIC:", "hits=", repr(HITS), "gap=", chat.PUSH_GAP, "last_push=", repr(chat._LAST_PUSH))
 ok("second message within the gap is throttled (no extra push)", len(HITS) == 1)
 chat.PUSH_GAP = 0; call("POST", f"/chats/{Tq}/messages", {"text": "ثالث"}, tk[B1]); time.sleep(1.2)
 ok("push again once the gap allows", len(HITS) == 2)
