@@ -1,5 +1,6 @@
 """Phase 90: FCM payload safety, destinations and legacy-call compatibility."""
 import sqlite3
+from pathlib import Path
 import fcm
 import notif
 
@@ -11,6 +12,16 @@ def check(name, condition):
 
 
 def main():
+    native = Path("static/native.js").read_text(encoding="utf-8")
+    check("native bridge waits for Capacitor native plugin availability",
+          "C.isPluginAvailable('PushNotifications')" in native and native.index("var P = getPlugin();") < native.index("window.__laqNativeBooted = true;"))
+    check("notification permission deferral is respected for three days",
+          "laq_perm_later_notif" in native and "3 * 24 * 60 * 60 * 1000" in native)
+    for page in ("index.html", "register.html", "courier.html", "market.html", "pharmacy.html", "shop.html", "shops.html"):
+        source = Path("static", page).read_text(encoding="utf-8")
+        check(page + " loads permission helper before native bridge",
+              source.find('src="/perm.js"') >= 0 and source.find('src="/perm.js"') < source.find('src="/native.js"'))
+
     shop = fcm.build_message("device-token", "shop", 120, "/shop.html#o")["message"]
     check("shop kind uses the shop notification text", shop["notification"]["body"] == fcm.TEXTS["shop"])
     check("shop push carries only kind and allowlisted internal destination",
