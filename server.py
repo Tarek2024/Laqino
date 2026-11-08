@@ -1566,7 +1566,7 @@ class H(BaseHTTPRequestHandler):
                     direct = pk_ or (need_["offer_fee"] is not None and not counter)  # طلب الصيدلية يُقبل مباشرة بلا تفاوض أجرة
                     c.execute("UPDATE delivery_orders SET fare_status=? WHERE id=?", ("approved" if direct else "draft", oid))  # draft: المندوب يرى الأجرة المرجعية ويعدّلها ثم يرسلها للعميل
                     if direct: audit(c, u["id"], "order.fare_accepted_offer", str(oid), {"fee": need_["offer_fee"]})
-                    ev(oid, "searching", "assigned"); c.commit(); push_stop_order(oid); return self.send(200, {"ok": True, "fee": dflt["fee"] if dflt else None, "fare_status": "approved" if direct else "draft"})
+                    ev(oid, "searching", "assigned"); c.commit(); push_stop_order(oid); order_update_push(need_["customer_id"]); return self.send(200, {"ok": True, "fee": dflt["fee"] if dflt else None, "fare_status": "approved" if direct else "draft"})
                 except E: c.rollback() if c.in_transaction else None; raise
             m = re.fullmatch(r"/api/courier/orders/(\d+)/reject", path)
             if method == "POST" and m:
@@ -1576,14 +1576,14 @@ class H(BaseHTTPRequestHandler):
                 c.commit(); return self.send(200, {"ok": True})  # the order stays searching for every other eligible courier
             m = re.fullmatch(r"/api/courier/orders/(\d+)/handover", path)
             if method == "POST" and m:
-                courier(); oid = int(m[1]); o = c.execute("SELECT status,delivery_code FROM delivery_orders WHERE id=? AND courier_id=?", (oid, u["id"])).fetchone()
+                courier(); oid = int(m[1]); o = c.execute("SELECT status,delivery_code,customer_id FROM delivery_orders WHERE id=? AND courier_id=?", (oid, u["id"])).fetchone()
                 if not o: raise E(404, "غير موجود")
                 if o["status"] != "awaiting_confirmation": raise E(409, "الطلب ليس بانتظار التأكيد")
                 key = "otp|%d" % oid
                 if throttled(c, key, 5, 900): raise E(429, "محاولات كثيرة، اطلب من العميل التأكيد من تطبيقه")
                 if not o["delivery_code"] or not secrets.compare_digest(str(self.body().get("code", "")).strip(), o["delivery_code"]): note_fail(c, key); raise E(403, "رمز التسليم غير صحيح")
                 if not c.execute("UPDATE delivery_orders SET status='completed',updated_at=? WHERE id=? AND status='awaiting_confirmation'", (int(time.time()), oid)).rowcount: raise E(409, "تم إغلاق الطلب")
-                ev(oid, "awaiting_confirmation", "completed"); charge_commission(c, oid); audit(c, u["id"], "order.otp_complete", str(oid)); c.commit(); return self.send(200, {"status": "completed"})
+                ev(oid, "awaiting_confirmation", "completed"); charge_commission(c, oid); audit(c, u["id"], "order.otp_complete", str(oid)); c.commit(); order_update_push(o["customer_id"]); return self.send(200, {"status": "completed"})
             m = re.fullmatch(r"/api/delivery/orders/(\d+)/retry", path)
             if method == "POST" and m:
                 self.need(u); oid = int(m[1]); now = int(time.time())
@@ -1606,18 +1606,18 @@ class H(BaseHTTPRequestHandler):
                 except (TypeError, ValueError): raise E(400, "أجرة غير صالحة")
                 c.commit(); c.execute("BEGIN IMMEDIATE")
                 try:
-                    o = c.execute("SELECT region_id,status,fare_status,commission,comm_type,comm_value FROM delivery_orders WHERE id=? AND courier_id=?", (oid, u["id"])).fetchone()
+                    o = c.execute("SELECT region_id,status,fare_status,commission,comm_type,comm_value,customer_id FROM delivery_orders WHERE id=? AND courier_id=?", (oid, u["id"])).fetchone()
                     if not o: raise E(404, "غير موجود")
                     if o["status"] != "assigned" or o["fare_status"] not in ("draft", "proposed"): raise E(409, "لا يمكن تعديل الأجرة في الحالة الحالية")
                     if not (0 < fee <= 100000): raise E(400, "أجرة غير صالحة")  # بلا حدود أدنى/أقصى لكل منطقة (مناطق غير مضافة)؛ العميل هو من يوافق أو يرفض
                     comm = commission_for(c, fee, o["comm_type"], o["comm_value"]); free = wallet_free(c, u["id"])[1]  # free يخصم عمولة هذا الطلب القديمة المحجوزة، فنضيفها قبل المقارنة
                     if free + o["commission"] < comm: raise E(402, "رصيدك غير كافٍ لعمولة هذه الأجرة")
                     if not c.execute("UPDATE delivery_orders SET fee=?,commission=?,fare_status='proposed',updated_at=? WHERE id=? AND courier_id=? AND status='assigned' AND fare_status IN('draft','proposed')", (fee, comm, int(time.time()), oid, u["id"])).rowcount: raise E(409, "تغيّرت حالة الطلب، حدّث الصفحة")
-                    audit(c, u["id"], "order.fare_propose", str(oid), {"fee": fee}); c.commit(); return self.send(200, {"fee": fee, "fare_status": "proposed"})
+                    audit(c, u["id"], "order.fare_propose", str(oid), {"fee": fee}); c.commit(); order_update_push(o["customer_id"]); return self.send(200, {"fee": fee, "fare_status": "proposed"})
                 except E: c.rollback() if c.in_transaction else None; raise
             m = re.fullmatch(r"/api/courier/orders/(\d+)/(status|release)", path)
             if method == "POST" and m:
-                courier(); oid = int(m[1]); o = c.execute("SELECT status,fare_status,origin_type FROM delivery_orders WHERE id=? AND courier_id=?", (oid, u["id"])).fetchone()
+                courier(); oid = int(m[1]); o = c.execute("SELECT status,fare_status,origin_type,customer_id FROM delivery_orders WHERE id=? AND courier_id=?", (oid, u["id"])).fetchone()
                 if not o: raise E(404, "غير موجود")
                 if m[2] == "release":
                     if o["status"] not in ("assigned", "heading_pickup"): raise E(409, "لا يمكن التخلي عن الطلب بعد الاستلام")
@@ -1630,7 +1630,7 @@ class H(BaseHTTPRequestHandler):
                 if not c.execute("UPDATE delivery_orders SET status=?,updated_at=? WHERE id=? AND courier_id=? AND status=?", (to, int(time.time()), oid, u["id"], o["status"])).rowcount: raise E(409, "تغيّرت حالة الطلب، حدّث الصفحة")  # لا نكتب فوق إلغاء/اعتراض حدث بالتوازي
                 ev(oid, o["status"], to)
                 if to in ("awaiting_confirmation", "completed") or (to == "picked_up" and o["origin_type"] in PICKUP_KINDS): charge_commission(c, oid)  # الطلبات العادية تُحصّل عند التأكيد؛ طلب الصيدلية عند الاستلام من الصيدلية (picked_up) — م2: التسليم للعميل بعدها لا يعيد التحصيل (charge_commission idempotent)
-                c.commit(); return self.send(200, {"status": to})
+                c.commit(); order_update_push(o["customer_id"]); return self.send(200, {"status": to})
             if method == "GET" and path == "/api/features":  # أعلام عامة للواجهة (المنتجات مطفية افتراضيًا عند الإطلاق)
                 return self.send(200, {"products": products.enabled(c)})
             if method == "POST" and path == "/api/admin/features":
