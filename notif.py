@@ -13,6 +13,7 @@ import sqlite3, sys, time
 VERSION = 5
 KEEP_PER_USER = 200          # أقصى عدد إشعارات محفوظة لكل مستخدم
 KEEP_DAYS = 90               # الأقدم من ذلك يُحذف عند أول قراءة
+push_hook = None             # يضبطه server.py لإيقاظ أجهزة الصيدليات عند استفسار دواء جديد
 
 TABLE = """
 CREATE TABLE IF NOT EXISTS notifications(
@@ -124,7 +125,12 @@ def inquiry_created(c, inquiry_id, region_ids):
     for uid in ids:
         c.execute("INSERT OR IGNORE INTO notifications(user_id,kind,title,body,link,ref_type,ref_id,created_at) VALUES(?,?,?,?,?,?,?,?)",
                   (uid, "provider.inquiry", "استفسار دواء جديد في منطقتك", row["medicine_name"][:120], "pharmacy", "inquiry", inquiry_id, now))
-    c.commit(); return len(ids)
+    c.commit()
+    if callable(push_hook):
+        for uid in ids:
+            try: push_hook(int(uid))
+            except Exception as e: sys.stderr.write("notif inquiry push failed: %r\\n" % (e,))
+    return len(ids)
 
 @_safe
 def prescription_pending(c, rx_id):
