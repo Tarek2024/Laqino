@@ -45,17 +45,6 @@ window.sol=async id=>{const p=prompt('رقم هاتف حساب مقدم الخد
  const box=document.getElementById('actresult');if(box)box.innerHTML='<p class="good">تم تفعيل الحساب. سلّم كود الإعداد لصاحب الرقم بعد التحقق من هويته.</p><p><b>كود إعداد كلمة المرور (يظهر الآن فقط):</b> <code>'+esc(r.setup_code)+'</code></p><p><small>صالح لمدة 30 دقيقة. يفتح العميل «استعادة كلمة المرور» في لاقينو، ويكتب رقم الهاتف والكود وكلمة مرور جديدة.</small></p><button class="s" onclick="GenUICopyCode()">نسخ الكود</button>';
  window.__laqinoSetupCode=r.setup_code;
  }catch(e){fail(String(e))}
-,
-async fcm(){
- const r=await api('/admin/fcm/status');
- const enabled=!!r.enabled,devices=Number(r.devices||0);
- v(`<div class="card"><b>حالة Firebase Cloud Messaging (FCM)</b>
- <p><b>${enabled?'بيانات حساب الخدمة موجودة واجتازت الفحص الأولي':'حساب خدمة Firebase غير جاهز'}</b></p>
- <div class="g"><div class="k">حالة الإعداد<b>${enabled?'موجودة':'غير متاحة'}</b></div><div class="k">الأجهزة المسجلة<b>${esc(devices)}</b></div></div>
- <p><small>${enabled?'تمكن الخادم من قراءة ملف حساب الخدمة والتحقق مبدئيًا من الحقول الأساسية.':'راجع متغير LAQINO_FCM_SERVICE_ACCOUNT على الخادم: قد لا يكون مضبوطًا، أو أن الملف غير قابل للقراءة، أو ينقصه أحد الحقول المطلوبة.'}</small></p>
- <p><small>تنبيه: هذه نتيجة فحص الإعدادات فقط، وليست اختبار إرسال إشعار فعلي إلى جهاز. يلزم اختبار عملي على جهاز Android بعد اكتمال إعداد التطبيق.</small></p>
- <button class="s" onclick="shell()">تحديث الحالة</button></div>`);
-}
 
 };
 window.GenUICopyCode=()=>{const x=window.__laqinoSetupCode;if(x)navigator.clipboard?.writeText(x).then(()=>okm('تم نسخ الكود')).catch(()=>fail('انسخ الكود يدويًا'))};
