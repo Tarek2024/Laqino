@@ -142,7 +142,7 @@ ok("any logged-in user gets the VAPID key", len(call("GET", "/push/key", None, t
 ok("invalid endpoint -> 400", call("POST", "/push/subscribe", {"endpoint": "ftp://x"}, tk[B1])[0] == 400 and call("POST", "/push/subscribe", {}, tk[B1])[0] == 400)
 Lq = listing("للإيقاظ", "chat"); Tq = call("POST", f"/listings/{Lq}/chat", None, tk[B1])[1]["thread_id"]
 ok("subscribe seller + buyer devices", call("POST", "/push/subscribe", {"endpoint": EP("seller")}, tk[SELLER])[0] == 200 and call("POST", "/push/subscribe", {"endpoint": EP("buyer")}, tk[B1])[0] == 200)
-chat.PUSH_GAP = 30; HITS.clear(); PUSH_EVENT.clear()
+chat.PUSH_GAP = 30; chat._LAST_PUSH.clear(); HITS.clear(); PUSH_EVENT.clear()
 msg_status, msg_result = call("POST", f"/chats/{Tq}/messages", {"text": "مرحبا"}, tk[B1])
 PUSH_EVENT.wait(5.0)  # wait for the real background Web Push request, not a fixed short sleep
 print("CHAT PUSH DIAGNOSTIC:", "message_status=", msg_status, "hits=", repr(HITS), "subs=", sql("select user_id,endpoint from push_subs"))
