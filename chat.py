@@ -104,6 +104,10 @@ def _finish_send(c, other, t, now):
                 if len(_LAST_PUSH) > 5000: _LAST_PUSH.clear()
                 _LAST_PUSH[key] = tick
                 should_push = True
+    if should_push:
+        try: hook(other)
+        except Exception as e:
+            import sys; sys.stderr.write("chat wake hook failed: %r\\n" % (e,))
 
 
 def _serve_image(h, c, tid, mid):
