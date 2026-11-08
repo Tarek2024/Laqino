@@ -624,7 +624,8 @@ def _push_to_users(c, uids, ttl, native=True, kind="order", target=None):
             st = push_send(sub["endpoint"], priv, pub, ttl)
             if st in (404, 410): c.execute("DELETE FROM push_subs WHERE endpoint=?", (sub["endpoint"],)); c.commit()
             elif 200 <= st < 300: n += 1
-    if native: n += fcm.send(c, uids, ttl, kind, target=target)
+    if native:
+        n += fcm.send(c, uids, ttl, kind, target=target) if target else fcm.send(c, uids, ttl, kind)
     return n
 def medical_push(uid, kind="rx.update"):
     """Wake the user's devices for an unread medical notification. Push payload is generic and contains no request details."""
