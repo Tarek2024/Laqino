@@ -703,7 +703,10 @@ def chat_push(uid):
         try:
             c = db()
             try:
-                if c.execute("SELECT 1 FROM push_subs WHERE user_id=?", (uid,)).fetchone() or fcm.has_tokens(c, uid):
+                has_web = bool(c.execute("SELECT 1 FROM push_subs WHERE user_id=?", (uid,)).fetchone())
+                has_native = fcm.has_tokens(c, uid)
+                print("chat push check:", uid, "web=", has_web, "native=", has_native, file=sys.stderr)
+                if has_web or has_native:
                     _push_to_users(c, [uid], 3600, kind="chat")
             finally:
                 c.close()
