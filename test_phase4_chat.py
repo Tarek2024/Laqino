@@ -2,6 +2,9 @@
 import os, json, threading, urllib.request, urllib.error, tempfile, time, sqlite3
 os.environ["LAQINO_DB"] = tempfile.mktemp(suffix=".db"); os.environ["LAQINO_UPLOADS"] = tempfile.mkdtemp()
 import server
+import chat
+# Disable async push hooks before any API test can queue a delayed push.
+chat.push_hook = None
 from http.server import ThreadingHTTPServer
 server.init("01000000000", "AdminPass123")
 threading.Thread(target=ThreadingHTTPServer(("127.0.0.1", 8794), server.H).serve_forever, daemon=True).start(); time.sleep(.3)
@@ -32,9 +35,6 @@ def listing(title, mode=None, approve=True, anonymous=False):
 # ---------- المخطط والوضع الافتراضي
 cols = {r[1] for r in sql("PRAGMA table_info(listings)")}
 ok("listings.contact_mode column + chat tables exist", "contact_mode" in cols and {"chat_threads", "chat_messages", "chat_reports"} <= {r[0] for r in sql("select name from sqlite_master where type='table'")})
-import chat
-# Disable background push hooks during earlier chat API tests; they can race with the dedicated push capture test.
-chat.push_hook = None
 c0 = server.db(); chat.install(c0); chat.install(c0); c0.close(); ok("chat.install is idempotent", True)
 Ld = listing("افتراضي"); Lc = listing("محادثة فقط", "chat"); Lp = listing("رقم فقط", "phone"); Lb = listing("الاثنان", "both"); Lpend = listing("معلّق", "chat", approve=False)
 ok("default contact_mode is 'both' (keeps current behaviour)", call("GET", f"/listings/{Ld}")[1]["contact_mode"] == "both")
