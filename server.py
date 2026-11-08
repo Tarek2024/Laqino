@@ -313,7 +313,7 @@ def init(admin_phone=None, admin_pw=None):
     exchange.install(c)  # سوق الصيدليات (إضافة بعد الخطوة 7): exchange_deals/images/reports (idempotent)
     provider_delivery.bind(push_new_order, audit, default_delivery_region, COUNT_SQL["orders"]); provider_delivery.install(c)  # Phase 40: زر «اطلب دليفري» للصيدليات
     shops.bind(audit, UP); shops.install(c)  # Phase 66 (م1 المحلات): shop_types + shops + مفتاح shops_enabled مطفي (idempotent)
-    shop_delivery.bind(push_new_order, push_stop_order, audit, default_delivery_region, COUNT_SQL["orders"], region_fee, commission_for, LIMITS["orders"], shop_order_push); shop_delivery.install(c)  # Phase 69 (م4 المحلات): المحل يطلب مندوب + العميل يطلب من المحل (بعد shops.install لأنه يعيد كتابة triggers ntf_shop_)
+    shop_delivery.bind(push_new_order, push_stop_order, audit, default_delivery_region, COUNT_SQL["orders"], region_fee, commission_for, LIMITS["orders"], shop_order_push, shop_customer_push); shop_delivery.install(c)  # Phase 69 (م4 المحلات): المحل يطلب مندوب + العميل يطلب من المحل (بعد shops.install لأنه يعيد كتابة triggers ntf_shop_)
     products.install(c)  # Phase 2: product_offers + medical sub-categories (idempotent)
     product_orders.bind(push_new_order, push_stop_order, audit, region_fee, commission_for, COUNT_SQL["orders"], LIMITS["orders"]); product_orders.install(c)  # Phase 87: «اطلب من الصيدلية مباشرة» (بعد notif.install لأن triggers ntf_po_ تُنشأ هنا)
     rx.install(c)  # RX schema extensions (idempotent, additive migrations)
@@ -627,6 +627,34 @@ def _push_to_users(c, uids, ttl, native=True, kind="order", target=None):
     if native:
         n += fcm.send(c, uids, ttl, kind, target=target) if target else fcm.send(c, uids, ttl, kind)
     return n
+def _user_event_push(uid, kind, target="/"):
+    """إشعار عام آمن للمستخدم بعد حفظ الحدث؛ لا يحمل بيانات الطلب."""
+    def run():
+        try:
+            time.sleep(0.25)
+            c = db()
+            try:
+                if c.execute("SELECT 1 FROM push_subs WHERE user_id=?", (uid,)).fetchone() or fcm.has_tokens(c, uid):
+                    _push_to_users(c, [uid], 3600, kind=kind, target=target)
+            finally:
+                c.close()
+        except Exception as e:
+            print("user event push failed:", e, file=sys.stderr)
+    threading.Thread(target=run, daemon=True).start()
+
+
+def order_update_push(uid):
+    _user_event_push(uid, "order_update", "/")
+
+
+def product_customer_push(uid):
+    _user_event_push(uid, "product_update", "/")
+
+
+def shop_customer_push(uid):
+    _user_event_push(uid, "shop_update", "/")
+
+
 def inquiry_push(uid):
     """إيقاظ الصيدلية خارجيًا عند استفسار دواء جديد في منطقتها."""
     def run():
@@ -684,6 +712,7 @@ def product_order_push(uid):
         except Exception as e: print("product order push failed:", e, file=sys.stderr)
     threading.Thread(target=run, daemon=True).start()
 product_orders.push_hook = product_order_push
+product_orders.customer_push_hook = product_customer_push
 
 def shop_order_push(uid):
     """إشعار خارجي لمالك المحل عند وصول طلب عميل جديد؛ مستقل عن تنبيه المندوب."""
