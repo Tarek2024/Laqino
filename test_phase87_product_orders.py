@@ -25,6 +25,19 @@ for tp in call("GET", "/admin/topups", None, at)[1]: call("POST", f"/admin/topup
 call("POST", "/courier/online", {"online": True}, c1)
 for t, nm, uid in ((phm, "صيدلية النور", phid), (ph2, "صيدلية الأمل", ph2id)):
     call("POST", "/providers/apply", {"name_ar": nm, "region_id": Z2, "address": "شارع البحر"}, t); call("POST", f"/admin/providers/{uid}/review", {"status": "approved"}, at)
+# استفسار دواء جديد يجب أن يوقظ الصيدليات المعتمدة خارج التطبيق.
+_inquiry_has, _inquiry_send = server.fcm.has_tokens, server.fcm.send
+_inquiry_event, _inquiry_hits = threading.Event(), []
+server.fcm.has_tokens = lambda c, uid: uid == phid
+def _capture_inquiry_push(c, uids, ttl=300, kind="order", target=None):
+    if phid in uids:
+        _inquiry_hits.append((kind, target)); _inquiry_event.set()
+    return 1
+server.fcm.send = _capture_inquiry_push
+_inquiry_result = call("POST", "/medical/inquiries", {"medicine_name": "دواء تجريبي", "region_id": Z2}, cust)
+_inquiry_push = _inquiry_event.wait(3) and ("inquiry", "/pharmacy.html") in _inquiry_hits
+server.fcm.has_tokens, server.fcm.send = _inquiry_has, _inquiry_send
+ok("new medicine inquiry triggers native push to an approved pharmacy", _inquiry_result[0] == 201 and _inquiry_push)
 # قسم المنتجات: تصنيفات + مفتاح الإظهار + عروض منشورة
 call("POST", "/admin/products/seed-categories", {}, at); CAT = call("GET", "/medical/product-categories")[1]
 cat = sql("SELECT id FROM categories WHERE section='medical' AND parent_id IS NOT NULL ORDER BY id")[0][0]
