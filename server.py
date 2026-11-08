@@ -617,15 +617,22 @@ def push_pending(c, uid):
         if free >= o["commission"] and can_extend(c, cr["region_id"], o, now): n += 1
     return n
 def _push_to_users(c, uids, ttl, native=True, kind="order", target=None):
-    """Web Push (data-less) to every subscribed device, then (Phase 8) FCM to the user's Android app tokens. native=False for the final sweep: a generic FCM notification cannot be withdrawn."""
-    priv, pub = vapid_keys(c); n = 0
-    for uid in uids:
-        for sub in c.execute("SELECT endpoint FROM push_subs WHERE user_id=?", (uid,)).fetchall():
-            st = push_send(sub["endpoint"], priv, pub, ttl)
-            if st in (404, 410): c.execute("DELETE FROM push_subs WHERE endpoint=?", (sub["endpoint"],)); c.commit()
-            elif 200 <= st < 300: n += 1
+    """Web Push and Android FCM are independent best-effort channels; failure in either must not suppress the other."""
+    n = 0
+    try:
+        priv, pub = vapid_keys(c)
+        for uid in uids:
+            for sub in c.execute("SELECT endpoint FROM push_subs WHERE user_id=?", (uid,)).fetchall():
+                st = push_send(sub["endpoint"], priv, pub, ttl)
+                if st in (404, 410): c.execute("DELETE FROM push_subs WHERE endpoint=?", (sub["endpoint"],)); c.commit()
+                elif 200 <= st < 300: n += 1
+    except Exception as e:
+        print("web push failed:", e, file=sys.stderr)
     if native:
-        n += fcm.send(c, uids, ttl, kind, target=target) if target else fcm.send(c, uids, ttl, kind)
+        try:
+            n += fcm.send(c, uids, ttl, kind, target=target) if target else fcm.send(c, uids, ttl, kind)
+        except Exception as e:
+            print("native FCM push failed:", e, file=sys.stderr)
     return n
 def _user_event_push(uid, kind, target="/"):
     """إشعار عام آمن للمستخدم بعد حفظ الحدث؛ لا يحمل بيانات الطلب."""
