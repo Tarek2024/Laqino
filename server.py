@@ -627,6 +627,23 @@ def _push_to_users(c, uids, ttl, native=True, kind="order", target=None):
     if native:
         n += fcm.send(c, uids, ttl, kind, target=target) if target else fcm.send(c, uids, ttl, kind)
     return n
+def inquiry_push(uid):
+    """إيقاظ الصيدلية خارجيًا عند استفسار دواء جديد في منطقتها."""
+    def run():
+        try:
+            time.sleep(0.25)
+            c = db()
+            try:
+                if c.execute("SELECT 1 FROM push_subs WHERE user_id=?", (uid,)).fetchone() or fcm.has_tokens(c, uid):
+                    _push_to_users(c, [uid], 3600, kind="inquiry", target="/pharmacy.html")
+            finally:
+                c.close()
+        except Exception as e:
+            print("inquiry push failed:", e, file=sys.stderr)
+    threading.Thread(target=run, daemon=True).start()
+notif.push_hook = inquiry_push
+
+
 def medical_push(uid, kind="rx.update"):
     """Wake the user's devices for an unread medical notification. Push payload is generic and contains no request details."""
     def run():
