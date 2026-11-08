@@ -16,11 +16,12 @@
 #                POST /api/admin/chats/reports/<id>/resolve {status}
 #   اعتراض:      GET /api/listings/<id>/contact يُرفض 403 إن كان وضع الإعلان chat؛ غير ذلك يمرّ لـ server.py كما كان (تسجيل دخول + حد ساعي).
 # لا تُرجع هذه الوحدة أي رقم هاتف أبدًا. إضافة فقط: جداول chat_* وعمود listings.contact_mode.
-import json, os, re, secrets, time
+import json, os, re, secrets, time, threading
 import market
 
 push_hook = None   # server.py يضبطها: دالة(user_id) توقظ أجهزة المستلم (Web Push بلا بيانات؛ sw.js يسأل /api/push/state عن العدد)
 _LAST_PUSH, PUSH_GAP = {}, 30   # أقل فاصل بالثواني بين إيقاظين لنفس المستلم في نفس المحادثة
+_PUSH_LOCK = threading.Lock()  # حماية check-and-set من الطلبات المتزامنة
 MODES = ("chat", "phone", "both")
 MAX_TEXT, PAGE, MAX_PER_MIN, MAX_NEW_THREADS_DAY = 1000, 100, 20, 30
 MAX_IMAGES_DAY = 30   # أقصى عدد صور يرسلها المستخدم في 24 ساعة (عبر كل محادثاته)
@@ -90,14 +91,19 @@ def _audit(c, actor, action, target, detail=None):
 def _finish_send(c, other, t, now):
     """بعد حفظ رسالة (نص أو صورة): إشعار الجرس ثم إيقاظ best-effort للمستلم. أي خطأ في الإيقاظ لا يُفشل الرسالة."""
     _notify(c, other, t["id"], t["listing_title"]); c.commit()
-    last = _LAST_PUSH.get((other, t["id"]), 0)
-    print("chat wake gate:", bool(push_hook), "now=", now, "last=", last, "gap=", PUSH_GAP)
-    if push_hook and now - last >= PUSH_GAP:
-        if len(_LAST_PUSH) > 5000: _LAST_PUSH.clear()
-        _LAST_PUSH[(other, t["id"])] = now
+    # Threaded HTTP requests must check and reserve the cooldown atomically.
+    should_push = False
+    if push_hook:
+        with _PUSH_LOCK:
+            last = _LAST_PUSH.get((other, t["id"]), 0)
+            if now - last >= PUSH_GAP:
+                if len(_LAST_PUSH) > 5000: _LAST_PUSH.clear()
+                _LAST_PUSH[(other, t["id"])] = now
+                should_push = True
+    if should_push:
         try: push_hook(other)
         except Exception as e:
-            import sys; sys.stderr.write("chat wake hook failed: %r\n" % (e,))
+            import sys; sys.stderr.write("chat wake hook failed: %r\\n" % (e,))
 
 
 def _serve_image(h, c, tid, mid):
