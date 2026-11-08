@@ -17,6 +17,8 @@ def main():
           "C.isPluginAvailable('PushNotifications')" in native and native.index("var P = getPlugin();") < native.index("window.__laqNativeBooted = true;"))
     check("notification permission deferral is respected for three days",
           "laq_perm_later_notif" in native and "3 * 24 * 60 * 60 * 1000" in native)
+    check("FCM registration retries use bounded backoff",
+          "nextSyncAt" in native and "Math.min(syncRetryDelay * 2, 300000)" in native)
     for page in ("index.html", "register.html", "courier.html", "market.html", "pharmacy.html", "shop.html", "shops.html"):
         source = Path("static", page).read_text(encoding="utf-8")
         check(page + " loads permission helper before native bridge",
