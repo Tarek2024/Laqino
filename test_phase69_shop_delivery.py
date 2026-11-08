@@ -142,6 +142,24 @@ ok("shop sees the order with items, total, note and no customer data", it["items
 ok("another shop owner cannot list or reject them", call("GET", "/owner/shops/%d/orders" % S1, None, own2)[0] == 404 and call("POST", "/owner/shops/%d/orders/%d/reject" % (S2, oo), {}, own2)[0] == 404 and call("POST", "/owner/shops/%d/orders/%d/reject" % (S1, oo), {}, own2)[0] == 404)
 ok("a pickup order cannot be rejected through the orders route", call("POST", "/owner/shops/%d/orders/%d/reject" % (S1, po), {}, own)[0] == 404)
 
+# اختبر تنبيه العميل الخارجي عند قبول المحل وتجهيز الطلب.
+_stage_has, _stage_send = server.fcm.has_tokens, server.fcm.send
+_stage_event, _stage_hits = threading.Event(), []
+server.fcm.has_tokens = lambda c, uid: uid == cid
+def _capture_shop_stage(c, uids, ttl=300, kind="order", target=None):
+    if cid in uids:
+        _stage_hits.append((kind, target)); _stage_event.set()
+    return 1
+server.fcm.send = _capture_shop_stage
+_stage_accept = call("POST", f"/owner/shops/{S1}/orders/{oo}/accept", {}, own)
+_stage_accept_push = _stage_event.wait(3) and ("shop_update", "/") in _stage_hits
+_stage_event.clear(); _stage_hits.clear()
+_stage_ready = call("POST", f"/owner/shops/{S1}/orders/{oo}/ready", {}, own)
+_stage_ready_push = _stage_event.wait(3) and ("shop_update", "/") in _stage_hits
+server.fcm.has_tokens, server.fcm.send = _stage_has, _stage_send
+ok("shop accepts order and customer receives native push", _stage_accept[0] == 200 and _stage_accept_push)
+ok("shop marks order ready and customer receives native push", _stage_ready[0] == 200 and _stage_ready_push)
+
 # ---- 7) دورة الطلب العادية كاملة: قبول → أجرة → موافقة → توصيل → تأكيد
 ok("courier sees it as shop order", any(a["id"] == oo and a["origin_type"] == "shop_order" for a in call("GET", "/courier/available", None, c1)[1]))
 ok("accept goes to fare draft (not direct)", call("POST", f"/courier/orders/{oo}/accept", {}, c1) == (200, {"ok": True, "fee": 25, "fare_status": "draft"}))
