@@ -1312,9 +1312,12 @@ class H(BaseHTTPRequestHandler):
                 self.need(u, "admin", "staff"); d = self.body(); st = d.get("status")
                 if st not in ("approved", "rejected"): raise E(400, "حالة غير صالحة")
                 if st == "rejected" and not d.get("reason"): raise E(400, "اذكر سبب الرفض")
+                owner = c.execute("SELECT user_id FROM listings WHERE id=? AND status='pending'", (int(m[1]),)).fetchone()
                 n = c.execute("UPDATE listings SET status=?,reject_reason=? WHERE id=? AND status='pending'", (st, d.get("reason"), int(m[1]))).rowcount
                 if not n: raise E(409, "الإعلان غير قيد المراجعة")
-                audit(c, u["id"], "listing." + st, m[1], d); c.commit(); return self.send(200, {"ok": True})
+                audit(c, u["id"], "listing." + st, m[1], d); c.commit()
+                if owner: _user_event_push(owner["user_id"], "market", "/market.html")
+                return self.send(200, {"ok": True})
             sweep(c)
             NEXT = {"assigned": "heading_pickup", "heading_pickup": "picked_up", "picked_up": "heading_customer", "heading_customer": "arrived", "arrived": "awaiting_confirmation"}
             def ev(oid, frm, to): c.execute("INSERT INTO order_events(order_id,actor_id,from_status,to_status,at) VALUES(?,?,?,?,?)", (oid, u["id"], frm, to, int(time.time())))
