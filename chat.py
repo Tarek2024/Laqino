@@ -90,11 +90,14 @@ def _audit(c, actor, action, target, detail=None):
 def _finish_send(c, other, t, now):
     """بعد حفظ رسالة (نص أو صورة): إشعار الجرس ثم إيقاظ best-effort للمستلم. أي خطأ في الإيقاظ لا يُفشل الرسالة."""
     _notify(c, other, t["id"], t["listing_title"]); c.commit()
-    if push_hook and now - _LAST_PUSH.get((other, t["id"]), 0) >= PUSH_GAP:
+    last = _LAST_PUSH.get((other, t["id"]), 0)
+    print("chat wake gate:", bool(push_hook), "now=", now, "last=", last, "gap=", PUSH_GAP)
+    if push_hook and now - last >= PUSH_GAP:
         if len(_LAST_PUSH) > 5000: _LAST_PUSH.clear()
         _LAST_PUSH[(other, t["id"])] = now
         try: push_hook(other)
-        except Exception: pass
+        except Exception as e:
+            import sys; sys.stderr.write("chat wake hook failed: %r\n" % (e,))
 
 
 def _serve_image(h, c, tid, mid):
