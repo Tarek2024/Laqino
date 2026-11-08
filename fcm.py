@@ -104,7 +104,7 @@ def _base():
 def build_message(token, kind, ttl, target=None):
     kind = kind if kind in TEXTS else "order"
     data = {"kind": kind}
-    if target in ("/", "/pharmacy.html", "/shop.html", "/shop.html#o", "/courier.html", "/market.html#/chats"):
+    if target in ("/", "/pharmacy.html", "/shop.html", "/shop.html#o", "/courier.html", "/market.html", "/market.html#/chats"):
         data["url"] = target
     return {"message": {"token": token, "notification": {"title": TITLE, "body": TEXTS[kind]}, "data": data,
                         "android": {"priority": "HIGH", "ttl": "%ds" % max(30, min(int(ttl), 3600)), "collapse_key": kind,
