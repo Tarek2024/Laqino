@@ -7,8 +7,11 @@
   function getPlugin() {
     var p = C.Plugins && C.Plugins.PushNotifications;
     if (!p && typeof C.registerPlugin === 'function') {
-      try { p = C.registerPlugin('PushNotifications'); } catch (e) {}
+      try { p = C.registerPlugin('PushNotifications'); } catch (e) { return null; }
     }
+    // registerPlugin creates a JS proxy even if the native header has not arrived yet.
+    // Do not boot until Capacitor confirms a real native implementation; retry meanwhile.
+    if (typeof C.isPluginAvailable === 'function' && !C.isPluginAvailable('PushNotifications')) return null;
     return p && typeof p.addListener === 'function' ? p : null;
   }
 
