@@ -12,6 +12,8 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: '3.12'
+      - name: Install cryptography for notification regression coverage
+        run: python -m pip install cryptography
       - name: Compile changed Python files
         run: python -m py_compile server.py notif.py fcm.py product_orders.py shop_delivery.py test_phase90_fcm.py test_phase69_shop_delivery.py test_phase87_product_orders.py test_phase_marketplace_ad_management.py test_phase4_chat.py test_registration_account_recovery.py
       - name: Validate release and service-worker cache version
@@ -22,8 +24,6 @@ jobs:
         run: python test_phase_marketplace_ad_management.py
       - name: Run existing marketplace favorites and reports regression tests
         run: python test_phase8b_listing_social.py
-      - name: Install cryptography for Web Push regression coverage
-        run: python -m pip install cryptography
       - name: Run chat privacy and compatibility regression tests
         run: python test_phase4_chat.py
       - name: Run Phase 90 FCM payload and destination regression tests
