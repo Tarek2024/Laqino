@@ -20,6 +20,9 @@ def main():
 
     medical = fcm.build_message("device-token", "medical", 120, "/pharmacy.html")["message"]
     check("medical destination is allowlisted", medical["data"] == {"kind": "medical", "url": "/pharmacy.html"})
+    inquiry = fcm.build_message("device-token", "inquiry", 120, "/pharmacy.html")["message"]
+    check("new pharmacy inquiry has its own message kind and route",
+          inquiry["data"] == {"kind": "inquiry", "url": "/pharmacy.html"} and inquiry["notification"]["body"] == fcm.TEXTS["inquiry"])
     bad = fcm.build_message("device-token", "shop", 120, "//attacker.example")["message"]
     check("external or malformed destinations are discarded", bad["data"] == {"kind": "shop"})
     unknown = fcm.build_message("device-token", "not-a-kind", 120)["message"]
