@@ -1,0 +1,53 @@
+"""Phase 90: FCM payload safety, destinations and legacy-call compatibility."""
+import sqlite3
+import fcm
+
+
+def check(name, condition):
+    if not condition:
+        raise AssertionError(name)
+    print("PASS", name)
+
+
+def main():
+    shop = fcm.build_message("device-token", "shop", 120, "/shop.html")["message"]
+    check("shop kind uses the shop notification text", shop["notification"]["body"] == fcm.TEXTS["shop"])
+    check("shop push carries only kind and allowlisted internal destination",
+          shop["data"] == {"kind": "shop", "url": "/shop.html"})
+    check("FCM android notification uses Laqino channel",
+          shop["android"]["notification"]["channel_id"] == fcm.CHANNEL)
+
+    medical = fcm.build_message("device-token", "medical", 120, "/pharmacy.html")["message"]
+    check("medical destination is allowlisted", medical["data"] == {"kind": "medical", "url": "/pharmacy.html"})
+    bad = fcm.build_message("device-token", "shop", 120, "//attacker.example")["message"]
+    check("external or malformed destinations are discarded", bad["data"] == {"kind": "shop"})
+    unknown = fcm.build_message("device-token", "not-a-kind", 120)["message"]
+    check("unknown kinds safely fall back to order", unknown["data"] == {"kind": "order"})
+
+    db = sqlite3.connect(":memory:")
+    db.row_factory = sqlite3.Row
+    db.execute("CREATE TABLE fcm_tokens(user_id INTEGER, token TEXT)")
+    db.execute("INSERT INTO fcm_tokens(user_id, token) VALUES(?,?)", (7, "device-token"))
+    db.commit()
+
+    old_account, old_send = fcm.service_account, fcm.send_one
+    calls = []
+    fcm.service_account = lambda: {"project_id": "test-project"}
+
+    def fake_send(sa, token, kind, ttl, target=None):
+        calls.append((token, kind, ttl, target))
+        return 200, False
+
+    fcm.send_one = fake_send
+    try:
+        check("legacy FCM send signature remains supported", fcm.send(db, [7], 90, "chat") == 1)
+        check("legacy call does not add a target argument", calls[-1] == ("device-token", "chat", 90, None))
+        check("target-aware FCM send works", fcm.send(db, [7], 90, "shop", target="/shop.html") == 1)
+        check("target-aware call preserves the internal destination", calls[-1] == ("device-token", "shop", 90, "/shop.html"))
+    finally:
+        fcm.service_account, fcm.send_one = old_account, old_send
+        db.close()
+
+
+if __name__ == "__main__":
+    main()
