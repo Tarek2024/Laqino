@@ -150,8 +150,10 @@ msg_status, msg_result = call("POST", f"/chats/{Tq}/messages", {"text": "مرح�
 PUSH_EVENT.wait(5.0)  # wait for the real background Web Push request, not a fixed short sleep
 print("CHAT PUSH DIAGNOSTIC:", "message_status=", msg_status, "hits=", repr(HITS), "subs=", sql("select user_id,endpoint from push_subs"))
 ok("new message wakes ONLY the recipient's device (empty data-less push, VAPID auth)", msg_status == 201 and len(HITS) == 1 and HITS[0][0] == "/p/seller" and HITS[0][1].startswith("vapid ") and HITS[0][2] == "0")
-call("POST", f"/chats/{Tq}/messages", {"text": "تاني"}, tk[B1]); time.sleep(1.0)
-ok("second message within the gap is throttled (no extra push)", len(HITS) == 1)
+before_second = dict(chat._LAST_PUSH)
+second_status, second_result = call("POST", f"/chats/{Tq}/messages", {"text": "تاني"}, tk[B1]); time.sleep(1.0)
+print("CHAT COOLDOWN TRACE:", {"before_second": before_second, "after_second": dict(chat._LAST_PUSH), "gap": chat.PUSH_GAP, "status": second_status, "hits": list(HITS), "key": (uid[SELLER], Tq)})
+ok("second message within the gap is throttled (no extra push)", second_status == 201 and len(HITS) == 1)
 chat.PUSH_GAP = 0; call("POST", f"/chats/{Tq}/messages", {"text": "ثالث"}, tk[B1]); time.sleep(1.2)
 ok("push again once the gap allows", len(HITS) == 2)
 st = call("POST", "/push/state", {"endpoint": EP("seller")})[1]
