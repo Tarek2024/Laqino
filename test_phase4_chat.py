@@ -130,9 +130,10 @@ ok("market.html: messages inserted with textContent (no innerHTML)", ".innerHTML
 os.environ["LAQINO_PUSH_ALLOW_ANY"] = "1"
 from http.server import BaseHTTPRequestHandler
 HITS = []
+PUSH_EVENT = threading.Event()
 class Cap(BaseHTTPRequestHandler):
     def do_POST(self):
-        HITS.append((self.path, self.headers.get("Authorization", ""), self.headers.get("Content-Length"))); self.send_response(201); self.end_headers()
+        HITS.append((self.path, self.headers.get("Authorization", ""), self.headers.get("Content-Length"))); PUSH_EVENT.set(); self.send_response(201); self.end_headers()
     def log_message(self, *a): pass
 threading.Thread(target=ThreadingHTTPServer(("127.0.0.1", 8796), Cap).serve_forever, daemon=True).start()
 EP = lambda n: f"http://127.0.0.1:8796/p/{n}"
@@ -141,9 +142,11 @@ ok("any logged-in user gets the VAPID key", len(call("GET", "/push/key", None, t
 ok("invalid endpoint -> 400", call("POST", "/push/subscribe", {"endpoint": "ftp://x"}, tk[B1])[0] == 400 and call("POST", "/push/subscribe", {}, tk[B1])[0] == 400)
 Lq = listing("للإيقاظ", "chat"); Tq = call("POST", f"/listings/{Lq}/chat", None, tk[B1])[1]["thread_id"]
 ok("subscribe seller + buyer devices", call("POST", "/push/subscribe", {"endpoint": EP("seller")}, tk[SELLER])[0] == 200 and call("POST", "/push/subscribe", {"endpoint": EP("buyer")}, tk[B1])[0] == 200)
-chat.PUSH_GAP = 30; HITS.clear(); call("POST", f"/chats/{Tq}/messages", {"text": "مرحبا"}, tk[B1]); time.sleep(1.2)
-print("CHAT PUSH TEST HITS:", repr(HITS), "SUBS:", sql("select user_id,endpoint from push_subs"))
-ok("new message wakes ONLY the recipient's device (empty data-less push, VAPID auth)", [h[0] for h in HITS] == ["/p/seller"] and HITS[0][1].startswith("vapid ") and HITS[0][2] == "0")
+chat.PUSH_GAP = 30; HITS.clear(); PUSH_EVENT.clear()
+msg_status, msg_result = call("POST", f"/chats/{Tq}/messages", {"text": "مرحبا"}, tk[B1])
+PUSH_EVENT.wait(5.0)  # wait for the real background Web Push request, not a fixed short sleep
+print("CHAT PUSH DIAGNOSTIC:", "message_status=", msg_status, "hits=", repr(HITS), "subs=", sql("select user_id,endpoint from push_subs"))
+ok("new message wakes ONLY the recipient's device (empty data-less push, VAPID auth)", msg_status == 201 and len(HITS) == 1 and HITS[0][0] == "/p/seller" and HITS[0][1].startswith("vapid ") and HITS[0][2] == "0")
 call("POST", f"/chats/{Tq}/messages", {"text": "تاني"}, tk[B1]); time.sleep(1.0)
 ok("second message within the gap is throttled (no extra push)", len(HITS) == 1)
 chat.PUSH_GAP = 0; call("POST", f"/chats/{Tq}/messages", {"text": "ثالث"}, tk[B1]); time.sleep(1.2)
