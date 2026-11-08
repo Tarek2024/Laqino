@@ -130,6 +130,7 @@
         product_update: '/',
         shop_update: '/',
         order_update: '/',
+        market: '/market.html',
         shop: '/shop.html#o'
       }[data.kind] || '/');
       window.location.assign(target);
