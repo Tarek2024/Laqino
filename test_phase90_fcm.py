@@ -13,7 +13,7 @@ def main():
     shop = fcm.build_message("device-token", "shop", 120, "/shop.html#o")["message"]
     check("shop kind uses the shop notification text", shop["notification"]["body"] == fcm.TEXTS["shop"])
     check("shop push carries only kind and allowlisted internal destination",
-          shop["data"] == {"kind": "shop", "url": "/shop.html"})
+          shop["data"] == {"kind": "shop", "url": "/shop.html#o"})
     check("FCM android notification uses Laqino channel",
           shop["android"]["notification"]["channel_id"] == fcm.CHANNEL)
 
@@ -42,8 +42,8 @@ def main():
     try:
         check("legacy FCM send signature remains supported", fcm.send(db, [7], 90, "chat") == 1)
         check("legacy call does not add a target argument", calls[-1] == ("device-token", "chat", 90, None))
-        check("target-aware FCM send works", fcm.send(db, [7], 90, "shop", target="/shop.html") == 1)
-        check("target-aware call preserves the internal destination", calls[-1] == ("device-token", "shop", 90, "/shop.html"))
+        check("target-aware FCM send works", fcm.send(db, [7], 90, "shop", target="/shop.html#o") == 1)
+        check("target-aware call preserves the internal destination", calls[-1] == ("device-token", "shop", 90, "/shop.html#o"))
     finally:
         fcm.service_account, fcm.send_one = old_account, old_send
         db.close()
