@@ -151,7 +151,6 @@ PUSH_EVENT.wait(5.0)  # wait for the real background Web Push request, not a fix
 print("CHAT PUSH DIAGNOSTIC:", "message_status=", msg_status, "hits=", repr(HITS), "subs=", sql("select user_id,endpoint from push_subs"))
 ok("new message wakes ONLY the recipient's device (empty data-less push, VAPID auth)", msg_status == 201 and len(HITS) == 1 and HITS[0][0] == "/p/seller" and HITS[0][1].startswith("vapid ") and HITS[0][2] == "0")
 call("POST", f"/chats/{Tq}/messages", {"text": "تاني"}, tk[B1]); time.sleep(1.0)
-print("CHAT SECOND PUSH DIAGNOSTIC:", "hits=", repr(HITS), "last_push=", repr(chat._LAST_PUSH))
 ok("second message within the gap is throttled (no extra push)", len(HITS) == 1)
 chat.PUSH_GAP = 0; call("POST", f"/chats/{Tq}/messages", {"text": "ثالث"}, tk[B1]); time.sleep(1.2)
 ok("push again once the gap allows", len(HITS) == 2)
