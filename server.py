@@ -635,8 +635,8 @@ def medical_push(uid, kind="rx.update"):
             c = db()
             try:
                 if c.execute("SELECT 1 FROM push_subs WHERE user_id=?", (uid,)).fetchone() or fcm.has_tokens(c, uid):
-                    row = c.execute("SELECT link FROM notifications WHERE user_id=? AND kind LIKE 'rx.%' ORDER BY id DESC LIMIT 1", (uid,)).fetchone()
-                    target = "/pharmacy.html" if row and row["link"] == "pharmacy" else "/"
+                    # نوع إشعار الروشتة يحدد صاحب الوجهة: عروض/اعتماد الصيدلية مقابل رد العميل.
+                    target = "/pharmacy.html" if kind in ("rx.offer", "rx.approved", "rx.rejected") else "/"
                     _push_to_users(c, [uid], 3600, kind="medical", target=target)
             finally: c.close()
         except Exception as e: print("medical push failed:", e, file=sys.stderr)
