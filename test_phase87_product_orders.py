@@ -97,7 +97,12 @@ av = [o for o in call("GET", "/courier/available", None, c1)[1] if o["id"] == di
 
 # ---- 5) «جاهز للاستلام» + دورة المندوب العادية
 ok("pharmacy list: now can_ready, cannot accept again", prow(phm, pid_)["can_ready"] and not prow(phm, pid_)["can_accept"])
-ok("ready -> ready and customer sees it + notification", A(phm, "ready") == (200, {"id": pid_, "status": "ready"}) and mine(cust, did)["shop_status"] == "ready" and [n["title"] for n in notes(cust, "product_order.stage")][0] == "طلبك جاهز للاستلام من الصيدلية")
+_push_event.clear(); _push_hits.clear()
+_ready_result = A(phm, "ready")
+_ready_push = _push_event.wait(3) and ("product_update", "/") in _push_hits
+server.fcm.has_tokens, server.fcm.send = _old_has, _old_send
+ok("ready -> ready and customer sees it + notification", _ready_result == (200, {"id": pid_, "status": "ready"}) and mine(cust, did)["shop_status"] == "ready" and [n["title"] for n in notes(cust, "product_order.stage")][0] == "طلبك جاهز للاستلام من الصيدلية")
+ok("native push sent to customer after pharmacy marks ready", _ready_push)
 ok("ready twice -> 409", A(phm, "ready")[0] == 409)
 ok("courier cycle: accept, propose fare, customer approves", call("POST", f"/courier/orders/{did}/accept", {}, c1)[0] == 200 and call("POST", f"/courier/orders/{did}/fare", {"fee": 20}, c1)[0] == 200 and call("POST", f"/delivery/orders/{did}/fare/approve", {"fee": 20}, cust)[0] == 200)
 m = mine(cust, did); ok("customer sees courier name+phone and bill with fee: 285.5 + 20 = 305.5", m["courier_name"] == "أحمد المندوب" and m["courier_phone"] and m["delivery_fee"] == 20 and m["grand_total"] == 305.5)
