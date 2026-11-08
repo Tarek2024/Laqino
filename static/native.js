@@ -123,6 +123,7 @@
         order: '/courier.html',
         medical: '/',
         product: '/pharmacy.html',
+        inquiry: '/pharmacy.html',
         shop: '/shop.html#o'
       }[data.kind] || '/');
       window.location.assign(target);
