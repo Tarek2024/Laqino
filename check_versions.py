@@ -84,16 +84,16 @@ for path in ROOT.rglob("*"):
         continue
     is_archive = (
         rel in {
-            "README_HISTORY.md", "PHASE18_HANDOFF.md", "docs/ROADMAP.md",
+            "README_HISTORY.md", "PHASE18_HANDOFF.md", "UPDATE-INSTRUCTIONS.txt", "docs/ROADMAP.md",
             "docs/PROJECT_STATUS.md", "docs/CONSOLIDATED_REPORT.md",
         }
         or rel.startswith("README_UPDATE_PHASE")
+        or re.match(r"^(?:PHASE|.*_PHASE)\d", path.name, re.I)
         or rel.startswith("docs/steps/")
         or rel.startswith("docs/phases/")
         or rel.startswith("docs/implementation/")
         or re.match(r"^(?:BACKUP_AND_ROLLBACK_PHASE|CHANGES_PHASE|PROJECT_REVIEW_PHASE|RX_AUTO_DISTRIBUTION_PHASE|TEST_RESULTS_PHASE)", path.name, re.I)
-        or re.match(r"^(?:PHASE|.*_PHASE)\\d", path.name, re.I)
-    )
+            )
     is_readme = path.name.lower().startswith("readme")
     if is_archive:
         archive_files.append(rel)
