@@ -118,7 +118,7 @@ readme = read("README.md")
 if cache_match:
     # README intentionally retains old cache identifiers in its historical phase log.
     # Require the current cache near the top; do not reject legitimate archival references.
-    readme_head = "\\n".join(readme.splitlines()[:12])
+    readme_head = "\n".join(readme.splitlines()[:12])
     readme_cache_ok = cache_name in readme_head
 else:
     readme_cache_ok = False
