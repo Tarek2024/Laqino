@@ -12,7 +12,7 @@ mobile = re.search(r"@media\\(max-width:760px\\)\\{.*?nav\\{([^}]*)\\}", s, re.S
 ok("mobile navigation intentionally scrolls horizontally", bool(mobile) and "overflow-x:auto" in mobile.group(1) and "flex-direction:row" in mobile.group(1))
 tabs = re.search(r"const TABS=\{(.*?)\};", s, re.S).group(1)
 keys = re.findall(r"(\w+):'", tabs)
-ok("23 admin sections declared (22 + home-sections tab from phase 18)", len(keys) == 25 and len(set(keys)) == 25 and "doctors" in keys and "homeui" in keys)
+ok("25 unique admin sections are declared", len(keys) == 25 and len(set(keys)) == 25 and "doctors" in keys and "homeui" in keys)
 vbody = s[s.index("const V={"):]
 missing = [k for k in keys if not re.search(r"(?:^|[\n,;{])\s*(?:async\s+)?%s\s*\(\)\s*\{|V\.%s\s*=" % (k, k), vbody)]
 ok("every section has a view handler: missing=%s" % missing, not missing)
