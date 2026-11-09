@@ -51,7 +51,7 @@ oid = sql("SELECT id FROM delivery_orders ORDER BY id LIMIT 1")[0][0]
 cp, _ = page(cu); cp.goto(BASE + "/courier.html"); cp.wait_for_selector("text=استلام من صيدلية")
 ok("courier sees provider-pickup offer without fare", cp.locator("text=بدون أجرة داخل التطبيق").first.is_visible())
 cp.locator("button", has_text="قبول").first.click(); cp.wait_for_selector("text=أنا في الطريق للصيدلية")
-ok("courier card shows pharmacy flow (no 'to customer' steps)", cp.locator("text=في الطريق للعميل").count() == 0 and cp.locator("text=لا أجرة داخل التطبيق لهذا الطلب").first.is_visible())
+ok("courier card starts at pharmacy pickup with no in-app fare", cp.locator("text=أنا في الطريق للصيدلية").count() == 1 and cp.locator("text=لا أجرة داخل التطبيق لهذا الطلب").first.is_visible())
 cp.click("text=أنا في الطريق للصيدلية"); cp.wait_for_selector("text=استلمت الأوردر من الصيدلية"); cp.click("text=استلمت الأوردر من الصيدلية")
 cp.wait_for_selector("text=أنا في الطريق للعميل")
 ok("pickup advances to customer-delivery stage, not completion", sql("SELECT status FROM delivery_orders WHERE id=?", oid) == [("picked_up",)])
