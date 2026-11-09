@@ -1,0 +1,94 @@
+name: Android dependency preflight
+
+on:
+  push:
+    branches:
+      - feature/android-aab-release-prep
+    paths:
+      - 'android/package.json'
+      - 'android/capacitor.config.json'
+      - 'android/tools/**'
+      - '.github/workflows/android-deps-preflight.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: android-deps-preflight
+  cancel-in-progress: false
+
+jobs:
+  dependency-preflight:
+    name: Resolve and verify Capacitor Android dependencies
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - name: Checkout isolated branch
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Set up Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 21
+
+      - name: Install Android SDK platform
+        uses: android-actions/setup-android@v4
+        with:
+          packages: 'platform-tools'
+
+      - name: Install Android SDK 36
+        run: |
+          yes | sdkmanager --licenses >/dev/null
+          sdkmanager "platform-tools" "platforms;android-36" "build-tools;35.0.0"
+
+      - name: Generate dependency lockfile if absent
+        working-directory: android
+        run: |
+          if [ ! -f package-lock.json ]; then
+            npm install --package-lock-only --ignore-scripts --no-audit --no-fund
+          fi
+          npm ci --no-audit --no-fund
+          npm ls --depth=0
+
+      - name: Generate and sync native Capacitor project
+        working-directory: android
+        run: |
+          if [ ! -f android/app/build.gradle ]; then
+            npx cap add android
+          fi
+          npx cap sync android
+          test -s android/app/build.gradle
+          test -s android/variables.gradle
+          test -s android/gradlew
+          test -s android/gradle/wrapper/gradle-wrapper.properties
+          python3 - <<'PY'
+          import json
+          from pathlib import Path
+          config = json.loads(Path("capacitor.config.json").read_text())
+          assert config.get("appId") == "com.laqino.app", config.get("appId")
+          assert config.get("server", {}).get("url", "").startswith("https://"), "server.url must use HTTPS"
+          variables = Path("android/variables.gradle").read_text()
+          for key, expected in (("compileSdkVersion", 36), ("targetSdkVersion", 36), ("minSdkVersion", 24)):
+              import re
+              match = re.search(r"\\b" + key + r"\\s*=\\s*(\\d+)", variables)
+              assert match and int(match.group(1)) == expected, f"{key} must be {expected}"
+          print("PASS: Capacitor identity, HTTPS and Android SDK baseline")
+          PY
+
+      - name: Upload reviewed dependency lockfile and generated project metadata
+        uses: actions/upload-artifact@v4
+        with:
+          name: laqino-android-dependency-preflight
+          path: |
+            android/package-lock.json
+            android/android/variables.gradle
+            android/android/gradle/wrapper/gradle-wrapper.properties
+          if-no-files-found: error
+          retention-days: 14
