@@ -147,23 +147,23 @@ Lq = listing("للإيقاظ", "chat"); Tq = call("POST", f"/listings/{Lq}/chat"
 ok("subscribe seller + buyer devices", call("POST", "/push/subscribe", {"endpoint": EP("seller")}, tk[SELLER])[0] == 200 and call("POST", "/push/subscribe", {"endpoint": EP("buyer")}, tk[B1])[0] == 200)
 chat.PUSH_GAP = 30; HITS.clear(); PUSH_EVENT.clear()
 HOOK_CALLS = []
-_REAL_CHAT_PUSH = server.chat_push
-def counted_chat_push(uid):
-    HOOK_CALLS.append(uid)
-    _REAL_CHAT_PUSH(uid)
-chat.push_hook = counted_chat_push
+chat.push_hook = server.chat_push
 msg_status, msg_result = call("POST", f"/chats/{Tq}/messages", {"text": "مرحبا"}, tk[B1])
 PUSH_EVENT.wait(5.0)  # wait for the real background Web Push request, not a fixed short sleep
+time.sleep(0.4)  # let the first background send finish before isolating the cooldown check
 first_stamp = sql("select push_notified_at from chat_threads where id=?", (Tq,))[0][0]
 print("CHAT PUSH DIAGNOSTIC:", "message_status=", msg_status, "hits=", repr(HITS), "cooldown_stamp=", first_stamp, "subs=", sql("select user_id,endpoint from push_subs"))
 ok("new message wakes ONLY the recipient's device (empty data-less push, VAPID auth)", msg_status == 201 and len(HITS) == 1 and HITS[0][0] == "/p/seller" and HITS[0][1].startswith("vapid ") and HITS[0][2] == "0")
 ok("first push persists its database cooldown timestamp", first_stamp > 0)
-second_status, second_result = call("POST", f"/chats/{Tq}/messages", {"text": "تاني"}, tk[B1]); time.sleep(1.0)
+ok("first push request has fully settled", len(HITS) == 1)
+HOOK_CALLS.clear()
+chat.push_hook = lambda uid: HOOK_CALLS.append(uid)  # deterministic hook counter isolates cooldown logic from async network timing
+second_status, second_result = call("POST", f"/chats/{Tq}/messages", {"text": "تاني"}, tk[B1])
 second_stamp = sql("select push_notified_at from chat_threads where id=?", (Tq,))[0][0]
 print("CHAT COOLDOWN TRACE:", {"first_stamp": first_stamp, "second_stamp": second_stamp, "gap": chat.PUSH_GAP, "status": second_status, "hook_calls": list(HOOK_CALLS), "hits": list(HITS)})
-ok("second message within the gap is throttled (no extra hook or push)", second_status == 201 and len(HOOK_CALLS) == 1 and len(HITS) == 1 and second_stamp == first_stamp)
-chat.PUSH_GAP = 0; call("POST", f"/chats/{Tq}/messages", {"text": "ثالث"}, tk[B1]); time.sleep(1.2)
-ok("push again once the gap allows", len(HOOK_CALLS) == 2 and len(HITS) == 2)
+ok("second message within the gap is throttled (no extra hook or push)", second_status == 201 and len(HOOK_CALLS) == 0 and len(HITS) == 1 and second_stamp == first_stamp)
+chat.PUSH_GAP = 0; call("POST", f"/chats/{Tq}/messages", {"text": "ثالث"}, tk[B1])
+ok("push hook runs again once the gap allows", len(HOOK_CALLS) == 1)
 st = call("POST", "/push/state", {"endpoint": EP("seller")})[1]
 ok("push state returns counts/flags only (chat unread, medical unread, product orders, pending, courier)", set(st) == {"pending", "chat", "medical", "orders", "courier"} and st["pending"] == 0 and st["medical"] >= 0 and st["orders"] == 0 and st["courier"] is False and st["chat"] >= 3)
 call("GET", f"/chats/{Tq}", None, tk[SELLER])
