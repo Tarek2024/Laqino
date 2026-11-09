@@ -90,12 +90,6 @@ for path in ROOT.rglob("*"):
         or rel.startswith("README_UPDATE_PHASE")
         or rel.startswith("docs/steps/")
     )
-    if is_archive:
-        archive_files.append(rel)
-        head = path.read_text(encoding="utf-8", errors="replace").splitlines()[:5]
-        if not any("مؤرشف" in line or "أرشيف" in line or "ARCHIVE" in line.upper()
-                   for line in head):
-            errors.append(f"{rel}: historical document lacks an archive notice")
     is_readme = path.name.lower().startswith("readme")
     if is_archive:
         archive_files.append(rel)
