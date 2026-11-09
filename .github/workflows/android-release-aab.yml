@@ -119,7 +119,8 @@ jobs:
         run: |
           AAB="android/android/app/build/outputs/bundle/release/app-release.aab"
           test -s "$AAB"
-          jarsigner -verify -verbose "$AAB" 2>&1 | grep -q "jar verified"
+          VERIFY_OUTPUT="$(jarsigner -verify -verbose "$AAB" 2>&1)"
+          printf '%s\n' "$VERIFY_OUTPUT" | grep -q "jar verified"
           echo "PASS: AAB signature is present and cryptographically valid"
           ls -lh "$AAB"
 
