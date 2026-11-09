@@ -74,6 +74,7 @@ jobs:
             npx cap add android
           fi
           npx cap sync android
+          python3 tools/ensure_location_permissions.py android/app/src/main/AndroidManifest.xml
           test -s android/app/build.gradle
           test -s android/variables.gradle
           test -s android/gradlew
