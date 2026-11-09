@@ -33,5 +33,5 @@ with sync_playwright() as p:
     ok("mobile nav groups are horizontally scrollable without page overflow", r["groups"] > 1 and r["buttons"] == len(keys) and r["scroll"] and r["overflow"] in ("auto","scroll") and r["page"])
     last = pg.locator("nav button").last
     last.scroll_into_view_if_needed()
-    ok("last admin section can be reached inside the nav viewport", pg.evaluate("(()=>{const n=document.querySelector('nav'),b=n.querySelector('button:last-of-type'),r=b.getBoundingClientRect(),q=n.getBoundingClientRect();return r.left>=q.left-1&&r.right<=q.right+1})()"))
+    ok("last admin section can be reached inside the nav viewport", pg.evaluate("(()=>{const n=document.querySelector('nav'),a=n.querySelectorAll('button'),b=a[a.length-1],r=b.getBoundingClientRect(),q=n.getBoundingClientRect();return r.left>=q.left-1&&r.right<=q.right+1})()"))
     b.close()
