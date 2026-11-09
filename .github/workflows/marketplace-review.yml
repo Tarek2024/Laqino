@@ -180,3 +180,26 @@ jobs:
             cat /tmp/laqino-main-test-failures.txt
             exit 1
           fi
+
+
+  shop-image-regression:
+    name: Shop image loading and identity regression
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Install shop image browser-test dependencies
+        run: |
+          python -m pip install cryptography Pillow playwright
+          python -m playwright install --with-deps chromium
+      - name: Compile shop image regression tests
+        run: python -m py_compile test_phase68_shop_panel.py test_phase82_shop_images.py test_phase83_shop_identity.py
+      - name: Test shop dashboard image lazy loading
+        run: python test_phase68_shop_panel.py
+      - name: Test public shop image loading and privacy
+        run: python test_phase82_shop_images.py
+      - name: Test shop logo and cover identity
+        run: python test_phase83_shop_identity.py
