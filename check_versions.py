@@ -75,11 +75,6 @@ if cache and cache not in note:
 # Recursively inventory README and phase/update documentation. Historical phase
 # documents must say so in their opening lines; Android setup is intentionally
 # a separate operational guide and is not forced to carry web release numbers.
-archive_patterns = (
-    "README_HISTORY.md", "PHASE18_HANDOFF.md", "README_UPDATE_PHASE",
-    "docs/PROJECT_STATUS.md", "docs/CONSOLIDATED_REPORT.md",
-    "docs/ROADMAP.md", "docs/steps/",
-)
 archive_files = []
 for path in ROOT.rglob("*"):
     if not path.is_file():
@@ -87,8 +82,20 @@ for path in ROOT.rglob("*"):
     rel = path.relative_to(ROOT).as_posix()
     if any(part in {".git", ".venv", "venv", "node_modules", "__pycache__"} for part in path.parts):
         continue
-    is_archive = (rel in archive_patterns[:2] or rel.startswith(archive_patterns[2])
-                  or rel == archive_patterns[3] or rel.startswith(archive_patterns[4]))
+    is_archive = (
+        rel in {
+            "README_HISTORY.md", "PHASE18_HANDOFF.md", "docs/ROADMAP.md",
+            "docs/PROJECT_STATUS.md", "docs/CONSOLIDATED_REPORT.md",
+        }
+        or rel.startswith("README_UPDATE_PHASE")
+        or rel.startswith("docs/steps/")
+    )
+    if is_archive:
+        archive_files.append(rel)
+        head = path.read_text(encoding="utf-8", errors="replace").splitlines()[:5]
+        if not any("مؤرشف" in line or "أرشيف" in line or "ARCHIVE" in line.upper()
+                   for line in head):
+            errors.append(f"{rel}: historical document lacks an archive notice")
     is_readme = path.name.lower().startswith("readme")
     if is_archive:
         archive_files.append(rel)
