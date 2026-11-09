@@ -1,4 +1,4 @@
-# المرحلة 16: توافق مع Phase 15 — أقسام لوحة الإدارة الـ17 وإصلاح التفاف التبويبات على الموبايل. قاعدة مؤقتة معزولة.
+# المرحلة 16: توافق واجهة لوحة الإدارة الحالية ذات المجموعات والتنقل المتجاوب. قاعدة مؤقتة معزولة.
 import os, re, json, tempfile, threading, time, sys
 _TMP = tempfile.mkdtemp(prefix="laqino-p16compat-")
 os.environ["LAQINO_DB"] = os.path.join(_TMP, "test.db"); os.environ["LAQINO_UPLOADS"] = os.path.join(_TMP, "uploads"); os.makedirs(os.environ["LAQINO_UPLOADS"])
@@ -24,11 +24,12 @@ with sync_playwright() as p:
     pg = b.new_context(viewport={"width": 360, "height": 740}, is_mobile=True, has_touch=True, locale="ar-EG").new_page(); pg.on("pageerror", lambda e: errs.append(str(e)))
     pg.goto(BASE + "/admin.html"); pg.fill("#p", "01000000000"); pg.fill("#w", "AdminPass123"); pg.click('button:has-text("دخول")'); pg.wait_for_selector("nav button")
     ok("all 25 section buttons render on a 360px phone", pg.locator("nav button").count() == 25)
-    ok("tabs wrap onto several rows instead of scrolling sideways", pg.evaluate("(()=>{const n=document.querySelector('nav');const ys=new Set([...n.querySelectorAll('button')].map(b=>Math.round(b.getBoundingClientRect().top)));return ys.size>1&&n.scrollWidth<=n.clientWidth&&document.documentElement.scrollWidth<=innerWidth})()"))
-    ok("every button is fully inside the screen (none cut off)", pg.evaluate("[...document.querySelectorAll('nav button')].every(b=>{const r=b.getBoundingClientRect();return r.left>=-1&&r.right<=innerWidth+1})"))
+    ok("mobile nav uses grouped horizontal scrolling without page overflow", pg.evaluate("(()=>{const n=document.querySelector('nav');return n.querySelectorAll('.nav-group').length===8&&getComputedStyle(n).overflowX==='auto'&&n.scrollWidth>n.clientWidth&&document.documentElement.scrollWidth<=innerWidth})()"))
+    pg.locator("nav button").last.scroll_into_view_if_needed()
+    ok("last group is reachable within the navigation viewport", pg.evaluate("(()=>{const n=document.querySelector('nav'),b=n.querySelector('nav button:last-of-type'),r=b.getBoundingClientRect(),q=n.getBoundingClientRect();return r.left>=q.left-1&&r.right<=q.right+1})()"))
     bad = []
     for i in range(25):
         pg.locator("nav button").nth(i).click(); pg.wait_for_timeout(350)
         if pg.locator("nav button").nth(i).get_attribute("class") != "on" or not pg.evaluate("document.documentElement.scrollWidth<=innerWidth"): bad.append(i)
-    ok("each of the 25 sections opens, is highlighted and fits without sideways scroll (bad=%s)" % bad, not bad)
+    ok("each of the 25 sections opens and is highlighted without page overflow (bad=%s)" % bad, not bad)
     ok("no JS errors while opening all sections", not errs); b.close()
