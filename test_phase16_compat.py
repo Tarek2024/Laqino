@@ -9,7 +9,7 @@ ok = lambda n, c: print(("PASS " if c else "FAIL ") + n) or (c or exit(1))
 here = os.path.dirname(os.path.abspath(__file__)); rd = lambda f: open(os.path.join(here, "static", f), encoding="utf-8").read()
 adm = rd("admin.html"); tabs = re.search(r"TABS=\{(.*?)\}", adm, re.S).group(1); keys = re.findall(r"(\w+):'", tabs)
 ok("admin panel declares 25 unique sections including Firebase status", len(keys) == 25 and len(set(keys)) == 25)
-ok("mobile tab-wrap fix kept (nav flex-wrap:wrap, buttons shrink-wrap)", re.search(r"nav\{[^}]*flex-wrap:wrap", adm) and re.search(r"nav button\{[^}]*flex:1 0 auto", adm))
+ok("desktop sidebar and mobile grouped horizontal scroller are both defined", "flex-direction:column" in adm and "overflow:auto" in adm and bool(re.search(r"@media[(]max-width:760px[)][\\s\\S]*?nav[{][^}]*overflow-x:auto", adm)))
 ok("service worker cache version is current (laqino-vNN, >= v19)", (lambda m: bool(m) and int(m.group(1)) >= 19)(re.search(r"laqino-v(\d+)", rd("sw.js"))))
 try:
     from playwright.sync_api import sync_playwright
