@@ -77,6 +77,7 @@ if cache and cache not in note:
 # a separate operational guide and is not forced to carry web release numbers.
 archive_patterns = (
     "README_HISTORY.md", "PHASE18_HANDOFF.md", "README_UPDATE_PHASE",
+    "docs/PROJECT_STATUS.md", "docs/CONSOLIDATED_REPORT.md",
     "docs/ROADMAP.md", "docs/steps/",
 )
 archive_files = []
