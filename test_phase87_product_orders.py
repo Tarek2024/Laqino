@@ -193,7 +193,14 @@ with sync_playwright() as p:
     r2 = call("POST", "/medical/pharmacies/%d/order" % phid, {**GOOD, "request_key": "ui2"}, cu2)[1]["id"]
     ph_pg.evaluate("load()"); ph_pg.wait_for_selector("#po .card:has-text('طلب منتجات #%d') button:has-text('اعتذار')" % r2, timeout=8000)
     ph_pg.click("#po .card:has-text('طلب منتجات #%d') button:has-text('اعتذار')" % r2)
-    ok("reject from UI (prompt reason) -> customer sees 'الصيدلية اعتذرت' + reason", until(cu, "(go(3),1)") is not None and sql("SELECT status,reject_reason FROM product_orders WHERE id=?", r2)[0] == ("rejected", "المنتج خلص"))
+    # The browser click dispatches an async UI handler; wait for its HTTP request to commit
+    # before asserting against SQLite (otherwise this races the response on slower CI runners).
+    _reject_deadline = time.time() + 8
+    _reject_row = sql("SELECT status,reject_reason FROM product_orders WHERE id=?", r2)[0]
+    while time.time() < _reject_deadline and _reject_row != ("rejected", "المنتج خلص"):
+        time.sleep(.1)
+        _reject_row = sql("SELECT status,reject_reason FROM product_orders WHERE id=?", r2)[0]
+    ok("reject from UI (prompt reason) -> customer sees 'الصيدلية اعتذرت' + reason", _reject_row == ("rejected", "المنتج خلص"))
     cu.evaluate("go(3)"); ok("rejected card visible to the customer with the reason", until(cu, "document.body.innerText.includes('الصيدلية اعتذرت')") and "المنتج خلص" in cu.inner_text(".od.po"))
     # منتج من صيدلية تانية: السلة تسأل قبل الاستبدال (مرة واحدة)
     cu.evaluate("mt='pr';go(4)"); cu.wait_for_selector(".pcd .padd", timeout=8000)
