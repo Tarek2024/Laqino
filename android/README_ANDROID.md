@@ -62,3 +62,21 @@
 ## فحص AndroidManifest (خطوة 8 — phase-36)
 `python3 tools/check_manifest.py` (من `android/`، أو مرّر مسار المجلد المولَّد). يفشل (خروج 1) عند: غياب `INTERNET`/`POST_NOTIFICATIONS`/`ACCESS_COARSE_LOCATION`/`ACCESS_FINE_LOCATION`، وجود إذن حساس (SMS/جهات اتصال/ميكروفون/موقع خلفي...)، `usesCleartextTraffic=true`، `debuggable=true`، launcher بلا `exported=true`، sdk غير 36/36/24، `applicationId` غير `com.laqino.app`، غياب `versionCode` أو إعداد التوقيع أو `google-services.json`، أو `server.url` غير HTTPS. يحذّر فقط من `allowBackup=true`.
 **حدود صادقة:** جُرّب على ملفات manifest نموذجية كتبتها بنفسي (`test_phase36_aab_prep.py`) لا على manifest مولَّد فعليًا من Capacitor؛ قد يختلف الشكل قليلًا. ولم يُبنَ AAB ولم يُجرَّب على جهاز. إذن `POST_NOTIFICATIONS` تضيفه إضافة push-notifications في 8.x (تحقق بعد `cap sync`؛ وإلا أضفه يدويًا في `AndroidManifest.xml`).
+
+
+## GitHub Actions: signed Release AAB (isolated workflow)
+
+يوجد Workflow مستقل باسم `.github/workflows/android-release-aab.yml`، ويُشغّل يدويًا من تبويب **Actions → Build Android Release AAB → Run workflow**. لا يغيّر Workflow الـDebug APK الموجود.
+
+أضف القيم التالية في **Settings → Secrets and variables → Actions → New repository secret** قبل التشغيل:
+- `GOOGLE_SERVICES_JSON`: محتوى ملف Firebase `google-services.json` كاملًا لتطبيق Android بالمعرّف `com.laqino.app`.
+- `ANDROID_KEYSTORE_BASE64`: ملف مفتاح الرفع `.jks` بعد تحويله إلى Base64.
+- `ANDROID_KEYSTORE_PASSWORD`: كلمة مرور ملف المفتاح.
+- `ANDROID_KEY_ALIAS`: اسم المفتاح (alias).
+- `ANDROID_KEY_PASSWORD`: كلمة مرور المفتاح.
+
+لا تضع هذه القيم في ملفات Git أو في المحادثات. احتفظ بنسخة احتياطية آمنة من ملف المفتاح؛ لا تنشئ مفتاح رفع جديدًا إذا كان التطبيق قد نُشر بالفعل بمفتاح مختلف.
+
+**ملف القفل:** المستودع لا يحتوي حاليًا على `package-lock.json`. لذلك ينشئ Workflow ملفًا عند أول تشغيل ويرفقه مع الـAAB كـArtifact. راجع الملف الناتج ثم أضفه إلى `android/package-lock.json` في فرع التطوير قبل اعتبار البناء قابلًا لإعادة الإنتاج؛ بعد ذلك سيستخدم `npm ci` نفس الإصدارات المقفولة. لا تعتمد على توليد ملف القفل من جديد في كل إصدار.
+
+**حالة الاختبار:** إضافة Workflow والسكربتات لا تعني أن AAB قد بُني بالفعل. لا بد من تشغيل Workflow بعد ضبط الأسرار، وفحص نتيجة Gradle والتوقيع، ثم تثبيت التطبيق وتجربة تسجيل الدخول والإشعارات والموقع على هاتف Android حقيقي قبل الدمج أو النشر.
