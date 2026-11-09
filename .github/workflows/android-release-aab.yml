@@ -38,7 +38,7 @@ jobs:
       - name: Install Android SDK 36
         run: |
           yes | sdkmanager --licenses >/dev/null
-          sdkmanager "platform-tools" "platforms;android-36" "build-tools;36.0.0"
+          sdkmanager "platform-tools" "platforms;android-36" "build-tools;35.0.0"
 
       - name: Install pinned Capacitor dependencies
         working-directory: android
