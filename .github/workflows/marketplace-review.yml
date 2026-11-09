@@ -12,8 +12,10 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: '3.12'
-      - name: Install cryptography for notification regression coverage
-        run: python -m pip install cryptography
+      - name: Install marketplace regression dependencies
+        run: |
+          python -m pip install cryptography Pillow playwright
+          python -m playwright install --with-deps chromium
       - name: Compile changed Python files
         run: python -m py_compile server.py notif.py fcm.py product_orders.py shop_delivery.py test_phase90_fcm.py test_phase69_shop_delivery.py test_phase87_product_orders.py test_phase_marketplace_ad_management.py test_phase4_chat.py test_registration_account_recovery.py
       - name: Validate release and service-worker cache version
@@ -180,3 +182,26 @@ jobs:
             cat /tmp/laqino-main-test-failures.txt
             exit 1
           fi
+
+
+  shop-image-regression:
+    name: Shop image loading and identity regression
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Install shop image browser-test dependencies
+        run: |
+          python -m pip install cryptography Pillow playwright
+          python -m playwright install --with-deps chromium
+      - name: Compile shop image regression tests
+        run: python -m py_compile test_phase68_shop_panel.py test_phase82_shop_images.py test_phase83_shop_identity.py
+      - name: Test shop dashboard image lazy loading
+        run: python test_phase68_shop_panel.py
+      - name: Test public shop image loading and privacy
+        run: python test_phase82_shop_images.py
+      - name: Test shop logo and cover identity
+        run: python test_phase83_shop_identity.py

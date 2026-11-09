@@ -7,11 +7,12 @@ s = open(os.path.join(d, "static", "admin.html"), encoding="utf-8").read()
 sw = open(os.path.join(d, "static", "sw.js"), encoding="utf-8").read()
 ok = lambda n, c: print(("PASS " if c else "FAIL ") + n) or (c or exit(1))
 css = re.search(r"(?<![\w-])nav\{([^}]*)\}", s).group(1)
-ok("admin nav wraps onto several rows", "flex-wrap:wrap" in css)
-ok("admin nav is not a hidden horizontal scroller", "overflow-x" not in css)
+ok("desktop admin navigation is a vertical, scrollable sidebar", "flex-direction:column" in css and "overflow:auto" in css)
+mobile = re.search(r"@media[(]max-width:760px[)][{].*?nav[{]([^}]*)[}]", s, re.S)
+ok("mobile navigation intentionally scrolls horizontally", bool(mobile) and "overflow-x:auto" in mobile.group(1) and "flex-direction:row" in mobile.group(1))
 tabs = re.search(r"const TABS=\{(.*?)\};", s, re.S).group(1)
 keys = re.findall(r"(\w+):'", tabs)
-ok("23 admin sections declared (22 + home-sections tab from phase 18)", len(keys) == 23 and "doctors" in keys and "homeui" in keys)
+ok("25 unique admin sections are declared", len(keys) == 25 and len(set(keys)) == 25 and "doctors" in keys and "homeui" in keys)
 vbody = s[s.index("const V={"):]
 missing = [k for k in keys if not re.search(r"(?:^|[\n,;{])\s*(?:async\s+)?%s\s*\(\)\s*\{|V\.%s\s*=" % (k, k), vbody)]
 ok("every section has a view handler: missing=%s" % missing, not missing)
@@ -22,8 +23,15 @@ try:
 except Exception:
     print("SKIP browser check (playwright not installed)"); raise SystemExit(0)
 with sync_playwright() as p:
-    b = p.chromium.launch(); pg = b.new_context(viewport={"width": 390, "height": 780}).new_page()
-    pg.set_content(s.split("<script>")[0] + "<div id='app'></div>")
-    pg.evaluate("document.getElementById('app').innerHTML='<nav>'+" + repr(keys) .replace("'", '"') + ".map(k=>'<button>'+k+'</button>').join('')+'</nav>'")
-    r = pg.evaluate("(()=>{const n=document.querySelector('nav');return [n.scrollWidth<=n.clientWidth, [...n.children].every(b=>{const r=b.getBoundingClientRect();return r.left>=-1&&r.right<=innerWidth+1})]})()")
-    ok("all 23 tabs fit inside a 390px phone width without sideways scrolling", all(r)); b.close()
+    b = p.chromium.launch()
+    pg = b.new_context(viewport={"width": 390, "height": 780}, is_mobile=True, has_touch=True).new_page()
+    style = re.search(r"<style>(.*?)</style>", s, re.S).group(1)
+    groups = [keys[i:i+4] for i in range(0, len(keys), 4)]
+    nav = "".join("<section class='nav-group'><div class='nav-title'>مجموعة</div>" + "".join("<button>" + k + "</button>" for k in g) + "</section>" for g in groups)
+    pg.set_content("<html dir='rtl'><head><style>" + style + "</style></head><body><div id='app'><nav aria-label='أقسام الإدارة'>" + nav + "</nav><main></main></div></body></html>")
+    r = pg.evaluate("(()=>{const n=document.querySelector('nav');return {groups:n.querySelectorAll('.nav-group').length,buttons:n.querySelectorAll('button').length,overflow:getComputedStyle(n).overflowX,scroll:n.scrollWidth>n.clientWidth,page:document.documentElement.scrollWidth<=innerWidth}})()")
+    ok("mobile nav groups are horizontally scrollable without page overflow", r["groups"] > 1 and r["buttons"] == len(keys) and r["scroll"] and r["overflow"] in ("auto","scroll") and r["page"])
+    last = pg.locator("nav button").last
+    last.scroll_into_view_if_needed()
+    ok("last admin section can be reached inside the nav viewport", pg.evaluate("(()=>{const n=document.querySelector('nav'),a=n.querySelectorAll('button'),b=a[a.length-1],r=b.getBoundingClientRect(),q=n.getBoundingClientRect();return r.left>=q.left-1&&r.right<=q.right+1})()"))
+    b.close()

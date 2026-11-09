@@ -64,7 +64,7 @@ ok("file missing on disk is 404 not 500", (lambda p: (os.remove(os.path.join(UPD
 
 # 5) الواجهة (static)
 s = rd("static", "shops.html"); sw = rd("static", "sw.js")
-ok("shops.html: direct public url + lazy + decoding + onerror fallback", "/api/shops/" in s and "/images/" in s and 'loading=\\"lazy\\"' in s.replace('loading="lazy"', 'loading=\\"lazy\\"') and "decoding=" in s and "onerror=" in s and "imf(" in s)
+ok("shops.html: public images support lazy/eager priority + decoding + fallback", "/api/shops/" in s and "/images/" in s and "priority?'eager':'lazy'" in s and "fetchpriority=" in s and "decoding=" in s and "onerror=" in s and "imf(" in s)
 ok("shops.html no longer needs a token to show pictures (no files fetch with Authorization)", "fetch('/api/files/'" not in s and "createObjectURL" not in s)
 ok("shops.html still escapes server text", "const esc=" in s and "esc(s.name_ar)" in s)
 js = re.findall(r"<script>(.*?)</script>", s, re.S)[0]; tmp = tempfile.mktemp(suffix=".js"); open(tmp, "w", encoding="utf-8").write(js)
@@ -82,7 +82,7 @@ try:
             pg.goto(BASE + "/shops.html"); pg.wait_for_selector(".shc", timeout=8000); pg.wait_for_timeout(700)
             cards = pg.evaluate("[...document.querySelectorAll('.shc')].map(c=>{const i=c.querySelector('.cv img');return {img:!!i,ok:i?(i.complete&&i.naturalWidth>0):false,ph:!!c.querySelector('.cv .imph'),name:c.querySelector('b').textContent}})")
             res[who + "_cards"] = cards
-            res[who + "_lazy"] = pg.evaluate("[...document.querySelectorAll('.cv img')].every(i=>i.loading==='lazy')")
+            res[who + "_priority"] = pg.evaluate("(()=>{const cards=[...document.querySelectorAll('.shc')],first=cards.slice(0,2).flatMap(c=>[...c.querySelectorAll('.cv img,.lgw img')]),later=cards.slice(2).flatMap(c=>[...c.querySelectorAll('.cv img,.lgw img')]);return first.length>0&&first.every(i=>i.loading==='eager'&&i.fetchPriority==='high')&&later.every(i=>i.loading==='lazy')})()")
             pg.click(".shc"); pg.wait_for_selector(".gi img, .gi .imph", timeout=8000); pg.wait_for_timeout(700)
             res[who + "_items"] = pg.evaluate("[...document.querySelectorAll('#m .gi')].map(c=>({imgs:[...c.querySelectorAll('.zb img')].map(i=>i.complete&&i.naturalWidth>0),ph:!!c.querySelector('.zb .imph')}))")
             ctx.close()
@@ -97,7 +97,7 @@ try:
     for who in ("guest", "customer"):
         cs = res[who + "_cards"]
         ok("browser/%s: shop card shows a real cover image (loaded, no token needed)" % who, any(x["img"] and x["ok"] for x in cs))
-        ok("browser/%s: card images are lazy" % who, res[who + "_lazy"])
+        ok("browser/%s: first two covers and logos are prioritized; remaining cards stay lazy" % who, res[who + "_priority"])
         ok("browser/%s: shop without pictures shows the type icon tile" % who, any(x["ph"] and not x["img"] for x in cs))
         its = res[who + "_items"]
         ok("browser/%s: menu item pictures load" % who, any(x["imgs"] and all(x["imgs"]) for x in its))

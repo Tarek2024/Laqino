@@ -33,8 +33,17 @@
   }
   window.LqImg = { pick: pick, upload: upload };
 
-  function privUrl(id) {  // صورة المالك الخاصة (قبل الاعتماد أو لو القسم مقفول): نجيبها بالتوكن كـblob
-    return fetch('/api/files/' + id, { headers: T() ? { Authorization: 'Bearer ' + T() } : {} }).then(function (r) { if (!r.ok) throw 0; return r.blob(); }).then(function (b) { return URL.createObjectURL(b); });
+  var IDENTITY_URLS = Object.create(null), IDENTITY_PENDING = Object.create(null);
+  function privUrl(id) {  // إعادة استخدام نفس التنزيل والـObject URL عند إعادة رسم لوحة المحل
+    var key = String(id);
+    if (IDENTITY_URLS[key]) return Promise.resolve(IDENTITY_URLS[key]);
+    if (!IDENTITY_PENDING[key]) {
+      IDENTITY_PENDING[key] = fetch('/api/files/' + encodeURIComponent(key), { headers: T() ? { Authorization: 'Bearer ' + T() } : {} })
+        .then(function (r) { if (!r.ok) throw new Error('تعذّر تحميل صورة المحل'); return r.blob(); })
+        .then(function (b) { var u = URL.createObjectURL(b); IDENTITY_URLS[key] = u; return u; })
+        .then(function (u) { delete IDENTITY_PENDING[key]; return u; }, function (e) { delete IDENTITY_PENDING[key]; throw e; });
+    }
+    return IDENTITY_PENDING[key];
   }
   var SLOTS = { logo: { key: 'logo_file_id', max: 512, label: 'لوجو المحل', hint: 'مربع أو دائري — 512 بكسل كفاية' }, cover: { key: 'cover_file_id', max: 1600, label: 'غلاف المحل', hint: 'صورة عريضة أفقية' } };
   function mount(el, shopId) {

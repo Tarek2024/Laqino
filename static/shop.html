@@ -13,7 +13,19 @@ const b64=f=>new Promise((ok,no)=>{const r=new FileReader();r.onload=()=>ok(r.re
 async function upl(files,max){const fs=[...(files||[])];if(fs.length>max)throw 'الحد الأقصى '+max+' صور للصنف';const ids=[];try{for(const f of fs){let blob=f;if(window.LqImg){try{blob=(await LqImg.pick(f,{max:1280})).blob}catch(e){blob=f}}if(blob.size>4e6)throw 'الصورة كبيرة (الحد 4 ميجابايت)';ids.push((await api('/files',{data:await b64(blob)})).id)}}catch(e){await drop(ids);throw e}return ids}
 window.pvw=el=>{const b=el.closest('label').nextElementSibling;if(!b)return;b.innerHTML='';[...el.files].slice(0,10).forEach(f=>{if(!/^image\//.test(f.type))return;const i=document.createElement('img');i.alt='معاينة';i.style.cssText='height:64px;width:64px;object-fit:cover;border-radius:8px;margin:0 0 6px 6px';i.onload=()=>URL.revokeObjectURL(i.src);i.src=URL.createObjectURL(f);b.appendChild(i)});if(el.files.length)b.insertAdjacentHTML('beforeend','<br><small>معاينة — هتتصغّر الصور تلقائيًا قبل الرفع.</small>')};
 async function drop(ids){for(const i of ids){try{await api('/files/'+i+'/delete',{})}catch(e){}}}  /* تنظيف أفضل جهد لصور رُفعت ثم فشل الحفظ (تُحسب في سقف الملفات) */
-async function img(id,el){try{const r=await fetch('/api/files/'+id,{headers:{Authorization:'Bearer '+T}});if(r.ok)el.src=URL.createObjectURL(await r.blob())}catch(e){}}
+const SHOP_IMG_URLS=new Map(),SHOP_IMG_PENDING=new Map();let SHOP_IMG_OBSERVER=null;
+async function img(id,el){
+ const key=String(id);if(SHOP_IMG_URLS.has(key)){el.src=SHOP_IMG_URLS.get(key);el.dataset.imgLoaded='1';return}
+ let task=SHOP_IMG_PENDING.get(key);
+ if(!task){task=(async()=>{const r=await fetch('/api/files/'+encodeURIComponent(key),{headers:{Authorization:'Bearer '+T}});if(!r.ok)throw new Error('تعذّر تحميل الصورة');const url=URL.createObjectURL(await r.blob());SHOP_IMG_URLS.set(key,url);return url})().finally(()=>SHOP_IMG_PENDING.delete(key));SHOP_IMG_PENDING.set(key,task)}
+ try{const url=await task;if(el.isConnected){el.src=url;el.dataset.imgLoaded='1'}}catch(e){if(el.isConnected)el.dataset.imgError='1'}
+}
+function observeShopImages(){
+ const images=document.querySelectorAll('img[data-im]:not([data-img-loaded]):not([data-img-error])');
+ if(!('IntersectionObserver' in window)){images.forEach(el=>img(el.dataset.im,el));return}
+ if(!SHOP_IMG_OBSERVER)SHOP_IMG_OBSERVER=new IntersectionObserver(entries=>{for(const entry of entries){if(!entry.isIntersecting)continue;const el=entry.target;SHOP_IMG_OBSERVER.unobserve(el);img(el.dataset.im,el)}},{rootMargin:'240px 0px'});
+ images.forEach(el=>SHOP_IMG_OBSERVER.observe(el));
+}
 const IC={m:'<path d="M4 10l1-5h14l1 5M5 10v9h14v-9M9 19v-5h6v5"/>',i:'<path d="M5 7h14M5 12h14M5 17h9"/>',o:'<path d="M6 7h12l-1 11H7L6 7zM9 7a3 3 0 016 0"/>'};
 const tabs=(n,no)=>[['m','المحل',0],['i','الأصناف',n],['o','الطلبات',no]].map(([k,l,c])=>`<button role="tab" data-tab="${k}" class="${TAB==k?'on':''}" aria-selected="${TAB==k}" onclick="stab('${k}')"><svg viewBox="0 0 24 24" aria-hidden="true">${IC[k]}</svg><span>${l}</span>${c?`<i class="bd">${c}</i>`:''}</button>`).join('');
 window.stab=k=>{TAB=k;if(k=='o')poll();try{history.replaceState(null,'','#'+k)}catch(e){}document.querySelectorAll('.tp').forEach(s=>s.classList.toggle('on',s.dataset.t==k));document.querySelectorAll('#tb button').forEach(b=>{const o=b.dataset.tab==k;b.classList.toggle('on',o);b.setAttribute('aria-selected',o)});scrollTo(0,0)};
@@ -67,7 +79,7 @@ else{items='<div class="card"><small>الأصناف تظهر بعد اعتماد
 m.innerHTML=(msg?`<p class="${isErr?'e':'okm'}" role="status">${esc(msg)}</p>`:'')+sec('m',home+list+apply)+sec('i',items)+sec('o',orders);
 $('tb').innerHTML=tabs(n,no);
 const sid=$('shop-identity');if(sid&&window.LqShopIdentity)LqShopIdentity.mount(sid,+sid.dataset.shopId);
-document.querySelectorAll('img[data-im]').forEach(el=>img(el.dataset.im,el))}
+observeShopImages()}
 catch(e){$('tb').innerHTML='';m.innerHTML=`<div class="card"><p class="e">${esc(e&&e.message?e.message:e)}</p><small>تأكد من تسجيل الدخول من <a href="/">الصفحة الرئيسية</a>.</small></div>`}}
 load();</script><script>if("serviceWorker" in navigator)addEventListener("load",()=>navigator.serviceWorker.register("/sw.js").catch(()=>{}))</script><script src="/perm.js" defer></script>
 <script src="/native.js" defer></script>

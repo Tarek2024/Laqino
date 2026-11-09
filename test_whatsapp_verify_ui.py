@@ -40,6 +40,7 @@ r = page("index", "", [
     {"js": ADMIN_CONFIRM, "wait": 300},
     {"js": "vfp()", "wait": 1800},
 ])
+if r["errs"] or not any("تم تغيير كلمة المرور" in a for a in r["alerts"]): print("WHATSAPP RESET UI TRACE", {"errors": r["errs"], "alerts": r["alerts"], "snapshot": r["v"][-2500:]})
 ok("reset via WhatsApp: alert shown, new password works, old does not", not r["errs"] and any("تم تغيير كلمة المرور" in a for a in r["alerts"]) and call("POST", "/login", {"phone": "01166660000", "password": "newpass999"})[0] == 200 and call("POST", "/login", {"phone": "01166660000", "password": "password1"})[0] == 401)
 r = page("index", "", [{"js": "go(0)", "wait": 600}, {"js": "FG=1;go(0)", "wait": 600}, {"js": "$('fph').value='123';$('fpw').value='newpass999';rstw()", "snap": "v", "wait": 800}])
 ok("reset with invalid phone shows an error, no WhatsApp step", "رقم الهاتف غير صحيح" in r["v"] and "تأكيد رقم الهاتف" not in r["v"])

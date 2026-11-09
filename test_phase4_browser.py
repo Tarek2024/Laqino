@@ -55,7 +55,7 @@ with sync_playwright() as p:
     ok("block from the UI shows the stopped notice", sql("select blocked_by from chat_threads")[0][0] is not None)
     sp.once("dialog", lambda d: d.accept("ألفاظ مسيئة")); sp.click("button:has-text('إبلاغ')"); sp.wait_for_selector("text=تم إرسال البلاغ للإدارة")
     ok("report from the UI reaches the server", sql("select count(*) from chat_reports")[0][0] == 1)
-    sp.click("button:has-text('رفع الحظر')"); sp.wait_for_function("!document.body.innerText.includes('المحادثة موقوفة')")
+    sp.click("button:has-text('رفع الحظر')"); sp.locator("text=المحادثة موقوفة").wait_for(state="hidden", timeout=8000)
     # ---- البائع يغيّر الطريقة من صفحة إعلانه
     op = page(ts, f"/market.html#/l/{L}"); op.wait_for_selector("select[aria-label='طريقة تواصل المشترين']")
     op.select_option("select[aria-label='طريقة تواصل المشترين']", "chat"); op.click("button:has-text('حفظ')"); op.wait_for_selector("text=تم الحفظ")

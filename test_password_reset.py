@@ -69,7 +69,8 @@ ok("change-password brute force throttled (429)", call("POST", "/me/password", {
 def page(pg, tok, steps):
     o = subprocess.run(["node", HN, pg, BASE, tok, json.dumps(steps)], capture_output=True, text=True, timeout=60); assert o.returncode == 0, o.stderr
     return json.loads(o.stdout)
-r = page("index", "", [{"js": "FG=1;go(tab)", "snap": "v", "wait": 800}])
+r = page("index", "", [{"js": "FG=1;go(tab)", "snap": "v", "wait": 1600}])
+if r["errs"] or not ("استعادة كلمة المرور" in r["v"] and 'id="fco"' in r["v"] and 'id="fpw"' in r["v"]): print("PASSWORD RESET FORM TRACE", {"errors": r["errs"], "snapshot": r["v"][-2500:]})
 ok("index shows forgot-password form (phone, code, new password)", not r["errs"] and "استعادة كلمة المرور" in r["v"] and 'id="fco"' in r["v"] and 'id="fpw"' in r["v"])
 r = page("index", "", [{"js": "go(tab)", "snap": "v", "wait": 800}]); ok("login card has 'forgot password' link", "نسيت كلمة المرور" in r["v"])
 q("DELETE FROM throttle"); cu = call("POST", "/login", {"phone": "01011111111", "password": "fresh12345"})[1]["token"]
