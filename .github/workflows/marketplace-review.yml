@@ -1,7 +1,7 @@
 name: Marketplace ad management review
 on:
   push:
-    branches: [feature/marketplace-ad-management, phase90-fcm-native-fix]
+    branches: [development, feature/marketplace-ad-management, phase90-fcm-native-fix]
   pull_request:
     branches: [main]
 jobs:
