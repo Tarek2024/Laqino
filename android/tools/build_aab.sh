@@ -10,7 +10,7 @@ command -v java >/dev/null 2>&1 || fail "JDK 21 is required"
 command -v python3 >/dev/null 2>&1 || fail "Python 3 is required"
 
 NODE_MAJOR="$(node -p 'process.versions.node.split(".")[0]')"
-JAVA_MAJOR="$(java -version 2>&1 | sed -n '1s/.*version "\\([0-9]*\\).*/\\1/p')"
+JAVA_MAJOR="$(java -version 2>&1 | awk -F '[".]' 'NR==1 {print $2}')"
 [ "$NODE_MAJOR" -ge 22 ] || fail "Node.js 22+ is required (found $NODE_MAJOR)"
 [ "$JAVA_MAJOR" -ge 21 ] || fail "JDK 21+ is required (found $JAVA_MAJOR)"
 
