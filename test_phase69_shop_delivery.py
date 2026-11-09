@@ -121,7 +121,11 @@ def _trace_owner_push(uid):
 server.shop_delivery._H["owner_push"] = _trace_owner_push
 def _capture_shop_fcm(c, uids, ttl=300, kind="order", target=None):
     if oid_ in uids:
-        _fcm_hits.append((list(uids), ttl, kind, target)); _fcm_event.set()
+        _fcm_hits.append((list(uids), ttl, kind, target))
+        # Other asynchronous order_update pushes can arrive from setup; only the shop-order
+        # notification should release this event, otherwise the test wakes too early.
+        if kind == "shop" and target == "/shop.html#o":
+            _fcm_event.set()
     return 1
 server.fcm.send = _capture_shop_fcm
 
