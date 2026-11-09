@@ -92,6 +92,50 @@ jobs:
           print("PASS: Capacitor identity, HTTPS and Android SDK baseline")
           PY
 
+      - name: Build and inspect the merged Release manifest
+        working-directory: android/android
+        run: |
+          chmod +x gradlew
+          ./gradlew --no-daemon processReleaseMainManifest
+          python3 - <<'PY'
+          from pathlib import Path
+          import xml.etree.ElementTree as ET
+          android = "{http://schemas.android.com/apk/res/android}"
+          candidates = [
+              p for p in Path("app/build/intermediates").rglob("AndroidManifest.xml")
+              if "merged_manifest" in str(p) and "release" in str(p)
+          ]
+          assert candidates, "Gradle did not produce a merged Release AndroidManifest.xml"
+          manifest = ET.parse(sorted(candidates, key=lambda p: len(str(p)))[0]).getroot()
+          permissions = {
+              node.get(android + "name")
+              for node in manifest.findall("uses-permission")
+          }
+          required = {
+              "android.permission.INTERNET",
+              "android.permission.POST_NOTIFICATIONS",
+              "android.permission.ACCESS_COARSE_LOCATION",
+              "android.permission.ACCESS_FINE_LOCATION",
+          }
+          missing = sorted(required - permissions)
+          assert not missing, f"Missing required Android permissions: {missing}"
+          app = manifest.find("application")
+          assert app is not None, "Merged manifest has no application element"
+          assert app.get(android + "usesCleartextTraffic") != "true", "Cleartext traffic is enabled"
+          assert app.get(android + "debuggable") != "true", "Release app is debuggable"
+          launchers = [
+              activity for activity in app.findall("activity")
+              if any(
+                  category.get(android + "name") == "android.intent.category.LAUNCHER"
+                  for intent in activity.findall("intent-filter")
+                  for category in intent.findall("category")
+              )
+          ]
+          assert len(launchers) == 1, f"Expected one launcher activity, found {len(launchers)}"
+          assert launchers[0].get(android + "exported") == "true", "Launcher must declare exported=true"
+          print("PASS: merged Release manifest permissions, cleartext, debuggable and launcher checks")
+          PY
+
       - name: Upload reviewed dependency lockfile and generated project metadata
         uses: actions/upload-artifact@v4
         with:
