@@ -50,11 +50,17 @@ def read_properties(path):
             line = raw.strip()
             if not line or line.startswith(("#", "!")):
                 continue
-            match = re.match(r"([^:=\s]+)\s*[:=]\s*(.*)$", line)
-            if match:
-                values[match.group(1)] = match.group(2).strip()
+            # The workflow writes Java-properties values as key=value and
+            # escapes delimiters inside values. Split only at the first "="
+            # so passwords containing ":" or "=" are not misread.
+            if "=" in line:
+                key, value = line.split("=", 1)
+            elif ":" in line:
+                key, value = line.split(":", 1)
+            else:
+                continue
+            values[key.strip()] = value.strip()
     return values
-
 def main(build_file):
     project_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
     props = os.path.join(project_dir, "keystore.properties")
