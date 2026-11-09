@@ -5,8 +5,8 @@
 بيئتي لا تحوي Android SDK ولا Firebase، فكل ما هنا **كتابة بلا بناء**؛ جرّبه على جهازك وأبلغني بأي خطأ.
 
 ## المتطلبات (على كمبيوتر، لا Termux) — Capacitor 8 / API 36
-- **Node 22+**، **JDK 21**، Android Studio (إصدار حديث يحوي SDK 36)، حساب Firebase، ونطاق **HTTPS**: `https://laqino.tech` (مضبوط في `capacitor.config.json`؛ أندرويد يمنع HTTP الصريح).
-- Capacitor 8 يستهدف `compileSdk/targetSdk = 36` و`minSdk = 24` (AGP 8.13 وGradle 8.14.x). **لا تغيّر targetSdk يدويًا** (غير مدعوم من Capacitor)؛ أعلى بكثير من 35 مطلوب من Google Play للتطبيقات الجديدة والتحديثات منذ 31 أغسطس 2026 (تحقق من صفحة «Target API level requirements» في Play Console).
+- **Node 22+**، **JDK 21**، Android Studio 2025.2.1 أو أحدث مع Android SDK 36، حساب Firebase، ونطاق **HTTPS**: `https://laqino.tech` (مضبوط في `capacitor.config.json`؛ أندرويد يمنع HTTP الصريح).
+- Capacitor 8 يستهدف `compileSdk/targetSdk = 36` و`minSdk = 24` (AGP 8.13.0 وGradle 8.14.3). **لا تغيّر targetSdk يدويًا** (غير مدعوم من Capacitor)؛ أعلى بكثير من 35 مطلوب من Google Play للتطبيقات الجديدة والتحديثات منذ 31 أغسطس 2026 (تحقق من صفحة «Target API level requirements» في Play Console).
 - التطبيق الأصلي يحتفظ بـ`appId = com.laqino.app` — **لا يمكن تغييره بعد النشر**.
 
 ## الخطوات
