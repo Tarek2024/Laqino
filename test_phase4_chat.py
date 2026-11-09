@@ -147,6 +147,12 @@ Lq = listing("للإيقاظ", "chat"); Tq = call("POST", f"/listings/{Lq}/chat"
 ok("subscribe seller + buyer devices", call("POST", "/push/subscribe", {"endpoint": EP("seller")}, tk[SELLER])[0] == 200 and call("POST", "/push/subscribe", {"endpoint": EP("buyer")}, tk[B1])[0] == 200)
 chat.PUSH_GAP = 30; HITS.clear(); PUSH_EVENT.clear()
 HOOK_CALLS = []
+PUSH_SEND_CALLS = []
+_REAL_PUSH_SEND = server.push_send
+def _tracked_push_send(endpoint, *args, **kwargs):
+    PUSH_SEND_CALLS.append(endpoint)
+    return _REAL_PUSH_SEND(endpoint, *args, **kwargs)
+server.push_send = _tracked_push_send
 _REAL_CHAT_PUSH = server.chat_push
 def _tracked_chat_push(uid):
     HOOK_CALLS.append(uid)
@@ -156,7 +162,7 @@ msg_status, msg_result = call("POST", f"/chats/{Tq}/messages", {"text": "مرح�
 PUSH_EVENT.wait(5.0)  # wait for the real background Web Push request, not a fixed short sleep
 time.sleep(0.4)  # let the first background send finish before isolating the cooldown check
 first_stamp = sql("select push_notified_at from chat_threads where id=?", (Tq,))[0][0]
-print("CHAT PUSH DIAGNOSTIC:", "message_status=", msg_status, "hook_calls=", repr(HOOK_CALLS), "hits=", repr(HITS), "cooldown_stamp=", first_stamp, "subs=", sql("select user_id,endpoint from push_subs"))
+print("CHAT PUSH DIAGNOSTIC:", "message_status=", msg_status, "hook_calls=", repr(HOOK_CALLS), "push_send_calls=", repr(PUSH_SEND_CALLS), "hits=", repr(HITS), "cooldown_stamp=", first_stamp, "subs=", sql("select user_id,endpoint from push_subs"))
 ok("new message wakes ONLY the recipient's device (empty data-less push, VAPID auth)", msg_status == 201 and len(HITS) == 1 and HITS[0][0] == "/p/seller" and HITS[0][1].startswith("vapid ") and HITS[0][2] == "0")
 ok("first push persists its database cooldown timestamp", first_stamp > 0)
 ok("first push request has fully settled", len(HITS) == 1)
