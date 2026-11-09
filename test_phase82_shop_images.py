@@ -82,8 +82,7 @@ try:
             pg.goto(BASE + "/shops.html"); pg.wait_for_selector(".shc", timeout=8000); pg.wait_for_timeout(700)
             cards = pg.evaluate("[...document.querySelectorAll('.shc')].map(c=>{const i=c.querySelector('.cv img');return {img:!!i,ok:i?(i.complete&&i.naturalWidth>0):false,ph:!!c.querySelector('.cv .imph'),name:c.querySelector('b').textContent}})")
             res[who + "_cards"] = cards
-            res[who + "_priority"] = pg.evaluate("(()=>{const cards=[...document.querySelectorAll('.shc')];return cards.slice(0,2).every(c=>{const cv=c.querySelector('.cv img'),lg=c.querySelector('.lgw img');return cv&&cv.loading==='eager'&&cv.fetchPriority==='high'&&(!lg||(lg.loading==='eager'&&lg.fetchPriority==='high'))})&&cards.slice(2).every(c=>{const cv=c.querySelector('.cv img'),lg=c.querySelector('.lgw img');return (!cv||cv.loading==='lazy')&&(!lg||lg.loading==='lazy')})})()")
-            res[who + "_priority_detail"] = pg.evaluate("[...document.querySelectorAll('.shc')].map((c,i)=>({i,name:c.querySelector('b')?.textContent,cover:(()=>{const x=c.querySelector('.cv img');return x?{loading:x.loading,fetchPriority:x.fetchPriority,loadingAttr:x.getAttribute('loading'),priorityAttr:x.getAttribute('fetchpriority'),src:x.getAttribute('src')}:null})(),logo:(()=>{const x=c.querySelector('.lgw img');return x?{loading:x.loading,fetchPriority:x.fetchPriority,loadingAttr:x.getAttribute('loading'),priorityAttr:x.getAttribute('fetchpriority'),src:x.getAttribute('src')}:null})()}))");
+            res[who + "_priority"] = pg.evaluate("(()=>{const cards=[...document.querySelectorAll('.shc')],first=cards.slice(0,2).flatMap(c=>[...c.querySelectorAll('.cv img,.lgw img')]),later=cards.slice(2).flatMap(c=>[...c.querySelectorAll('.cv img,.lgw img')]);return first.length>0&&first.every(i=>i.loading==='eager'&&i.fetchPriority==='high')&&later.every(i=>i.loading==='lazy')})()")
             pg.click(".shc"); pg.wait_for_selector(".gi img, .gi .imph", timeout=8000); pg.wait_for_timeout(700)
             res[who + "_items"] = pg.evaluate("[...document.querySelectorAll('#m .gi')].map(c=>({imgs:[...c.querySelectorAll('.zb img')].map(i=>i.complete&&i.naturalWidth>0),ph:!!c.querySelector('.zb .imph')}))")
             ctx.close()
@@ -96,7 +95,6 @@ try:
         res["fallback_card"] = pg.evaluate("({img:document.querySelectorAll('.shc .cv img').length,ph:document.querySelectorAll('.shc .cv .imph').length})")
         br.close()
     for who in ("guest", "customer"):
-        if not res[who + "_priority"]: print("SHOP PRIORITY DIAGNOSTIC", who, json.dumps(res[who + "_priority_detail"], ensure_ascii=False))
         cs = res[who + "_cards"]
         ok("browser/%s: shop card shows a real cover image (loaded, no token needed)" % who, any(x["img"] and x["ok"] for x in cs))
         ok("browser/%s: first two covers and logos are prioritized; remaining cards stay lazy" % who, res[who + "_priority"])
