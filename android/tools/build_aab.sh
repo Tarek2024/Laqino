@@ -27,9 +27,14 @@ else
   npm ci --no-audit --no-fund
 fi
 
-[ -d android ] || npx cap add android
-[ -f android/app/google-services.json ] || fail "Missing android/app/google-services.json from Firebase"
+if [ ! -d android ]; then
+  npx cap add android
+fi
+[ -f android/app/build.gradle ] || fail "Generated Android project is incomplete: android/app/build.gradle is missing"
+[ -f android/variables.gradle ] || fail "Generated Android project is incomplete: android/variables.gradle is missing"
 [ -f android/gradlew ] || fail "Gradle wrapper missing after npx cap add android"
+[ -f android/gradle/wrapper/gradle-wrapper.properties ] || fail "Gradle wrapper properties are missing"
+[ -f android/app/google-services.json ] || fail "Missing android/app/google-services.json from Firebase"
 
 npx cap sync android
 chmod +x android/gradlew
