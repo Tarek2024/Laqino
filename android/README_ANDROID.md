@@ -61,12 +61,12 @@
 
 ## فحص AndroidManifest (خطوة 8 — phase-36)
 `python3 tools/check_manifest.py` (من `android/`، أو مرّر مسار المجلد المولَّد). يفشل (خروج 1) عند: غياب `INTERNET`/`POST_NOTIFICATIONS`/`ACCESS_COARSE_LOCATION`/`ACCESS_FINE_LOCATION`، وجود إذن حساس (SMS/جهات اتصال/ميكروفون/موقع خلفي...)، `usesCleartextTraffic=true`، `debuggable=true`، launcher بلا `exported=true`، sdk غير 36/36/24، `applicationId` غير `com.laqino.app`، غياب `versionCode` أو إعداد التوقيع أو `google-services.json`، أو `server.url` غير HTTPS. يحذّر فقط من `allowBackup=true`.
-**حدود صادقة:** جُرّب على ملفات manifest نموذجية كتبتها بنفسي (`test_phase36_aab_prep.py`) لا على manifest مولَّد فعليًا من Capacitor؛ قد يختلف الشكل قليلًا. ولم يُبنَ AAB ولم يُجرَّب على جهاز. إذن `POST_NOTIFICATIONS` تضيفه إضافة push-notifications في 8.x (تحقق بعد `cap sync`؛ وإلا أضفه يدويًا في `AndroidManifest.xml`).
+**حدود صادقة:** لم يُختبر الفاحص بعد على manifest مولَّد فعليًا من Capacitor؛ قد يختلف شكل الملفات بين إصدارات Android Gradle Plugin. ولم يُبنَ AAB ولم يُجرَّب على جهاز. إذن `POST_NOTIFICATIONS` تضيفه إضافة push-notifications في 8.x (تحقق بعد `cap sync`؛ وإلا أضفه يدويًا في `AndroidManifest.xml`).
 
 
 ## GitHub Actions: signed Release AAB (isolated workflow)
 
-يوجد Workflow مستقل باسم `.github/workflows/android-release-aab.yml`، ويُشغّل يدويًا من تبويب **Actions → Build Android Release AAB → Run workflow**. لا يغيّر Workflow الـDebug APK الموجود.
+يوجد Workflow مستقل باسم `.github/workflows/android-release-aab.yml`، ويُشغّل يدويًا من تبويب **Actions → Build Android Release AAB → Run workflow**. يثبت Android Platform API 36 مع Build Tools 35.0.0، بما يتماشى مع إعدادات AGP 8.13 الافتراضية؛ رقم API الخاص بالمنصة ليس هو رقم Build Tools. لا يغيّر Workflow الـDebug APK الموجود.
 
 أضف القيم التالية في **Settings → Secrets and variables → Actions → New repository secret** قبل التشغيل:
 - `GOOGLE_SERVICES_JSON`: محتوى ملف Firebase `google-services.json` كاملًا لتطبيق Android بالمعرّف `com.laqino.app`.
