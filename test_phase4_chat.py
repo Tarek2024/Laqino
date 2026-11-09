@@ -158,15 +158,13 @@ msg_status, msg_result = call("POST", f"/chats/{Tq}/messages", {"text": "مرح�
 PUSH_EVENT.wait(5.0)  # wait for the real background Web Push request, not a fixed short sleep
 time.sleep(0.4)  # let the first background send finish before isolating the cooldown check
 first_stamp = sql("select push_notified_at from chat_threads where id=?", (Tq,))[0][0]
-print("CHAT PUSH DIAGNOSTIC:", "message_status=", msg_status, "hook_calls=", repr(HOOK_CALLS), "hits=", repr(HITS), "cooldown_stamp=", first_stamp, "subs=", sql("select user_id,endpoint from push_subs"))
-ok("new message wakes ONLY the recipient's device (empty data-less push, VAPID auth)", msg_status == 201 and len(HITS) == 1 and HITS[0][0] == "/p/seller" and HITS[0][1].startswith("vapid ") and HITS[0][2] == "0")
+ok("new message wakes ONLY the recipient's device (empty data-less push, VAPID auth)", msg_status == 201 and HOOK_CALLS == [uid[SELLER]] and len(HITS) == 1 and HITS[0][0] == "/p/seller" and HITS[0][1].startswith("vapid ") and HITS[0][2] == "0")
 ok("first push persists its database cooldown timestamp", first_stamp > 0)
 ok("first push request has fully settled", len(HITS) == 1)
 HOOK_CALLS.clear()
 chat.push_hook = lambda uid: HOOK_CALLS.append(uid)  # deterministic hook counter isolates cooldown logic from async network timing
 second_status, second_result = call("POST", f"/chats/{Tq}/messages", {"text": "تاني"}, tk[B1])
 second_stamp = sql("select push_notified_at from chat_threads where id=?", (Tq,))[0][0]
-print("CHAT COOLDOWN TRACE:", {"first_stamp": first_stamp, "second_stamp": second_stamp, "gap": chat.PUSH_GAP, "status": second_status, "hook_calls": list(HOOK_CALLS), "hits": list(HITS)})
 ok("second message within the gap is throttled (no extra hook or push)", second_status == 201 and len(HOOK_CALLS) == 0 and len(HITS) == 1 and second_stamp == first_stamp)
 chat.PUSH_GAP = 0; call("POST", f"/chats/{Tq}/messages", {"text": "ثالث"}, tk[B1])
 ok("push hook runs again once the gap allows", len(HOOK_CALLS) == 1)
