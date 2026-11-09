@@ -106,7 +106,7 @@ def main():
     if os.path.isfile(variables):
         content = read(variables)
         def sdk_value(key):
-            match = re.search(r"\\b" + re.escape(key) + r"\\s*=\\s*(\\d+)", content)
+            match = re.search(r"\b" + re.escape(key) + r"\s*=\s*(\d+)", content)
             return int(match.group(1)) if match else None
         values = (sdk_value("compileSdkVersion"), sdk_value("targetSdkVersion"), sdk_value("minSdkVersion"))
         check("SDK levels are compile 36 / target 36 / min 24", values == (36, 36, 24), values)
@@ -116,8 +116,8 @@ def main():
     app_gradle = os.path.join(PROJECT, "app", "build.gradle")
     if os.path.isfile(app_gradle):
         gradle = read(app_gradle)
-        app_id = re.search(r"applicationId\\s+[\"']([^\"']+)", gradle)
-        version_code = re.search(r"versionCode\\s+(\\d+)", gradle)
+        app_id = re.search(r"applicationId\s+[\"']([^\"']+)", gradle)
+        version_code = re.search(r"versionCode\s+(\d+)", gradle)
         check("applicationId is com.laqino.app", bool(app_id) and app_id.group(1) == "com.laqino.app",
               app_id.group(1) if app_id else "not found")
         check("versionCode is declared", bool(version_code))
