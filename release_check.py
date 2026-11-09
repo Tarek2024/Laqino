@@ -1,40 +1,137 @@
 #!/usr/bin/env python3
-"""فحص جاهزية الإصدار (المرحلة 9) — قبل أي ZIP أو نشر. قراءة فقط، بلا شبكة وبلا تشغيل خادم.
-   python3 release_check.py        يطبع PASS/FAIL ويخرج 1 عند أي فشل.
-يفحص: الوحدات في Dockerfile، ملفات SHELL، رقم الكاش، عدم وجود قواعد/أسرار/مفاتيح داخل المجلد، وجود README المرحلة لكل مرحلة،
-واتساق README.md/DEPLOY.md مع الكاش الحالي ومتغيرات البيئة الموجودة فعلًا في الكود."""
-import os, re, sys
-here = os.path.dirname(os.path.abspath(__file__)); fails = []
-rd = lambda p: open(os.path.join(here, p), encoding="utf8").read()
-def chk(name, cond, detail=""):
-    print(("PASS " if cond else "FAIL ") + name + ("" if cond else "  -> " + str(detail))); (cond or fails.append(name))
-ver = dict(l.split("=", 1) for l in open(os.path.join(here, "VERSION")).read().split() if "=" in l).get("release", ""); chk("VERSION file present", re.fullmatch(r"phase-\d+\w*", ver), ver)
-sw = rd("static/sw.js"); cache = int(re.search(r"laqino-v(\d+)", sw).group(1)); chk("sw.js cache number found", cache > 0)
-shell = re.findall(r'"(/[^"]*)"', re.search(r"SHELL\s*=\s*\[(.*?)\]", sw, re.S).group(1))
-miss = [p for p in shell if p != "/" and not os.path.exists(os.path.join(here, "static", p.lstrip("/").split("?", 1)[0]))]; chk("every SHELL file exists", not miss, miss)
-mods = {f[:-3] for f in os.listdir(here) if f.endswith(".py") and not f.startswith("test_")} - {"release_check", "apply_phase17_safe", "phase16_imgutil", "imgutil", "testutil"}
-dock = rd("Dockerfile"); copied = set()
-for ln in dock.splitlines():
-    if ln.startswith("COPY ") and "static" not in ln: copied |= {x[:-3] for x in ln.split()[1:-1] if x.endswith(".py")}
-imp = set(re.findall(r"^import ([\w, ]+)$", rd("server.py"), re.M)); need = {m.strip() for x in imp for m in x.split(",")} & mods | {"server"}
-chk("Dockerfile copies every module server.py imports", need <= copied, sorted(need - copied))
-bad = []
-for root, ds, fs in os.walk(here):
-    ds[:] = [d for d in ds if d not in ("__pycache__", "node_modules")]
-    for f in fs:
-        # تجاهل قواعد البيانات المحلية في جذر المشروع فقط؛ لا تحذفها.
-        if root == here and f in ("laqino.db", "laqino.db-wal", "laqino.db-shm"):
+"""Read-only release readiness checks. Run: python3 release_check.py"""
+import ast
+import os
+import re
+import sys
+from pathlib import Path
+
+ROOT = Path(__file__).resolve().parent
+fails = []
+
+
+def read(relative):
+    try:
+        return (ROOT / relative).read_text(encoding="utf-8")
+    except OSError as exc:
+        fail(relative + " readable", str(exc))
+        return ""
+
+
+def fail(name, detail):
+    fails.append(name)
+    print("FAIL " + name + " -> " + str(detail))
+
+
+def check(name, condition, detail=""):
+    if condition:
+        print("PASS " + name)
+    else:
+        fail(name, detail)
+
+
+# Version and cache are sourced from VERSION; never infer either from an old document.
+version_text = read("VERSION")
+version = {}
+for line in version_text.splitlines():
+    if "=" in line and not line.lstrip().startswith("#"):
+        key, value = line.split("=", 1)
+        version[key.strip()] = value.strip()
+release = version.get("release", "")
+cache_name = version.get("cache", "")
+check("VERSION release format", bool(re.fullmatch(r"phase-\d+[A-Za-z0-9_-]*", release)), release)
+check("VERSION cache format", bool(re.fullmatch(r"laqino-v\d+", cache_name)), cache_name)
+
+sw = read("static/sw.js")
+cache_match = re.search(r'\bconst\s+V\s*=\s*["\'](laqino-v(\d+))["\']', sw)
+check("service worker cache matches VERSION", bool(cache_match and cache_match.group(1) == cache_name),
+      cache_match.group(1) if cache_match else "cache declaration missing")
+
+# Every declared shell path must exist under static/. Parse only the SHELL array.
+shell_match = re.search(r"\bSHELL\s*=\s*\[(.*?)\]", sw, re.S)
+shell_paths = re.findall(r'["\'](/[^"\']*)["\']', shell_match.group(1)) if shell_match else []
+check("service worker SHELL declaration found", bool(shell_match), "SHELL array missing")
+missing_shell = [
+    path for path in shell_paths
+    if path != "/" and not (ROOT / "static" / path.lstrip("/").split("?", 1)[0]).is_file()
+]
+check("every service worker SHELL file exists", not missing_shell, missing_shell)
+
+# Compare Python imports in server.py with Python modules copied into the Docker image.
+server_text = read("server.py")
+docker_text = read("Dockerfile")
+try:
+    tree = ast.parse(server_text)
+    imported = set()
+    for node in ast.walk(tree):
+        if isinstance(node, ast.Import):
+            imported.update(alias.name.split(".")[0] for alias in node.names)
+        elif isinstance(node, ast.ImportFrom) and node.module:
+            imported.add(node.module.split(".")[0])
+    local_modules = {
+        p.stem for p in ROOT.glob("*.py")
+        if not p.name.startswith("test_")
+    } - {"release_check", "check_versions", "apply_phase17_safe", "phase16_imgutil", "imgutil", "testutil"}
+    required = (imported & local_modules) | {"server"}
+    copied = set()
+    for line in docker_text.splitlines():
+        parts = line.strip().split()
+        if len(parts) >= 3 and parts[0] == "COPY":
+            for item in parts[1:-1]:
+                if item.endswith(".py") and not item.startswith("--"):
+                    copied.add(Path(item).stem)
+    check("Dockerfile copies local server modules", required <= copied, sorted(required - copied))
+except (SyntaxError, OSError) as exc:
+    fail("Docker import analysis", str(exc))
+
+# Detect accidentally committed runtime data and private key material.
+sensitive = []
+for root, dirs, files in os.walk(ROOT):
+    dirs[:] = [d for d in dirs if d not in {"__pycache__", "node_modules", ".git", ".venv", "venv"}]
+    for filename in files:
+        full = Path(root) / filename
+        rel = full.relative_to(ROOT).as_posix()
+        if Path(root) == ROOT and filename in {"laqino.db", "laqino.db-wal", "laqino.db-shm"}:
             continue
-        if re.search(r"(\.db(-wal|-shm)?|\.env|google-services\.json|\.pem|\.p12|\.jks|\.keystore)$", f) or f.endswith("service-account.json"): bad.append(os.path.relpath(os.path.join(root, f), here))
-    if os.path.basename(root) == "uploads": bad.append("uploads/")
-chk("no database / .env / key / service-account files inside the project", not bad, bad)
-phases = sorted(set(re.findall(r"phase-(\d+)", " ".join(os.listdir(os.path.join(here, "docs", "phases"))))), key=int)
-chk("docs/phases has a README for every phase 1..%s" % phases[-1], [int(x) for x in phases] == list(range(1, int(phases[-1]) + 1)), phases)
-rm = rd("README.md"); dp = rd("DEPLOY.md")
-chk("README.md mentions the current cache laqino-v%d (no stale cache number)" % cache, ("laqino-v%d" % cache) in rm and not re.search(r"laqino-v(?!%d\b)\d+" % cache, rm), "stale cache number in README")
-code = rd("server.py") + "".join(rd(f) for f in ("fcm.py", "notif.py"))
-used = set(re.findall(r'LAQINO_[A-Z_]+', code)) - {"LAQINO_TEST_PRESENCE", "LAQINO_PUSH_ALLOW_ANY", "LAQINO_FCM_ALLOW_ANY", "LAQINO_FCM_BASE"}
-undoc = sorted(v for v in used if v not in rm + dp + rd("deploy/env.example")); chk("every LAQINO_* variable is documented (README/DEPLOY/env.example)", not undoc, undoc)
-chk("env.example documents the FCM key variable", "LAQINO_FCM_SERVICE_ACCOUNT" in rd("deploy/env.example"))
-chk("android/ ships no Firebase key", not os.path.exists(os.path.join(here, "android", "app", "google-services.json")))
-print("RELEASE CHECK: %s" % ("OK" if not fails else "%d FAILED" % len(fails))); sys.exit(1 if fails else 0)
+        if (re.search(r"(\.db(?:-wal|-shm)?|\.env|\.pem|\.p12|\.jks|\.keystore)$", filename, re.I)
+                or filename == "google-services.json"
+                or filename.endswith("service-account.json")):
+            sensitive.append(rel)
+    if Path(root).name == "uploads":
+        sensitive.append(Path(root).relative_to(ROOT).as_posix() + "/")
+check("no runtime databases, secrets or uploads directory committed", not sensitive, sensitive)
+
+# Phase documentation is historical inventory only; verify numbering without crashing on an empty folder.
+phase_dir = ROOT / "docs" / "phases"
+phase_numbers = []
+if phase_dir.is_dir():
+    for item in phase_dir.iterdir():
+        match = re.search(r"phase-(\d+)", item.name)
+        if match and item.is_file():
+            phase_numbers.append(int(match.group(1)))
+phase_numbers = sorted(set(phase_numbers))
+check("phase README inventory exists and is contiguous from 1",
+      bool(phase_numbers) and phase_numbers == list(range(1, max(phase_numbers) + 1)),
+      phase_numbers)
+
+readme = read("README.md")
+if cache_match:
+    stale_cache = sorted(set(re.findall(r"laqino-v\d+", readme)) - {cache_name})
+else:
+    stale_cache = ["cannot verify: service worker cache missing"]
+check("README current cache reference", cache_name in readme and not stale_cache, stale_cache)
+
+deploy_doc = read("DEPLOY.md")
+env_example = read("deploy/env.example")
+code = server_text + read("fcm.py") + read("notif.py")
+used_vars = set(re.findall(r"\bLAQINO_[A-Z0-9_]+\b", code))
+used_vars -= {"LAQINO_TEST_PRESENCE", "LAQINO_PUSH_ALLOW_ANY", "LAQINO_FCM_ALLOW_ANY", "LAQINO_FCM_BASE"}
+undocumented = sorted(v for v in used_vars if v not in readme + deploy_doc + env_example)
+check("LAQINO environment variables documented", not undocumented, undocumented)
+check("FCM service-account variable documented in env.example",
+      "LAQINO_FCM_SERVICE_ACCOUNT" in env_example)
+check("Android Firebase secret file is not committed",
+      not (ROOT / "android" / "app" / "google-services.json").exists())
+
+print("RELEASE CHECK: " + ("OK" if not fails else str(len(fails)) + " FAILED"))
+sys.exit(1 if fails else 0)
