@@ -87,6 +87,7 @@ for n, f in (("shops.html", s), ("shop.html", so)):
     ok(n + " script parses", subprocess.run(["node", "--check", tmp], capture_output=True).returncode == 0)
 ok("shop-identity.js parses", subprocess.run(["node", "--check", os.path.join(HERE, "static", "shop-identity.js")], capture_output=True).returncode == 0)
 ok("shop.html loads identity widget + mounts it + warns about items without pictures", "/shop-identity.js" in so and "LqShopIdentity.mount" in so and "id=\"shop-identity\"" in so and "من غير صور" in so)
+ok("shop identity preview reuses logo and cover downloads", "IDENTITY_URLS" in si and "IDENTITY_PENDING" in si and "encodeURIComponent(key)" in si)
 ok("shop.html resizes in browser before upload + preview", "LqImg.pick" in so and "pvw(" in so)
 ok("sw caches the new script, version bumped", "/shop-identity.js" in sw and re.search(r'V = "(laqino-v\d+)"', sw).group(1) == re.search(r"cache=(laqino-v\d+)", rd("VERSION")).group(1) and int(re.search(r"phase-(\d+)", rd("VERSION")).group(1)) >= 83)
 
