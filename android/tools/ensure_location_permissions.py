@@ -28,11 +28,11 @@ missing = [name for name in required if name not in present]
 
 if missing:
     insertion = "".join(
-        f'    <uses-permission android:name="{name}" />\\n'
+        f'    <uses-permission android:name="{name}" />\n'
         for name in missing
     )
     updated, count = re.subn(
-        r"(?m)^(\\s*)<application\\b",
+        r"(?m)^(\s*)<application\b",
         lambda match: insertion + match.group(0),
         original,
         count=1,
