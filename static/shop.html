@@ -63,7 +63,7 @@ window.dlboard=()=>{if(window.dlbMain)return dlbMain();const sc=document.createE
 window.dlx=run(async id=>{if(!confirm('إلغاء طلب المندوب؟'))return;await api('/delivery/orders/'+id+'/cancel',{})});
 window.ordacc=run(async id=>{await api('/owner/shops/'+SEL+'/orders/'+id+'/accept',{});msg='تم قبول الطلب — العميل اتبلّغ.'});window.ordrdy=run(async id=>{await api('/owner/shops/'+SEL+'/orders/'+id+'/ready',{});msg='تم تعليم الطلب جاهزًا للاستلام — العميل اتبلّغ.'});  /* م85: دورة المحل */
 window.ordrej=run(async id=>{if(!confirm('رفض هذا الطلب؟ سيُلغى ويُبلَّغ العميل والمندوب.'))return;await api('/owner/shops/'+SEL+'/orders/'+id+'/reject',{});msg='تم رفض الطلب.'});
-async function load(){if(!T){m.innerHTML='<div class="card">سجّل الدخول من <a href="/">الصفحة الرئيسية</a>.</div>';$('tb').innerHTML='';return}
+async function load(){if(!T){m.innerHTML='<div class="card">سجّل الدخول من <a href="/?account=1&next=%2Fshop.html">حسابي</a>.</div>';$('tb').innerHTML='';return}
 try{const o=await api('/owner/shops');const L=o.items,ap=L.filter(s=>s.status=='approved');
 if(!ap.some(s=>s.id==SEL))SEL=ap.length?ap[0].id:0;if(SEL)localStorage.setItem('shsel',SEL);
 let types=[];try{types=(await api('/shop-types')).items}catch(e){}
@@ -80,7 +80,7 @@ m.innerHTML=(msg?`<p class="${isErr?'e':'okm'}" role="status">${esc(msg)}</p>`:'
 $('tb').innerHTML=tabs(n,no);
 const sid=$('shop-identity');if(sid&&window.LqShopIdentity)LqShopIdentity.mount(sid,+sid.dataset.shopId);
 observeShopImages()}
-catch(e){$('tb').innerHTML='';m.innerHTML=`<div class="card"><p class="e">${esc(e&&e.message?e.message:e)}</p><small>تأكد من تسجيل الدخول من <a href="/">الصفحة الرئيسية</a>.</small></div>`}}
+catch(e){$('tb').innerHTML='';m.innerHTML=`<div class="card"><p class="e">${esc(e&&e.message?e.message:e)}</p><small>تأكد من تسجيل الدخول من <a href="/?account=1&next=%2Fshop.html">حسابي</a>.</small></div>`}}
 load();</script><script>if("serviceWorker" in navigator)addEventListener("load",()=>navigator.serviceWorker.register("/sw.js").catch(()=>{}))</script><script src="/perm.js" defer></script>
 <script src="/native.js" defer></script>
 </body></html>
