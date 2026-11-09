@@ -27,7 +27,7 @@ with sync_playwright() as p:
     ok("all 25 section buttons render on a 360px phone", pg.locator("nav button").count() == 25)
     ok("mobile nav uses grouped horizontal scrolling without page overflow", pg.evaluate("(()=>{const n=document.querySelector('nav');return n.querySelectorAll('.nav-group').length===8&&getComputedStyle(n).overflowX==='auto'&&n.scrollWidth>n.clientWidth&&document.documentElement.scrollWidth<=innerWidth})()"))
     pg.locator("nav button").last.scroll_into_view_if_needed()
-    ok("last group is reachable within the navigation viewport", pg.evaluate("(()=>{const n=document.querySelector('nav'),b=n.querySelector('nav button:last-of-type'),r=b.getBoundingClientRect(),q=n.getBoundingClientRect();return r.left>=q.left-1&&r.right<=q.right+1})()"))
+    ok("last group is reachable within the navigation viewport", pg.evaluate("(()=>{const n=document.querySelector('nav'),a=n.querySelectorAll('nav button'),b=a[a.length-1],r=b.getBoundingClientRect(),q=n.getBoundingClientRect();return r.left>=q.left-1&&r.right<=q.right+1})()"))
     bad = []
     for i in range(25):
         pg.locator("nav button").nth(i).click(); pg.wait_for_timeout(350)
