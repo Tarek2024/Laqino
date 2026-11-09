@@ -118,6 +118,30 @@ jobs:
         working-directory: android
         run: sh tools/build_aab.sh
 
+      - name: Build signed Release APK
+        working-directory: android/android
+        run: ./gradlew --no-daemon --stacktrace assembleRelease
+
+      - name: Verify AAB and APK signatures
+        run: |
+          AAB="android/android/app/build/outputs/bundle/release/app-release.aab"
+          APK="android/android/app/build/outputs/apk/release/app-release.apk"
+          test -s "$AAB"
+          test -s "$APK"
+          VERIFY_AAB="$(jarsigner -verify -verbose "$AAB" 2>&1)"
+          printf '%s\\n' "$VERIFY_AAB" | grep -q "jar verified"
+          "$ANDROID_HOME/build-tools/35.0.0/apksigner" verify --verbose --print-certs "$APK"
+          echo "PASS: AAB and APK signatures are present and valid"
+          ls -lh "$AAB" "$APK"
+
+      - name: Upload Release APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: laqino-release-apk
+          path: android/android/app/build/outputs/apk/release/app-release.apk
+          if-no-files-found: error
+          retention-days: 14
+
       - name: Verify AAB signature and artifact
         run: |
           AAB="android/android/app/build/outputs/bundle/release/app-release.aab"
