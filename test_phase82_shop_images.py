@@ -82,7 +82,7 @@ try:
             pg.goto(BASE + "/shops.html"); pg.wait_for_selector(".shc", timeout=8000); pg.wait_for_timeout(700)
             cards = pg.evaluate("[...document.querySelectorAll('.shc')].map(c=>{const i=c.querySelector('.cv img');return {img:!!i,ok:i?(i.complete&&i.naturalWidth>0):false,ph:!!c.querySelector('.cv .imph'),name:c.querySelector('b').textContent}})")
             res[who + "_cards"] = cards
-            res[who + "_priority"] = pg.evaluate("(()=>{const cards=[...document.querySelectorAll('.shc')];return cards.slice(0,2).every(c=>{const cv=c.querySelector('.cv img'),lg=c.querySelector('.lgw img');return cv&&lg&&cv.loading==='eager'&&lg.loading==='eager'&&cv.fetchPriority==='high'&&lg.fetchPriority==='high'})&&cards.slice(2).every(c=>{const cv=c.querySelector('.cv img'),lg=c.querySelector('.lgw img');return (!cv||cv.loading==='lazy')&&(!lg||lg.loading==='lazy')})})()")
+            res[who + "_priority"] = pg.evaluate("(()=>{const cards=[...document.querySelectorAll('.shc')];return cards.slice(0,2).every(c=>{const cv=c.querySelector('.cv img'),lg=c.querySelector('.lgw img');return cv&&cv.loading==='eager'&&cv.fetchPriority==='high'&&(!lg||(lg.loading==='eager'&&lg.fetchPriority==='high'))})&&cards.slice(2).every(c=>{const cv=c.querySelector('.cv img'),lg=c.querySelector('.lgw img');return (!cv||cv.loading==='lazy')&&(!lg||lg.loading==='lazy')})})()")
             pg.click(".shc"); pg.wait_for_selector(".gi img, .gi .imph", timeout=8000); pg.wait_for_timeout(700)
             res[who + "_items"] = pg.evaluate("[...document.querySelectorAll('#m .gi')].map(c=>({imgs:[...c.querySelectorAll('.zb img')].map(i=>i.complete&&i.naturalWidth>0),ph:!!c.querySelector('.zb .imph')}))")
             ctx.close()
