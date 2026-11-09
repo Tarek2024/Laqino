@@ -50,7 +50,7 @@ def read_properties(path):
             line = raw.strip()
             if not line or line.startswith(("#", "!")):
                 continue
-            match = re.match(r"([^:=\\s]+)\\s*[:=]\\s*(.*)$", line)
+            match = re.match(r"([^:=\s]+)\s*[:=]\s*(.*)$", line)
             if match:
                 values[match.group(1)] = match.group(2).strip()
     return values
