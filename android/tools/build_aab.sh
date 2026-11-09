@@ -37,6 +37,7 @@ fi
 [ -f android/app/google-services.json ] || fail "Missing android/app/google-services.json from Firebase"
 
 npx cap sync android
+python3 tools/ensure_location_permissions.py android/app/src/main/AndroidManifest.xml
 chmod +x android/gradlew
 python3 tools/apply_signing.py android/app/build.gradle
 
