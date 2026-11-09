@@ -12,7 +12,7 @@ on:
   workflow_dispatch:
 
 permissions:
-  contents: read
+  contents: write
 
 concurrency:
   group: android-deps-preflight
@@ -56,6 +56,16 @@ jobs:
           fi
           npm ci --no-audit --no-fund
           npm ls --depth=0
+
+      - name: Commit generated lockfile to isolated feature branch
+        run: |
+          if ! git diff --quiet -- android/package-lock.json; then
+            git config user.name "github-actions[bot]"
+            git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+            git add android/package-lock.json
+            git commit -m "chore(android): lock Capacitor dependencies [skip ci]"
+            git push origin "HEAD:feature/android-aab-release-prep"
+          fi
 
       - name: Generate and sync native Capacitor project
         working-directory: android
