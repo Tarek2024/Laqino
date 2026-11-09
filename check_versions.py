@@ -1,41 +1,72 @@
-"""Single-source version check: VERSION is the only place the release id and cache name are defined.
-Run from the project root:  python3 check_versions.py"""
-import re, sys
+"""Validate the single release/cache source without modifying the project.
+Run from the repository root: python3 check_versions.py
+"""
+import re
+import sys
 from pathlib import Path
 
-ROOT = Path(__file__).parent
-cfg = dict(l.split("=", 1) for l in (ROOT / "VERSION").read_text().split() if "=" in l)
-release, cache = cfg["release"], cfg["cache"]
+ROOT = Path(__file__).resolve().parent
 errors = []
 
-sw = (ROOT / "static/sw.js").read_text()
-m = re.search(r'const V = "(laqino-v\d+)"', sw)
-if not m or m.group(1) != cache:
-    errors.append(f"sw.js cache is {m.group(1) if m else 'missing'}, VERSION says {cache}")
 
-# Only the per-release note is enforced; README/STATUS/PROJECT_STATUS keep historical cache names legitimately.
-for name in ("README_UPDATE.md",):
-    p = ROOT / name
-    if p.exists():
-        t = p.read_text()
-        if release not in t:
-            errors.append(f"{name} does not mention {release}")
-        stale = set(re.findall(r"laqino-v\d+", t)) - {cache}
-        # older cache names are allowed only on lines that say they are the previous one (السابق / previous)
-        for line in t.splitlines():
-            for s in stale:
-                if s in line and not re.search(r"السابق|previous|←|->", line):
-                    errors.append(f"{name}: stale cache name {s} outside a 'previous' line: {line.strip()[:60]}")
+def read_text(relative):
+    path = ROOT / relative
+    try:
+        return path.read_text(encoding="utf-8")
+    except OSError as exc:
+        errors.append(f"{relative}: cannot read file ({exc})")
+        return ""
 
-# The four state documents must declare the current release and cache in their first lines.
+
+def parse_version(text):
+    values = {}
+    for line in text.splitlines():
+        if not line.strip() or line.lstrip().startswith("#"):
+            continue
+        if "=" not in line:
+            errors.append(f"VERSION: malformed line: {line!r}")
+            continue
+        key, value = line.split("=", 1)
+        values[key.strip()] = value.strip()
+    release, cache = values.get("release", ""), values.get("cache", "")
+    if not re.fullmatch(r"phase-\d+[a-zA-Z0-9_-]*", release):
+        errors.append(f"VERSION: invalid or missing release value: {release!r}")
+    if not re.fullmatch(r"laqino-v\d+", cache):
+        errors.append(f"VERSION: invalid or missing cache value: {cache!r}")
+    return release, cache
+
+
+release, cache = parse_version(read_text("VERSION"))
+
+sw = read_text("static/sw.js")
+matches = re.findall(r'\bconst\s+V\s*=\s*["\'](laqino-v\d+)["\']', sw)
+if len(matches) != 1:
+    errors.append(f"static/sw.js: expected exactly one cache declaration, found {len(matches)}")
+elif cache and matches[0] != cache:
+    errors.append(f"static/sw.js: cache is {matches[0]}, VERSION says {cache}")
+
+# Only the current release note is subject to stale-cache checks. Historical documents
+# are allowed to retain old version numbers as archival evidence.
+note = read_text("README_UPDATE.md")
+if release and release not in note:
+    errors.append(f"README_UPDATE.md: does not mention current release {release}")
+if cache:
+    stale = set(re.findall(r"laqino-v\d+", note)) - {cache}
+    for line in note.splitlines():
+        for value in stale:
+            if value in line and not re.search(r"السابق|previous|تاريخي|archive|←|->", line, re.I):
+                errors.append(f"README_UPDATE.md: stale cache {value} on non-historical line: {line.strip()[:100]}")
+
+# These documents must expose the current release and cache near their top.
 for name in ("README.md", "HANDOFF.md", "PROJECT_STATE.md", "STATUS.md"):
-    p = ROOT / name
-    if p.exists():
-        head = "\n".join(p.read_text().splitlines()[:8])
-        for what, val in (("release", release), ("cache", cache)):
-            if val not in head:
-                errors.append(f"{name}: first lines do not state current {what} {val}")
+    text = read_text(name)
+    head = "\n".join(text.splitlines()[:12])
+    if release and release not in head:
+        errors.append(f"{name}: first 12 lines do not state current release {release}")
+    if cache and cache not in head:
+        errors.append(f"{name}: first 12 lines do not state current cache {cache}")
 
 if errors:
-    print("\n".join("FAIL " + e for e in errors)); sys.exit(1)
-print(f"OK  release={release}  cache={cache}  (VERSION, sw.js and docs agree)")
+    print("\n".join("FAIL " + item for item in errors))
+    sys.exit(1)
+print(f"OK release={release} cache={cache}; VERSION, service worker and current status documents agree")
