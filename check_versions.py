@@ -33,9 +33,9 @@ def parse_version(text):
             errors.append(f"VERSION: duplicate key: {key}")
         values[key] = value.strip()
     release, cache = values.get("release", ""), values.get("cache", "")
-    if not re.fullmatch(r"phase-\\d+[a-zA-Z0-9_-]*", release):
+    if not re.fullmatch(r"phase-\d+[a-zA-Z0-9_-]*", release):
         errors.append(f"VERSION: invalid or missing release value: {release!r}")
-    if not re.fullmatch(r"laqino-v\\d+", cache):
+    if not re.fullmatch(r"laqino-v\d+", cache):
         errors.append(f"VERSION: invalid or missing cache value: {cache!r}")
     extra = set(values) - {"release", "cache"}
     if extra:
@@ -48,7 +48,7 @@ def parse_version(text):
 release, cache = parse_version(read_text("VERSION"))
 
 sw = read_text("static/sw.js")
-matches = re.findall(r'\\bconst\\s+V\\s*=\\s*["\\'](laqino-v\\d+)["\\']', sw)
+matches = re.findall(r'\bconst\s+V\s*=\s*["\'](laqino-v\d+)["\']', sw)
 if len(matches) != 1:
     errors.append(f"static/sw.js: expected exactly one cache declaration, found {len(matches)}")
 elif cache and matches[0] != cache:
@@ -59,7 +59,7 @@ elif cache and matches[0] != cache:
 current_docs = ("README.md", "README_UPDATE.md", "HANDOFF.md", "PROJECT_STATE.md", "STATUS.md")
 for name in current_docs:
     doc = read_text(name)
-    head = "\\n".join(doc.splitlines()[:16])
+    head = "\n".join(doc.splitlines()[:16])
     if release and release not in head:
         errors.append(f"{name}: opening 16 lines do not state current release {release}")
     if cache and cache not in head:
@@ -107,6 +107,6 @@ for path in ROOT.rglob("*"):
 # service-worker behavior; old cache tokens in changelog/history are expected.
 print(f"ARCHIVE INVENTORY: {len(archive_files)} historical documents classified")
 if errors:
-    print("\\n".join("FAIL " + item for item in errors))
+    print("\n".join("FAIL " + item for item in errors))
     sys.exit(1)
 print(f"OK release={release} cache={cache}; VERSION, service worker and current docs agree")
