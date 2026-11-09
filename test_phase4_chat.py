@@ -151,7 +151,7 @@ PUSH_SEND_CALLS = []
 PUSH_BATCH_CALLS = []
 _REAL_PUSH_BATCH = server._push_to_users
 def _tracked_push_batch(c, uids, *args, **kwargs):
-    PUSH_BATCH_CALLS.append({"uids": list(uids), "rows": [tuple(x) for x in c.execute("SELECT user_id,endpoint FROM push_subs").fetchall()]})
+    PUSH_BATCH_CALLS.append({"uids": list(uids), "rows": [tuple(x) for x in c.execute("SELECT user_id,endpoint FROM push_subs").fetchall()], "stack": __import__("traceback").format_stack(limit=8)})
     return _REAL_PUSH_BATCH(c, uids, *args, **kwargs)
 server._push_to_users = _tracked_push_batch
 _REAL_PUSH_SEND = server.push_send
