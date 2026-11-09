@@ -66,7 +66,9 @@
 
 ## GitHub Actions: signed Release AAB (isolated workflow)
 
-يوجد Workflow مستقل باسم `.github/workflows/android-release-aab.yml`، ويُشغّل يدويًا من تبويب **Actions → Build Android Release AAB → Run workflow**. يثبت Android Platform API 36 مع Build Tools 35.0.0، بما يتماشى مع إعدادات AGP 8.13 الافتراضية؛ رقم API الخاص بالمنصة ليس هو رقم Build Tools. لا يغيّر Workflow الـDebug APK الموجود.
+يوجد Workflow تمهيدي مستقل باسم `.github/workflows/android-deps-preflight.yml` يعمل عند تحديث ملفات Android على فرع الإصلاح. يثبت الاعتماديات باستخدام `npm ci`، ويولّد مشروع Capacitor الأصلي ويزامنه، ويتحقق من هوية التطبيق وHTTPS وإعدادات SDK، ثم يحفظ `android/package-lock.json` تلقائيًا في **فرع الإصلاح فقط**.
+
+ويوجد Workflow إصدار مستقل باسم `.github/workflows/android-release-aab.yml`، ويُشغّل يدويًا من تبويب **Actions → Build Android Release AAB → Run workflow** بعد إضافة الأسرار. يثبت Android Platform API 36 مع Build Tools 35.0.0، بما يتماشى مع إعدادات AGP 8.13 الافتراضية؛ رقم API الخاص بالمنصة ليس هو رقم Build Tools. لا يغيّر أي منهما Workflow الـDebug APK الموجود.
 
 أضف القيم التالية في **Settings → Secrets and variables → Actions → New repository secret** قبل التشغيل:
 - `GOOGLE_SERVICES_JSON`: محتوى ملف Firebase `google-services.json` كاملًا لتطبيق Android بالمعرّف `com.laqino.app`.
@@ -77,6 +79,6 @@
 
 لا تضع هذه القيم في ملفات Git أو في المحادثات. احتفظ بنسخة احتياطية آمنة من ملف المفتاح؛ لا تنشئ مفتاح رفع جديدًا إذا كان التطبيق قد نُشر بالفعل بمفتاح مختلف.
 
-**ملف القفل:** المستودع لا يحتوي حاليًا على `package-lock.json`. لذلك ينشئ Workflow ملفًا عند أول تشغيل ويرفقه مع الـAAB كـArtifact. راجع الملف الناتج ثم أضفه إلى `android/package-lock.json` في فرع التطوير قبل اعتبار البناء قابلًا لإعادة الإنتاج؛ بعد ذلك سيستخدم `npm ci` نفس الإصدارات المقفولة. لا تعتمد على توليد ملف القفل من جديد في كل إصدار.
+**ملف القفل:** Workflow التمهيدي ينشئ `android/package-lock.json` عند غيابه، ويتحقق منه باستخدام `npm ci`، ثم يحاول حفظه في فرع الإصلاح تلقائيًا. يجب التأكد من نجاح هذا التشغيل وظهور الملف في الفرع قبل تشغيل إصدار AAB؛ لا يُعاد توليد الملف مع كل إصدار بعد تثبيته.
 
 **حالة الاختبار:** إضافة Workflow والسكربتات لا تعني أن AAB قد بُني بالفعل. لا بد من تشغيل Workflow بعد ضبط الأسرار، وفحص نتيجة Gradle والتوقيع، ثم تثبيت التطبيق وتجربة تسجيل الدخول والإشعارات والموقع على هاتف Android حقيقي قبل الدمج أو النشر.
