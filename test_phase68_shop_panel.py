@@ -89,5 +89,7 @@ ok("no token: asks to log in, no JS errors", json.loads(r.stdout)["errs"] == [])
 # 5) ثوابت الملف
 s = open(os.path.join(HERE, "static", "shop.html"), encoding="utf-8").read()
 ok("shop.html never injects raw server fields (all through esc)", not re.search(r"\$\{(s|x|t)\.(name_ar|address|description|type_name|region_name|review_reason)\}", s))
+ok("shop dashboard defers image downloads until near viewport", "new IntersectionObserver" in s and "rootMargin:'240px 0px'" in s and "observeShopImages()" in s)
+ok("shop dashboard deduplicates downloads and reuses object URLs", "SHOP_IMG_PENDING" in s and "SHOP_IMG_URLS" in s and "URL.createObjectURL" in s)
 ok("localStorage keys used are limited to t, rg, shsel", set(re.findall(r"localStorage\.(?:getItem|setItem)\('(\w+)'", s)) == {"t", "rg", "shsel"})
 print("ALL PASS")
