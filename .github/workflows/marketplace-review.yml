@@ -12,8 +12,10 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: '3.12'
-      - name: Install cryptography for notification regression coverage
-        run: python -m pip install cryptography
+      - name: Install marketplace regression dependencies
+        run: |
+          python -m pip install cryptography Pillow playwright
+          python -m playwright install --with-deps chromium
       - name: Compile changed Python files
         run: python -m py_compile server.py notif.py fcm.py product_orders.py shop_delivery.py test_phase90_fcm.py test_phase69_shop_delivery.py test_phase87_product_orders.py test_phase_marketplace_ad_management.py test_phase4_chat.py test_registration_account_recovery.py
       - name: Validate release and service-worker cache version
