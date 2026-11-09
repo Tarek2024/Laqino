@@ -146,6 +146,12 @@ ok("invalid endpoint -> 400", call("POST", "/push/subscribe", {"endpoint": "ftp:
 Lq = listing("للإيقاظ", "chat"); Tq = call("POST", f"/listings/{Lq}/chat", None, tk[B1])[1]["thread_id"]
 ok("subscribe seller + buyer devices", call("POST", "/push/subscribe", {"endpoint": EP("seller")}, tk[SELLER])[0] == 200 and call("POST", "/push/subscribe", {"endpoint": EP("buyer")}, tk[B1])[0] == 200)
 chat.PUSH_GAP = 30; HITS.clear(); PUSH_EVENT.clear()
+HOOK_CALLS = []
+_REAL_CHAT_PUSH = server.chat_push
+def counted_chat_push(uid):
+    HOOK_CALLS.append(uid)
+    _REAL_CHAT_PUSH(uid)
+chat.push_hook = counted_chat_push
 msg_status, msg_result = call("POST", f"/chats/{Tq}/messages", {"text": "مرحبا"}, tk[B1])
 PUSH_EVENT.wait(5.0)  # wait for the real background Web Push request, not a fixed short sleep
 first_stamp = sql("select push_notified_at from chat_threads where id=?", (Tq,))[0][0]
@@ -155,9 +161,9 @@ ok("first push persists its database cooldown timestamp", first_stamp > 0)
 second_status, second_result = call("POST", f"/chats/{Tq}/messages", {"text": "تاني"}, tk[B1]); time.sleep(1.0)
 second_stamp = sql("select push_notified_at from chat_threads where id=?", (Tq,))[0][0]
 print("CHAT COOLDOWN TRACE:", {"first_stamp": first_stamp, "second_stamp": second_stamp, "gap": chat.PUSH_GAP, "status": second_status, "hits": list(HITS)})
-ok("second message within the gap is throttled (no extra push)", second_status == 201 and len(HITS) == 1 and second_stamp == first_stamp)
+ok("second message within the gap is throttled (no extra hook or push)", second_status == 201 and len(HOOK_CALLS) == 1 and len(HITS) == 1 and second_stamp == first_stamp)
 chat.PUSH_GAP = 0; call("POST", f"/chats/{Tq}/messages", {"text": "ثالث"}, tk[B1]); time.sleep(1.2)
-ok("push again once the gap allows", len(HITS) == 2)
+ok("push again once the gap allows", len(HOOK_CALLS) == 2 and len(HITS) == 2)
 st = call("POST", "/push/state", {"endpoint": EP("seller")})[1]
 ok("push state returns counts/flags only (chat unread, medical unread, product orders, pending, courier)", set(st) == {"pending", "chat", "medical", "orders", "courier"} and st["pending"] == 0 and st["medical"] >= 0 and st["orders"] == 0 and st["courier"] is False and st["chat"] >= 3)
 call("GET", f"/chats/{Tq}", None, tk[SELLER])
