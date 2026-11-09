@@ -160,7 +160,7 @@ ok("new message wakes ONLY the recipient's device (empty data-less push, VAPID a
 ok("first push persists its database cooldown timestamp", first_stamp > 0)
 second_status, second_result = call("POST", f"/chats/{Tq}/messages", {"text": "تاني"}, tk[B1]); time.sleep(1.0)
 second_stamp = sql("select push_notified_at from chat_threads where id=?", (Tq,))[0][0]
-print("CHAT COOLDOWN TRACE:", {"first_stamp": first_stamp, "second_stamp": second_stamp, "gap": chat.PUSH_GAP, "status": second_status, "hits": list(HITS)})
+print("CHAT COOLDOWN TRACE:", {"first_stamp": first_stamp, "second_stamp": second_stamp, "gap": chat.PUSH_GAP, "status": second_status, "hook_calls": list(HOOK_CALLS), "hits": list(HITS)})
 ok("second message within the gap is throttled (no extra hook or push)", second_status == 201 and len(HOOK_CALLS) == 1 and len(HITS) == 1 and second_stamp == first_stamp)
 chat.PUSH_GAP = 0; call("POST", f"/chats/{Tq}/messages", {"text": "ثالث"}, tk[B1]); time.sleep(1.2)
 ok("push again once the gap allows", len(HOOK_CALLS) == 2 and len(HITS) == 2)
