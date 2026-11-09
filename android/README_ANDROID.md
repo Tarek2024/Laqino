@@ -53,7 +53,7 @@
 ## بناء AAB موقّع (خطوة 7 — phase-36) — **لم يُنفَّذ هنا، أدوات فقط**
 1. أنشئ مفتاح الرفع مرة واحدة وخزّنه **خارج المشروع** مع نسخة احتياطية (فقدانه يعطّل التحديثات):
    `keytool -genkeypair -v -keystore laqino-release.jks -alias laqino -keyalg RSA -keysize 2048 -validity 10000`
-2. انسخ `keystore.properties.example` إلى `keystore.properties` (في مجلد `android/`) واملأه. الملف محجوب في `.gitignore` ويرفضه `release_check.py` لو دخل المجلد.
+2. انسخ `keystore.properties.example` إلى `keystore.properties` (في مجلد `android/`) واملأه. الملف محجوب في `.gitignore`؛ لا ترفعه إلى Git.
 3. فعّل **Play App Signing** عند أول رفع في Play Console (مفتاحك يصير «مفتاح رفع» وجوجل تحتفظ بمفتاح التوقيع النهائي).
 4. من مجلد `android/`: `sh tools/build_aab.sh` (يشغّل: `npm install` ← `cap add` عند الحاجة ← `cap sync` ← `apply_signing.py` ← `check_manifest.py` ← `gradlew bundleRelease`).
 5. الناتج: `android/android/app/build/outputs/bundle/release/app-release.aab`. **زوّد `versionCode`** في `android/android/app/build.gradle` مع كل رفع جديد.
