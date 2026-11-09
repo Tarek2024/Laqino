@@ -109,8 +109,16 @@ ok("nothing was created by the invalid requests", sql("SELECT COUNT(*) FROM shop
 
 # اختبر إشعار FCM الأصلي لمالك المحل دون الاتصال بخدمة Firebase الحقيقية.
 _fcm_has, _fcm_send = server.fcm.has_tokens, server.fcm.send
-_fcm_event, _fcm_hits = threading.Event(), []
-server.fcm.has_tokens = lambda c, uid: uid == oid_
+_fcm_event, _fcm_hits, _fcm_has_calls, _fcm_owner_calls = threading.Event(), [], [], []
+def _fake_has_tokens(c, uid):
+    _fcm_has_calls.append((uid, c.execute("SELECT COUNT(*) FROM fcm_tokens").fetchone()[0]))
+    return uid == oid_
+server.fcm.has_tokens = _fake_has_tokens
+_owner_push_original = server.shop_delivery._H.get("owner_push")
+def _trace_owner_push(uid):
+    _fcm_owner_calls.append(uid)
+    return _owner_push_original(uid)
+server.shop_delivery._H["owner_push"] = _trace_owner_push
 def _capture_shop_fcm(c, uids, ttl=300, kind="order", target=None):
     if oid_ in uids:
         _fcm_hits.append((list(uids), ttl, kind, target)); _fcm_event.set()
@@ -121,6 +129,7 @@ server.fcm.send = _capture_shop_fcm
 s, r = ordr(**GOOD, note="  من غير  بصل  ", request_key="ok1", dropoff_lat=30.0, dropoff_lng=31.0); oo = r["id"]
 _fcm_ok = _fcm_event.wait(3) and any(x[0] == [oid_] and x[2] == "shop" and x[3] == "/shop.html#o" for x in _fcm_hits)
 server.fcm.has_tokens, server.fcm.send = _fcm_has, _fcm_send
+if not _fcm_ok: print("SHOP FCM TRACE", {"owner_id": oid_, "owner_callback": _fcm_owner_calls, "has_tokens": _fcm_has_calls, "hits": _fcm_hits, "event": _fcm_event.is_set()})
 ok("shop owner receives native FCM on the shop dashboard", _fcm_ok)
 ok("order created (201, total 81.0, delivery code)", s == 201 and r["status"] == "searching" and r["items_total"] == 81.0 and len(r["delivery_code"]) == 6)
 row = sql("SELECT origin_type,fee,commission,pickup_text,dropoff_text,details,fare_status,customer_id,region_id,comm_type,comm_value,dropoff_lat FROM delivery_orders WHERE id=?", oo)[0]
