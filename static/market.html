@@ -257,7 +257,7 @@ function list(reset) {
     else if (state.offset < state.total) foot.appendChild(h("button", {id: "more", class: "pri", onclick: function () { list(false); }, text: "عرض المزيد (" + (state.total - state.offset) + ")"}));
   }).catch(function (e) { var f = $("foot"); if (f) { f.textContent = ""; f.appendChild(h("div", {class: "err", text: e.message})); } }).then(function () { state.busy = false; });
 }
-function needLogin() { return h("div", {class: "m"}, [document.createTextNode("سجّل الدخول من تطبيق لاقينو أولًا "), h("a", {href: "/", text: "فتح التطبيق"})]); }
+function needLogin() { const next=location.pathname+location.search+location.hash; return h("div", {class: "m"}, [document.createTextNode("سجّل الدخول أولًا للمتابعة. "), h("a", {href: "/?account=1&next="+encodeURIComponent(next), text: "تسجيل الدخول / إنشاء حساب"})]); }
 function contactBox(d) {
   var box = h("div", {class: "cbox"}), out = h("div", {class: "m"});
   if (d.is_owner) {
