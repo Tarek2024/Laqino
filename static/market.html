@@ -131,10 +131,10 @@ header .market-search-row{display:flex;direction:rtl;align-items:stretch;gap:8px
 header .market-search-row #q{flex:1 1 auto;min-width:0;width:auto}
 header .market-search-row #addlisting{display:inline-flex;flex:0 0 auto;align-items:center;justify-content:center;white-space:nowrap;visibility:visible;opacity:1}
 @media(max-width:420px){header .market-search-row{gap:6px}header .market-search-row #addlisting{padding-inline:9px;font-size:.86rem}}
-</style></head>
+</style><link rel="stylesheet" href="/market-ui.css?v=1"></head>
 <body>
 <header>
-  <h1>سوق لاقينو</h1>
+  <div class="market-topbar"><a class="market-brand" href="/" aria-label="الصفحة الرئيسية لاقينو"><img src="/assets/logo.jpg" alt="لاقينو"><span>لاقينو</span></a><nav class="market-nav" aria-label="التنقل الرئيسي"><a href="/">الرئيسية</a><a href="/market.html" aria-current="page">السوق</a><a href="/shops.html">المحلات</a></nav></div><h1>سوق لاقينو</h1>
   <button id="mychats" type="button">محادثاتي</button>
   <button id="myfav" type="button">مفضلتي</button>
   <div class="market-search-row"><input id="q" type="search" placeholder="ابحث في الإعلانات…" aria-label="بحث"><a id="addlisting" class="add-listing-btn" href="/?market-add=1">＋ إضافة إعلان</a></div>
@@ -387,7 +387,11 @@ function detail(id) {
     var tb = h("table"); d.fields.forEach(function (f) { if (f.type !== "price") tb.appendChild(h("tr", {}, [h("td", {text: f.label}), h("td", {text: String(f.value)})])); });
     tb.appendChild(h("tr", {}, [h("td", {text: "البائع"}), h("td", {text: d.seller})])); box.appendChild(tb);
     if (d.description) box.appendChild(h("p", {text: d.description, style: "white-space:pre-wrap"}));
-    box.appendChild(h("div", {class: "m", text: "نُشر " + ago(d.created_at)})); box.appendChild(contactBox(d)); box.appendChild(socialBox(d));
+    box.appendChild(h("div", {class: "m", text: "نُشر " + ago(d.created_at)}));
+    var shareUrl = location.origin + "/share/listing/" + d.id;
+    var shareText = "شوف الإعلان ده على سوق لاقينو:\\n" + d.title + "\\n" + money(d.price) + "\\n" + shareUrl;
+    box.appendChild(h("a", {class: "share-whatsapp", href: "https://wa.me/?text=" + encodeURIComponent(shareText), target: "_blank", rel: "noopener", text: "مشاركة الإعلان على واتساب"}));
+    box.appendChild(contactBox(d)); box.appendChild(socialBox(d));
     app.textContent = ""; app.appendChild(h("a", {class: "back", onclick: function () { history.length > 1 ? history.back() : (location.hash = "#/"); }, text: "→ رجوع"})); app.appendChild(box);
     document.title = d.title + " — سوق لاقينو"; window.scrollTo(0, 0);
   }).catch(function () { app.textContent = ""; app.appendChild(h("div", {class: "err", text: "الإعلان غير موجود أو غير متاح"})); app.appendChild(h("a", {class: "back", onclick: function () { location.hash = "#/"; }, text: "→ كل الإعلانات"})); });
