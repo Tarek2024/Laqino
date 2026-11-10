@@ -146,7 +146,7 @@
 /* Internal listing image gallery: isolated from listing/chat flows. */
 .lb{
   display:grid!important;
-  grid-template-rows:auto minmax(0,1fr) auto auto;
+  grid-template-rows:auto auto minmax(0,1fr) auto auto;
   align-items:center;
   justify-items:center;
   gap:10px;
