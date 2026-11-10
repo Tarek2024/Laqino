@@ -272,7 +272,7 @@ with sync_playwright() as playwright:
           page.locator(".lb").is_visible())
     page.keyboard.press("Escape")
     page.locator(".lb").wait_for(state="detached")
-    page.locator(".thumbs img").first().click()
+    page.locator(".thumbs img").first.click()
     page.locator(".det .main").click()
     page.locator(".lb").wait_for(state="visible")
     check("gallery starts on the first image with the correct count",
