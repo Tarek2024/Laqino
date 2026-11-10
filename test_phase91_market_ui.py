@@ -167,7 +167,7 @@ check("market UI defines dark-mode colors for cards and controls",
       and ".card,.det" in market_css
       and "input,select,textarea" in market_css)
 check("local-services home card is omitted when no published providers exist",
-      "const homeSectionCards=async" in index
+      "async function homeSectionCards(card,svOn,provided)" in index
       and "(x.key!=='svc'||svOn)" in index
       and "svOn=providers.length>0" in index)
 check("home login is collapsed by default and can be expanded by the visitor",
