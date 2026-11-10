@@ -331,8 +331,10 @@ with sync_playwright() as playwright:
 
     # Customer app shell: bottom navigation on phone/tablet and a non-overlapping
     # sticky horizontal navigation on desktop.
-    app_page = context.new_page()
-    app_page.add_init_script("""window.__gpsCalls = 0;
+    app_context = browser.new_context(viewport={"width": 390, "height": 844}, device_scale_factor=1)
+    app_page = app_context.new_page()
+    app_page.add_init_script("""try { localStorage.clear(); } catch (e) {}
+      window.__gpsCalls = 0;
       Object.defineProperty(navigator, "permissions", {configurable: true, value: {
         query: () => Promise.resolve({state: "prompt"})
       }});
@@ -378,6 +380,7 @@ with sync_playwright() as playwright:
     check("location permission is requested after the user selects the location button",
           app_page.evaluate("window.__gpsCalls === 1"))
     app_page.close()
+    app_context.close()
     context.close()
     browser.close()
 
