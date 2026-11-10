@@ -168,7 +168,8 @@
   touch-action:pan-y;
   transition:transform .18s ease;
 }
-.lb.zoomed{overflow:auto;align-content:start;justify-items:center}\n.lb-photo.zoomed{
+.lb.zoomed{overflow:auto;align-content:start;justify-items:center}
+.lb-photo.zoomed{
   max-width:none;
   max-height:none;
   transform:scale(1.5);
