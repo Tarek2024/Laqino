@@ -1,10 +1,11 @@
 # غلاف أندرويد لاقينو (Capacitor 8، API 36)
 
 > **حالة البناء والاختبار — 10 نوفمبر 2026**
-> - نجح GitHub Actions في إنشاء Release AAB عبر Workflow: `Build Android Release AAB`، تشغيل رقم `2` بتاريخ 9 نوفمبر 2026.
-> - Commit الذي بُني عليه ذلك الـAAB: `cfe5228e0ce283888f2191f394e871f4273e1a18`.
+> - نجح GitHub Actions في إنشاء Release AAB وRelease APK موقّعين عبر Workflow: `Build Android Release AAB`، التشغيل رقم `3` (Run ID: `42701517193`) بتاريخ 9 نوفمبر 2026.
+> - التشغيل نُفّذ على فرع `feature/android-aab-release-prep` وبُني من Commit: `50a3dbb3bdaf5ec63635fc9f46282271a8d5a9fd`.
+> - نُشرت مخرجات البناء بنجاح: artifact باسم `laqino-release-aab` (حجم AAB: 4,271,748 بايت) وartifact باسم `laqino-release-apk` (حجم APK: 4,176,976 بايت). تحقق الـWorkflow من وجود التوقيع وصحته قبل رفعهما.
 > - أكد المستخدم تثبيت نسخة أندرويد من فرع GitHub على هاتف فعلي واختبار الإشعارات والوظائف الأساسية بنجاح.
-> - اختبار الهاتف تأكيد يدوي منفصل؛ لا يفترض هذا التوثيق أن نسخة الهاتف هي بالضرورة نفس artifact الناتج من تشغيل AAB المذكور، ما لم تتم مطابقة commit/artifact.
+> - اختبار الهاتف تأكيد يدوي منفصل؛ لا يفترض هذا التوثيق أن نسخة الهاتف هي بالضرورة نفس artifact الناتج من التشغيل رقم 3 ما لم تتم مطابقة النسخة المثبتة مع Commit/Artifact.
 > - نجاح البناء والاختبار المذكورين لا يغني عن مراجعة كل متطلبات Google Play واختبارات الإصدار النهائي.
 
 التطبيق مبني باستخدام Capacitor: يفتح موقع لاقينو من سيرفرك (`server.url`) داخل WebView، ويضيف إشعارات FCM الأصلية عبر `static/native.js` (الذي يتحمّل من الموقع نفسه).
@@ -73,7 +74,7 @@
 
 يوجد Workflow تمهيدي مستقل باسم `.github/workflows/android-deps-preflight.yml` يعمل عند تحديث ملفات Android على فرع الإصلاح. يثبت الاعتماديات باستخدام `npm ci`، ويولّد مشروع Capacitor الأصلي ويزامنه، ويتحقق من هوية التطبيق وHTTPS وإعدادات SDK، ثم يحفظ `android/package-lock.json` تلقائيًا في **فرع الإصلاح فقط**.
 
-ويوجد Workflow إصدار مستقل باسم `.github/workflows/android-release-aab.yml`، ويُشغّل يدويًا من تبويب **Actions → Build Android Release AAB → Run workflow** بعد إضافة الأسرار. يثبت Android Platform API 36 مع Build Tools 35.0.0، بما يتماشى مع إعدادات AGP 8.13 الافتراضية؛ رقم API الخاص بالمنصة ليس هو رقم Build Tools. لا يغيّر أي منهما Workflow الـDebug APK الموجود.
+ويوجد Workflow إصدار مستقل باسم `.github/workflows/android-release-aab.yml`، ويدعم التشغيل اليدوي من تبويب **Actions → Build Android Release AAB → Run workflow**، كما يعمل تلقائيًا عند الدفع إلى فرع `feature/android-aab-release-prep`، بعد إضافة الأسرار. يثبت Android Platform API 36 مع Build Tools 35.0.0، بما يتماشى مع إعدادات AGP 8.13 الافتراضية؛ رقم API الخاص بالمنصة ليس هو رقم Build Tools. لا يغيّر أي منهما Workflow الـDebug APK الموجود.
 
 أضف القيم التالية في **Settings → Secrets and variables → Actions → New repository secret** قبل التشغيل:
 - `GOOGLE_SERVICES_JSON`: محتوى ملف Firebase `google-services.json` كاملًا لتطبيق Android بالمعرّف `com.laqino.app`.
