@@ -223,15 +223,19 @@
     return r;
   };
 
-  /* ---------- بدء التشغيل: طلب واحد عند فتح التطبيق + تحديث بعد 30 دقيقة عند العودة (بدون تتبع) ---------- */
+  /* ---------- بدء التشغيل: لا نطلب إذن الموقع إلا بعد اختيار المستخدم ---------- */
   function boot() {
     injectSheet();
     setTimeout(function () {
       permState().then(function (s) {
         var l = read();
         if (s === 'denied') { lsSet(DENY, '1'); paintSheet(); return; }
-        if (s === 'granted') { if (!l || Date.now() - l.ts > STALE_MS) request({}); return; }
-        if (!lsGet(ASK)) request({});   // أول مرة فقط: نظهر نافذة إذن المتصفح مرة واحدة. بعد كده الزر اليدوي «حدّد موقعي» هو الطريق.
+        if (s === 'granted') {
+          if (!l || Date.now() - l.ts > STALE_MS) request({});
+          return;
+        }
+        /* حالة prompt/unknown: نعرض خيار تحديد الموقع، ولا نظهر نافذة النظام تلقائيًا. */
+        paintSheet();
       });
     }, 700);
   }
