@@ -253,6 +253,16 @@ with sync_playwright() as playwright:
     page.locator(".det .main").wait_for(state="visible", timeout=10000)
     check("market detail gallery opens in an in-page dialog on phone",
           page.locator(".det .main").is_visible())
+    page.evaluate("""() => {
+      const image = document.querySelector(".det .main");
+      const start = new Touch({identifier: 1, target: image, clientX: 300, clientY: 200});
+      const end = new Touch({identifier: 1, target: image, clientX: 220, clientY: 200});
+      image.dispatchEvent(new TouchEvent("touchstart", {touches: [start], targetTouches: [start], changedTouches: [start], bubbles: true}));
+      image.dispatchEvent(new TouchEvent("touchend", {touches: [], targetTouches: [], changedTouches: [end], bubbles: true}));
+      image.click();
+    }""")
+    check("swiping the listing image does not accidentally open the gallery",
+          page.locator(".lb").count() == 0)
     page.locator(".det .main").click()
     page.locator(".lb").wait_for(state="visible")
     check("gallery starts on the first image with the correct count",
@@ -284,6 +294,48 @@ with sync_playwright() as playwright:
         check("gallery has no horizontal viewport overflow on " + label, not overflow)
         page.locator(".lb-close").click()
         page.locator(".lb").wait_for(state="detached")
+
+    gallery_listing["images"] = [201]
+    page.reload(wait_until="domcontentloaded")
+    page.locator(".det .main").wait_for(state="visible", timeout=10000)
+    page.locator(".det .main").click()
+    page.locator(".lb").wait_for(state="visible")
+    check("single-image gallery shows one image and disables navigation",
+          page.locator(".lb-count").inner_text() == "الصورة 1 من 1"
+          and page.locator(".lb-prev").is_disabled()
+          and page.locator(".lb-next").is_disabled())
+    page.locator(".lb-close").click()
+    page.locator(".lb").wait_for(state="detached")
+
+    # Customer app shell: bottom navigation on phone/tablet and a non-overlapping
+    # sticky horizontal navigation on desktop.
+    app_page = context.new_page()
+    app_page.goto(BASE + "/", wait_until="domcontentloaded")
+    app_page.locator("#v .find").wait_for(state="visible", timeout=20000)
+    for width, height, label, expected_nav in [
+        (390, 844, "phone", "fixed"),
+        (800, 1024, "tablet", "fixed"),
+        (1280, 900, "desktop", "sticky"),
+    ]:
+        app_page.set_viewport_size({"width": width, "height": height})
+        metrics = app_page.evaluate("""() => {
+          const nav = document.querySelector("body.app>nav");
+          const header = document.querySelector("body.app>header.bar");
+          const style = getComputedStyle(nav);
+          return {
+            overflow: document.documentElement.scrollWidth > window.innerWidth,
+            navPosition: style.position,
+            navTop: parseFloat(style.top) || 0,
+            headerHeight: header.getBoundingClientRect().height
+          };
+        }""")
+        check("customer app has no horizontal overflow on " + label, not metrics["overflow"])
+        check("customer app navigation mode is correct on " + label,
+              metrics["navPosition"] == expected_nav)
+        if label == "desktop":
+            check("desktop navigation stays below the sticky header",
+                  metrics["navTop"] >= metrics["headerHeight"] - 2)
+    app_page.close()
     context.close()
     browser.close()
 
