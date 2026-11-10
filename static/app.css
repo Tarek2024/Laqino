@@ -707,3 +707,13 @@ body.app .pct{display:flex;justify-content:space-between;padding:10px 0;font-siz
 body.app #pcs textarea,body.app #pcs input{width:100%;margin:6px 0}
 body.app .po .st{margin:8px 0}
 body.app.pcb main{padding-bottom:calc(150px + env(safe-area-inset-bottom))}
+
+/* إصلاح الوضع الداكن لبطاقات إعلانات السوق في الصفحة الرئيسية */
+@media(prefers-color-scheme:dark){
+ body.app .home-market-ad{background:#1d2736!important;border-color:#43516a;color:#e7edf7}
+ body.app .home-market-body{background:#1d2736;color:#e7edf7}
+ body.app .home-market-body .top h3{color:#f2f5fb}
+ body.app .home-market-body .top .pr,
+ body.app .home-market-body .top .pr small{color:#ffb454}
+ body.app .home-market-no-image{background:#263449;color:#c6d1e2}
+}
