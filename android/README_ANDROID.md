@@ -3,11 +3,11 @@
 يعتمد تطبيق أندرويد على Capacitor لفتح واجهة لاقينو عبر WebView، مع تكاملات أندرويد الأصلية مثل إشعارات FCM والموقع. تُحمّل ملفات الواجهة مثل `static/native.js` من الموقع `https://laqino.tech`.
 
 ## حالة البناء والاختبار
-- **بناء Release AAB:** نجح GitHub Actions في إنشاء حزمة الإصدار في التشغيل [#2](https://github.com/Tarek2024/Laqino/actions/runs/42697041531)، على الفرع `feature/android-aab-release-prep` والالتزام `cfe5228e0ce283888f2191f394e871f4273e1a18` بتاريخ 9 نوفمبر 2026.
+- **بناء Release AAB وRelease APK:** نجح GitHub Actions في التشغيل [#3](https://github.com/Tarek2024/Laqino/actions/runs/42701517193) بتاريخ 9 نوفمبر 2026، على الفرع `feature/android-aab-release-prep` والالتزام `50a3dbb3bdaf5ec63635fc9f46282271a8d5a9fd`. تحقق الـWorkflow من صحة توقيع الحزمتين ورفع artifact باسم `laqino-release-aab` وآخر باسم `laqino-release-apk`.
+- **إعادة تحقق بعد تحديث التوثيق:** نجح التشغيل [#7](https://github.com/Tarek2024/Laqino/actions/runs/42755986300) على الالتزام `2d325c71b3f4f4664fac352065340c957fad8ee1`، وشملت خطواته بناء AAB وAPK والتحقق من التوقيع ورفع الـartifacts.
 - **اختبار الهاتف:** أفاد صاحب المشروع بأنه ثبّت نسخة أندرويد من فرع GitHub واختبر الإشعارات ووظائف التطبيق الأساسية على هاتف فعلي، وكانت تعمل.
 - هذان تحققان منفصلان: نجاح بناء CI لا يثبت وحده أن الملف الناتج هو نفسه الذي ثُبّت واختُبر يدويًا. عند تجهيز رفع جديد، اربط ملف AAB برقم التشغيل والالتزام المطابقين له، ثم اختبر النسخة النهائية نفسها.
 - لا تعني هذه النتائج ضمان قبول Google Play؛ يلزم استكمال متطلبات Play Console والسياسات والاختبارات الخاصة بالإصدار المرفوع.
-
 ## المتطلبات (على كمبيوتر، لا Termux) — Capacitor 8 / API 36
 - **Node 22+**، **JDK 21**، Android Studio (إصدار حديث يحوي SDK 36)، حساب Firebase، ونطاق **HTTPS**: `https://laqino.tech` (مضبوط في `capacitor.config.json`؛ أندرويد يمنع HTTP الصريح).
 - Capacitor 8 يستهدف `compileSdk/targetSdk = 36` و`minSdk = 24` (AGP 8.13 وGradle 8.14.x). **لا تغيّر targetSdk يدويًا** (غير مدعوم من Capacitor)؛ أعلى بكثير من 35 مطلوب من Google Play للتطبيقات الجديدة والتحديثات منذ 31 أغسطس 2026 (تحقق من صفحة «Target API level requirements» في Play Console).
@@ -66,3 +66,23 @@
 ## فحص AndroidManifest (خطوة 8 — phase-36)
 `python3 tools/check_manifest.py` (من `android/`، أو مرّر مسار المجلد المولَّد). يفشل (خروج 1) عند: غياب `INTERNET`/`POST_NOTIFICATIONS`/`ACCESS_COARSE_LOCATION`/`ACCESS_FINE_LOCATION`، وجود إذن حساس (SMS/جهات اتصال/ميكروفون/موقع خلفي...)، `usesCleartextTraffic=true`، `debuggable=true`، launcher بلا `exported=true`، sdk غير 36/36/24، `applicationId` غير `com.laqino.app`، غياب `versionCode` أو إعداد التوقيع أو `google-services.json`، أو `server.url` غير HTTPS. يحذّر فقط من `allowBackup=true`.
 **حدود الفحص:** الاختبار الآلي للفاحص على ملفات manifest نموذجية لا يغني عن تشغيله على manifest مولَّد فعليًا من إصدار Capacitor المستخدم، ومراجعة الناتج قبل رفع الإصدار. إذن `POST_NOTIFICATIONS` تضيفه إضافة push-notifications في 8.x (تحقق بعد `cap sync`؛ وإلا أضفه يدويًا في `AndroidManifest.xml`).
+
+
+## GitHub Actions: signed Release AAB
+
+يوجد Workflow تمهيدي مستقل باسم `.github/workflows/android-deps-preflight.yml` يعمل عند تحديث ملفات Android على فرع `feature/android-aab-release-prep`. يثبت الاعتماديات باستخدام `npm ci`، ويولّد مشروع Capacitor الأصلي ويزامنه، ويتحقق من هوية التطبيق وHTTPS وإعدادات SDK، ثم يحفظ `android/package-lock.json` تلقائيًا في فرع الإصدار.
+
+ويوجد Workflow إصدار مستقل باسم `.github/workflows/android-release-aab.yml`، ويدعم التشغيل اليدوي من تبويب **Actions → Build Android Release AAB → Run workflow**، كما يعمل تلقائيًا عند الدفع إلى فرع `feature/android-aab-release-prep`، بعد إضافة الأسرار. يثبت Android Platform API 36 مع Build Tools 35.0.0، بما يتماشى مع إعدادات AGP 8.13 الافتراضية؛ رقم API الخاص بالمنصة ليس هو رقم Build Tools. لا يغيّر أي منهما Workflow الـDebug APK الموجود.
+
+أضف القيم التالية في **Settings → Secrets and variables → Actions → New repository secret** قبل التشغيل:
+- `GOOGLE_SERVICES_JSON`: محتوى ملف Firebase `google-services.json` كاملًا لتطبيق Android بالمعرّف `com.laqino.app`.
+- `ANDROID_KEYSTORE_BASE64`: ملف مفتاح الرفع `.jks` بعد تحويله إلى Base64.
+- `ANDROID_KEYSTORE_PASSWORD`: كلمة مرور ملف المفتاح.
+- `ANDROID_KEY_ALIAS`: اسم المفتاح (alias).
+- `ANDROID_KEY_PASSWORD`: كلمة مرور المفتاح.
+
+لا تضع هذه القيم في ملفات Git أو في المحادثات. احتفظ بنسخة احتياطية آمنة من ملف المفتاح؛ لا تنشئ مفتاح رفع جديدًا إذا كان التطبيق قد نُشر بالفعل بمفتاح مختلف.
+
+**ملف القفل:** Workflow التمهيدي ينشئ `android/package-lock.json` عند غيابه، ويتحقق منه باستخدام `npm ci`، ثم يحاول حفظه في فرع الإصدار تلقائيًا. بعد تثبيت الملف في الفرع، لا يُعاد توليده مع كل إصدار.
+
+**التحقق قبل كل إصدار:** راجع نتيجة Workflow وتأكد من نجاح Gradle والتوقيع، ثم اختبر نسخة الإصدار المقصودة على هاتف Android حقيقي، بما يشمل تسجيل الدخول والإشعارات والموقع والواجهات الأساسية. احتفظ برقم تشغيل Actions وCommit SHA الخاصين بكل artifact لتسهيل مطابقة النسخة التي جرى اختبارها مع النسخة التي سترفع إلى Google Play.
