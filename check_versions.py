@@ -17,7 +17,8 @@ ARCHIVE_EXACT = {
     "README_HISTORY.md", "PHASE18_HANDOFF.md", "UPDATE-INSTRUCTIONS.txt",
     "docs/ROADMAP.md", "docs/PROJECT_STATUS.md", "docs/CONSOLIDATED_REPORT.md",
     "CHANGES_PHASE11.md", "PROJECT_REVIEW_PHASE19.md",
-    "RX_AUTO_DISTRIBUTION_PHASE53.md", "TEST_RESULTS_2026-10-23.md",
+    "RX_AUTO_DISTRIBUTION_PHASE53.md", "TEST_RESULTS_2026-10-23.md", "TEST_RESULTS_PHASE48.md",
+    "BACKUP_AND_ROLLBACK_PHASE48.md", "PATCH_README.txt",
 }
 ARCHIVE_PREFIXES = (
     "README_UPDATE_PHASE", "BACKUP_AND_ROLLBACK_PHASE",
@@ -25,8 +26,7 @@ ARCHIVE_PREFIXES = (
 )
 ARCHIVE_DIRS = ("docs/steps/", "docs/phases/", "docs/implementation/", "docs/archive/")
 OPERATIONAL_DOCS = {
-    "CHANGELOG.md", "DEPLOY.md", "PATCH_README.txt",
-    "PLAN_PHARMACY_DELIVERY.md",
+    "CHANGELOG.md", "DEPLOY.md", "PLAN_PHARMACY_DELIVERY.md", "docs/SHOPS_PLAN.md",
 }
 
 def classify_doc(relative):
@@ -48,6 +48,8 @@ def classify_doc(relative):
         return "unclassified"
     if relative.startswith("docs/") and Path(relative).suffix.lower() in {".md", ".txt", ".rst"}:
         return "unclassified"
+    if relative in {"CHANGELOG.md", "DEPLOY.md", "PLAN_PHARMACY_DELIVERY.md", "docs/SHOPS_PLAN.md"}:
+        return "out-of-scope"
     return "out-of-scope"
 
 def has_archive_notice(text):
