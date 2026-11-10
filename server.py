@@ -1,4 +1,4 @@
-import html
+import html as html_lib
 import base64, sqlite3, json, os, secrets, hashlib, hmac, sys, time, mimetypes, re, threading, ipaddress
 import notif, account
 from http.server import ThreadingHTTPServer, BaseHTTPRequestHandler
@@ -903,7 +903,7 @@ class H(BaseHTTPRequestHandler):
                         return self.send(404, {"error": "غير موجود"})
                     image_ids = market.images_for(c, [listing_id]).get(listing_id, [])
                     image_url = ("https://laqino.tech/api/listings/%d/images/%d" % (listing_id, image_ids[0])) if image_ids else "https://laqino.tech/assets/icon-512.png"
-                    title = html.escape(str(listing["title"] or "إعلان على سوق لاقينو"), quote=True)
+                    title = html_lib.escape(str(listing["title"] or "إعلان على سوق لاقينو"), quote=True)
                     raw_description = " ".join(str(listing["description"] or "").split())[:220]
                     if listing["price"] is None:
                         price_text = "السعر: تواصل مع البائع"
@@ -911,7 +911,7 @@ class H(BaseHTTPRequestHandler):
                         amount = float(listing["price"])
                         amount_text = (format(amount, ",.2f").rstrip("0").rstrip(".") if amount % 1 else format(amount, ",.0f"))
                         price_text = "السعر: " + amount_text + " جنيه"
-                    description = html.escape(((raw_description + " | ") if raw_description else "") + price_text, quote=True)
+                    description = html_lib.escape(((raw_description + " | ") if raw_description else "") + price_text, quote=True)
                     canonical = "https://laqino.tech/share/listing/%d" % listing_id
                     listing_url = "/market.html#/l/%d" % listing_id
                     page = """<!doctype html>
@@ -926,7 +926,7 @@ class H(BaseHTTPRequestHandler):
                         title, description, canonical, title, description, canonical, image_url, title,
                         title, description, image_url,
                         ('<img src="%s" alt="%s">' % (image_url, title)) if image_ids else "",
-                        title, price_text, html.escape(raw_description, quote=True), listing_url
+                        title, price_text, html_lib.escape(raw_description, quote=True), listing_url
                     )
                     return self.send(200, None, "text/html", page.encode("utf-8"), {"Cache-Control": "public, max-age=300"})
                 except Exception as e:
