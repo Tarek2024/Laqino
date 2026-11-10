@@ -15,6 +15,7 @@ import time
 import urllib.error
 import urllib.request
 from http.server import ThreadingHTTPServer
+from playwright.sync_api import sync_playwright
 
 TMP = tempfile.mkdtemp(prefix="laqino-phase91-")
 os.environ["LAQINO_DB"] = os.path.join(TMP, "test.db")
@@ -213,6 +214,66 @@ check("phase 91 release metadata is declared", release == "phase-91")
 check("VERSION cache matches the service-worker cache", bool(cache and sw_cache_match and cache == sw_cache_match.group(1)))
 check("new market UI stylesheet is part of the active service-worker shell",
       '"/market-ui.css"' in sw)
+
+# Browser-level regression: the actual market detail gallery must work at phone,
+# tablet and desktop viewport sizes without navigating away from the listing.
+gallery_listing = {
+    "id": 987, "images": [201, 202, 203], "title": "إعلان معرض الصور",
+    "price": 1250, "condition": "used", "negotiable": True,
+    "category": [{"name": "أثاث"}], "region": [{"name": "الرياض"}],
+    "fields": [], "seller": "بائع الاختبار", "created_at": int(time.time()),
+    "description": "اختبار عارض الصور", "is_owner": True, "contact_mode": "both",
+}
+with sync_playwright() as playwright:
+    browser = playwright.chromium.launch()
+    context = browser.new_context(viewport={"width": 390, "height": 844}, device_scale_factor=1)
+    page = context.new_page()
+    page.route("**/api/listings/987", lambda route: route.fulfill(
+        status=200, content_type="application/json", body=json.dumps(gallery_listing, ensure_ascii=False)
+    ))
+    tiny_png = __import__("base64").b64decode(
+        "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+/pV8AAAAASUVORK5CYII="
+    )
+    page.route("**/api/listings/987/images/**", lambda route: route.fulfill(
+        status=200, content_type="image/png", body=tiny_png
+    ))
+    page.goto(BASE + "/market.html#/l/987", wait_until="domcontentloaded")
+    page.locator(".det .main").wait_for(state="visible", timeout=10000)
+    check("market detail gallery opens in an in-page dialog on phone",
+          page.locator(".det .main").is_visible())
+    page.locator(".det .main").click()
+    page.locator(".lb").wait_for(state="visible")
+    check("gallery starts on the first image with the correct count",
+          page.locator(".lb-count").inner_text() == "الصورة 1 من 3")
+    page.locator(".lb-next").click()
+    check("gallery next control advances within the same listing",
+          page.locator(".lb-count").inner_text() == "الصورة 2 من 3")
+    page.locator(".lb-thumb").nth(2).click()
+    check("gallery thumbnails jump to the selected listing image",
+          page.locator(".lb-count").inner_text() == "الصورة 3 من 3")
+    page.keyboard.press("ArrowLeft")
+    check("gallery keyboard navigation changes the current image",
+          page.locator(".lb-count").inner_text() == "الصورة 2 من 3")
+    page.locator(".lb-zoom").click()
+    check("gallery zoom control toggles zoom state",
+          "zoomed" in (page.locator(".lb-photo").get_attribute("class") or ""))
+    page.locator(".lb-zoom").click()
+    page.keyboard.press("Escape")
+    page.locator(".lb").wait_for(state="detached")
+    check("Escape closes the gallery and returns to the listing detail",
+          page.locator(".det .main").is_visible() and page.locator(".lb").count() == 0)
+
+    # The gallery should remain usable at tablet and desktop widths.
+    for width, height, label in [(800, 1024, "tablet"), (1280, 900, "desktop")]:
+        page.set_viewport_size({"width": width, "height": height})
+        page.locator(".det .main").click()
+        page.locator(".lb").wait_for(state="visible")
+        overflow = page.evaluate("document.documentElement.scrollWidth > window.innerWidth")
+        check("gallery has no horizontal viewport overflow on " + label, not overflow)
+        page.locator(".lb-close").click()
+        page.locator(".lb").wait_for(state="detached")
+    context.close()
+    browser.close()
 
 httpd.shutdown()
 print("Phase 91 focused regression checks passed.")
