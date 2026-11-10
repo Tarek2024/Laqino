@@ -577,13 +577,13 @@ body.app button.qdel:active{transform:translateY(3px);border-bottom-width:2px}
     min-height:100vh;
     padding-bottom:24px!important;
   }
-  body.app header.bar{order:0;position:sticky;top:0;padding:14px max(28px,calc((100% - 1180px)/2))!important;gap:14px}
+  body.app header.bar{order:0;position:sticky;top:0;padding:calc(14px + env(safe-area-inset-top)) max(28px,calc((100% - 1180px)/2)) 14px!important;gap:14px}
   body.app header.bar .lg{width:48px;height:48px}
   body.app header.bar .wm b{font-size:1.45rem}
   body.app header.bar .wm small{font-size:.78rem}
   body.app header.bar .rg{max-width:none;margin-inline-start:auto;min-height:44px!important;font-size:.95rem}
   body.app>nav{
-    order:1;position:sticky;top:0;bottom:auto;inset-inline:0;
+    order:1;position:sticky;top:calc(76px + env(safe-area-inset-top));bottom:auto;inset-inline:0;
     display:flex;justify-content:center;gap:8px;flex-wrap:nowrap;
     width:100%;max-width:none;margin:0;padding:8px max(28px,calc((100% - 1180px)/2))!important;
     background:#fff;border-top:1px solid #e3e8f3;border-bottom:1px solid #dfe6f2;
