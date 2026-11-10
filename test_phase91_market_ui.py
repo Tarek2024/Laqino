@@ -183,6 +183,18 @@ check("market UI has responsive layouts for phone, tablet, and desktop",
       and "@media(min-width:1024px)" in market_css
       and "@media(max-width:520px)" in market_css)
 app_css = (ROOT / "static" / "app.css").read_text(encoding="utf-8")
+shell_js = (ROOT / "static" / "shell.js").read_text(encoding="utf-8")
+location_js = (ROOT / "static" / "location.js").read_text(encoding="utf-8")
+check("client navigation ignores stale asynchronous page renders",
+      "__laqGoSeq" in index and "seq!==window.__laqGoSeq" in index)
+check("app shell ignores stale navigation completion effects",
+      "goSeq = 0" in shell_js and "if (seq !== goSeq) return r" in shell_js)
+check("location permission is not requested automatically on first app open",
+      "if (!lsGet(ASK)) request({})" not in location_js
+      and "لا نطلب إذن الموقع إلا بعد اختيار المستخدم" in location_js)
+check("manual location action still explicitly requests and resolves the user location",
+      "request({ explicit: true })" in location_js
+      and "حدّد موقعي تلقائيًا" in location_js)
 check("customer app has an explicit tablet portrait width rule",
       "@media (min-width: 760px) and (max-width: 899px)" in app_css
       and "max-width:760px!important" in app_css)
