@@ -168,7 +168,7 @@
   touch-action:pan-y;
   transition:transform .18s ease;
 }
-.lb-photo.zoomed{
+.lb.zoomed{overflow:auto;align-content:start;justify-items:center}\n.lb-photo.zoomed{
   max-width:none;
   max-height:none;
   transform:scale(1.5);
@@ -183,7 +183,7 @@
   border-radius:12px;
   background:#fff;
   color:#16213a;
-  font:700 14px inherit;
+  font:inherit;font-size:14px;font-weight:700;
   cursor:pointer;
 }
 .lb .lb-close{position:absolute;top:14px;inset-inline-start:14px;z-index:2}
