@@ -79,6 +79,12 @@ def main():
     app = merged_root.find("application")
     check("merged manifest has an application element", app is not None)
     if app is not None:
+        check("launcher uses the Laqino app icon resource", app.get(ANDROID + "icon") == "@mipmap/ic_launcher", app.get(ANDROID + "icon"))
+        icon_res = os.path.join(PROJECT, "app", "src", "main", "res")
+        legacy_icon = os.path.join(icon_res, "mipmap-hdpi", "ic_launcher.png")
+        adaptive_icon = os.path.join(icon_res, "mipmap-anydpi-v26", "ic_launcher.xml")
+        check("Laqino legacy launcher icon exists", os.path.isfile(legacy_icon), legacy_icon)
+        check("Laqino adaptive launcher icon exists", os.path.isfile(adaptive_icon), adaptive_icon)
         check("cleartext traffic is not enabled", app.get(ANDROID + "usesCleartextTraffic") != "true")
         if app.get(ANDROID + "allowBackup") == "true":
             warn("allowBackup=true", "review whether Android backup is appropriate for this app")
