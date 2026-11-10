@@ -158,6 +158,21 @@ check("market details build the public share URL from the listing id",
       'location.origin + "/share/listing/" + d.id' in market)
 check("market details expose a WhatsApp share action",
       "share-whatsapp" in market and "https://wa.me/?text=" in market)
+check("market details open a dedicated in-app image gallery",
+      "function openGallery()" in market
+      and 'role: "dialog"' in market
+      and '"aria-modal": "true"' in market)
+check("image gallery supports previous/next and thumbnail selection",
+      'class: "lb-prev"' in market and 'class: "lb-next"' in market
+      and 'class: "lb-thumb"' in market and "paintGallery()" in market)
+check("image gallery supports keyboard navigation and Escape close",
+      'e.key === "Escape"' in market and 'e.key === "ArrowRight"' in market
+      and 'e.key === "ArrowLeft"' in market)
+check("image gallery supports touch swipes and zoom",
+      'e.changedTouches[0].clientX' in market
+      and 'photo.classList.toggle("zoomed", zoomed)' in market)
+check("listing image swipe does not accidentally open the gallery",
+      "didSwipe = true" in market and "if (didSwipe)" in market)
 check("market page loads the dedicated market UI stylesheet",
       re.search(r'<link rel="stylesheet" href="/market-ui\.css\?v=\d+">', market) is not None)
 check("service-worker precaches the market UI stylesheet",
@@ -166,6 +181,14 @@ check("market UI has responsive layouts for phone, tablet, and desktop",
       "@media(min-width:640px)" in market_css
       and "@media(min-width:1024px)" in market_css
       and "@media(max-width:520px)" in market_css)
+app_css = (ROOT / "static" / "app.css").read_text(encoding="utf-8")
+check("customer app has an explicit tablet portrait width rule",
+      "@media (min-width: 760px) and (max-width: 899px)" in app_css
+      and "max-width:760px!important" in app_css)
+check("customer app retains desktop navigation and wide layout rules",
+      "@media (min-width: 900px)" in app_css
+      and "body.app>nav" in app_css
+      and "max-width:1200px!important" in app_css)
 check("market UI defines dark-mode colors for cards and controls",
       "@media(prefers-color-scheme:dark)" in market_css
       and ".card,.det" in market_css
