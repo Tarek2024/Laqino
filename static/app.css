@@ -753,7 +753,13 @@ body.app .site-footer>small{display:block;margin-top:14px;color:#c8d4e8}
  body.app .home-trust{padding:22px}
 }
 @media(prefers-color-scheme:dark){
+ /* بطاقات إعلانات السوق على الرئيسية */
+ body.app .home-market-ad{background:#1d2736!important;border-color:#43516a;color:#e7edf7}
+ body.app .home-market-body{background:#1d2736;color:#e7edf7}
  body.app .home-market-body .top h3{color:#f2f5fb}
+ body.app .home-market-body .top .pr,
+ body.app .home-market-body .top .pr small{color:#ffb454}
+ body.app .home-market-no-image{background:#263449;color:#c6d1e2}
  body.app .home-trust{background:#1d2736;border-color:#43516a}
  body.app .home-trust-copy h2,body.app .home-trust-steps b{color:#f2f5fb}
  body.app .home-trust-copy p,body.app .home-trust-steps span{color:#c6d1e2}
