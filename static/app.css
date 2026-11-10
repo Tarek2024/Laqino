@@ -713,6 +713,7 @@ body.app .find{padding-inline:max(18px,calc((100% - 1200px)/2))}
 body.app .find .fi,body.app .find .sbar.lg{max-width:1200px;margin-inline:auto}
 body.app .home{width:100%;max-width:1240px;margin-inline:auto;padding-inline:18px}
 body.app .tiles{grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}
+body.app .tiles>:last-child:nth-child(odd){grid-column:1/-1;max-width:calc(50% - 6px);justify-self:center}
 body.app .home-market-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}
 body.app .home-market-ad{display:flex!important;flex-direction:column;min-width:0;overflow:hidden;text-decoration:none}
 body.app .home-market-photo{display:block;width:100%;height:auto;aspect-ratio:4/3;object-fit:cover}
@@ -744,7 +745,9 @@ body.app .site-footer-links a{display:inline-flex;align-items:center;min-height:
 body.app .site-footer>small{display:block;margin-top:14px;color:#c8d4e8}
 @media(min-width:760px){
  body.app .home{padding-inline:24px}
- body.app .tiles{grid-template-columns:repeat(3,minmax(0,1fr));gap:16px}
+ body.app .tiles>:last-child:nth-child(odd){grid-column:auto;max-width:none;justify-self:stretch}
+ body.app .tiles{grid-template-columns:repeat(4,minmax(0,1fr));gap:16px}
+ body.app .tiles:has(> :nth-child(5)){grid-template-columns:repeat(3,minmax(0,1fr))}
  body.app .home-market-grid{grid-template-columns:repeat(3,minmax(0,1fr));gap:16px}
  body.app .home-trust-steps{grid-template-columns:repeat(3,minmax(0,1fr))}
  body.app .home-trust{padding:22px}
