@@ -277,6 +277,15 @@ with sync_playwright() as playwright:
     page.locator(".lb").wait_for(state="visible")
     check("gallery starts on the first image with the correct count",
           page.locator(".lb-count").inner_text() == "الصورة 1 من 3")
+    controls_ok = page.evaluate("""() => {
+      const nodes = [".lb-prev", ".lb-zoom", ".lb-next"].map(sel => document.querySelector(sel));
+      const boxes = nodes.map(el => el.getBoundingClientRect());
+      const normalFlow = nodes.every(el => getComputedStyle(el).position === "static");
+      const noOverlap = boxes.every((a, i) => boxes.slice(i + 1).every(b =>
+        a.right <= b.left || b.right <= a.left || a.bottom <= b.top || b.bottom <= a.top));
+      return normalFlow && noOverlap;
+    }""")
+    check("gallery navigation and zoom controls stay in normal flow without overlap", controls_ok)
     check("gallery thumbnails stay in the thumbnail strip",
           page.locator(".lb-thumb").first.evaluate("(el) => getComputedStyle(el).position") == "static")
     page.locator(".lb-next").click()
