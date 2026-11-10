@@ -97,7 +97,7 @@ cat_status, cat_data = api("POST", "/admin/categories", {
 }, admin)
 assert cat_status in (200, 201), ("test category creation failed", cat_status, cat_data)
 cats = api("GET", "/categories?section=souq")[1]
-category_id = next(x["id"] for x in cats if x.get("slug") == "phase91-preview-test")
+category_id = next(x["id"] for x in cats if x.get("name_ar") == "اختبار معاينة الإعلان")
 region_rows = sql("SELECT id FROM regions WHERE is_active=1 ORDER BY id LIMIT 1")
 assert region_rows, "test setup: no active region"
 region_id = region_rows[0][0]
