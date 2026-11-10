@@ -169,9 +169,11 @@ check("image gallery supports previous/next and thumbnail selection",
 check("image gallery supports keyboard navigation and Escape close",
       'e.key === "Escape"' in market and 'e.key === "ArrowRight"' in market
       and 'e.key === "ArrowLeft"' in market)
+gallery_css = (ROOT / "static" / "market-enhancements.css").read_text(encoding="utf-8")
 check("image gallery supports touch swipes and zoom",
       'e.changedTouches[0].clientX' in market
-      and 'photo.classList.toggle("zoomed", zoomed)' in market)
+      and 'photo.classList.toggle("zoomed", zoomed)' in market
+      and ".lb-photo.zoomed{" in gallery_css)
 check("listing image swipe does not accidentally open the gallery",
       "didSwipe = true" in market and "if (didSwipe)" in market)
 check("market page loads the dedicated market UI stylesheet",
@@ -263,6 +265,13 @@ with sync_playwright() as playwright:
     }""")
     check("swiping the listing image does not accidentally open the gallery",
           page.locator(".lb").count() == 0)
+    page.wait_for_timeout(700)
+    page.locator(".det .main").click()
+    page.locator(".lb").wait_for(state="visible")
+    check("a normal tap still opens the gallery after a completed swipe",
+          page.locator(".lb").is_visible())
+    page.keyboard.press("Escape")
+    page.locator(".lb").wait_for(state="detached")
     page.locator(".thumbs img").first().click()
     page.locator(".det .main").click()
     page.locator(".lb").wait_for(state="visible")
