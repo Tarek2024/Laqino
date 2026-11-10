@@ -222,7 +222,7 @@ check("registration page keeps its dedicated form and brand header",
 release = next((line.split("=", 1)[1].strip() for line in version.splitlines() if line.startswith("release=")), "")
 cache = next((line.split("=", 1)[1].strip() for line in version.splitlines() if line.startswith("cache=")), "")
 sw_cache_match = re.search(r'const V = "([^"]+)"', sw)
-check("phase 91 release metadata is declared", release == "phase-91")
+check("phase 92 release metadata is declared", release == "phase-92")
 check("VERSION cache matches the service-worker cache", bool(cache and sw_cache_match and cache == sw_cache_match.group(1)))
 check("new market UI stylesheet is part of the active service-worker shell",
       '"/market-ui.css"' in sw)
