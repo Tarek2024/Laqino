@@ -389,7 +389,7 @@ function detail(id) {
     if (d.description) box.appendChild(h("p", {text: d.description, style: "white-space:pre-wrap"}));
     box.appendChild(h("div", {class: "m", text: "نُشر " + ago(d.created_at)}));
     var shareUrl = location.origin + "/share/listing/" + d.id;
-    var shareText = "شوف الإعلان ده على سوق لاقينو:\\n" + d.title + "\\n" + money(d.price) + "\\n" + shareUrl;
+    var shareText = ["شوف الإعلان ده على سوق لاقينو:", d.title, money(d.price), shareUrl].join(String.fromCharCode(10));
     box.appendChild(h("a", {class: "share-whatsapp", href: "https://wa.me/?text=" + encodeURIComponent(shareText), target: "_blank", rel: "noopener", text: "مشاركة الإعلان على واتساب"}));
     box.appendChild(contactBox(d)); box.appendChild(socialBox(d));
     app.textContent = ""; app.appendChild(h("a", {class: "back", onclick: function () { history.length > 1 ? history.back() : (location.hash = "#/"); }, text: "→ رجوع"})); app.appendChild(box);
