@@ -263,6 +263,7 @@ with sync_playwright() as playwright:
     }""")
     check("swiping the listing image does not accidentally open the gallery",
           page.locator(".lb").count() == 0)
+    page.locator(".thumbs img").first().click()
     page.locator(".det .main").click()
     page.locator(".lb").wait_for(state="visible")
     check("gallery starts on the first image with the correct count",
