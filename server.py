@@ -929,6 +929,9 @@ class H(BaseHTTPRequestHandler):
                         title, price_text, html.escape(raw_description, quote=True), listing_url
                     )
                     return self.send(200, None, "text/html", page.encode("utf-8"), {"Cache-Control": "public, max-age=300"})
+                except Exception as e:
+                    print("SHARE PAGE ERR", e, file=sys.stderr)
+                    return self.send(500, {"error": "تعذّر تجهيز معاينة الإعلان"})
                 finally:
                     c.close()
             if path == "/healthz":
