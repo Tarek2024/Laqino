@@ -193,6 +193,7 @@ check("app shell ignores stale navigation completion effects",
       "goSeq = 0" in shell_js and "if (seq !== goSeq) return r" in shell_js)
 check("location permission is not requested automatically on first app open",
       "if (!lsGet(ASK)) request({})" not in location_js
+      and "if (l && Date.now() - l.ts > STALE_MS) request({});" in location_js
       and "لا نطلب إذن الموقع إلا بعد اختيار المستخدم" in location_js)
 check("manual location action still explicitly requests and resolves the user location",
       "request({ explicit: true })" in location_js
