@@ -187,7 +187,7 @@
   font:inherit;font-size:14px;font-weight:700;
   cursor:pointer;
 }
-.lb .lb-close{position:absolute;top:14px;inset-inline-start:14px;z-index:2}
+.lb .lb-close{position:static;justify-self:start;align-self:start;z-index:auto}
 .lb-controls button:disabled{opacity:.45;cursor:not-allowed}
 .lb-thumbs{display:flex;align-items:center;justify-content:center;gap:8px;max-width:100%;overflow-x:auto;padding:4px 2px 8px;scrollbar-width:thin}
 .lb-thumb{position:static!important;top:auto;inset-inline-start:auto;flex:0 0 58px;width:58px;height:58px;min-height:58px!important;padding:2px!important;border:2px solid transparent!important;border-radius:10px!important;background:#ffffff22!important;overflow:hidden;cursor:pointer}
