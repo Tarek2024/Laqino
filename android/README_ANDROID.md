@@ -1,18 +1,16 @@
-# غلاف أندرويد لاقينو (Capacitor 8، API 36)
+# تطبيق لاقينو لأندرويد — Capacitor 8 / API 36
 
-> **حالة البناء والاختبار — 10 نوفمبر 2026**
-> - نجح GitHub Actions في إنشاء Release AAB وRelease APK موقّعين عبر Workflow: `Build Android Release AAB`، التشغيل رقم `3` (Run ID: `42701517193`) بتاريخ 9 نوفمبر 2026.
-> - التشغيل نُفّذ على فرع `feature/android-aab-release-prep` وبُني من Commit: `50a3dbb3bdaf5ec63635fc9f46282271a8d5a9fd`.
-> - نُشرت مخرجات البناء بنجاح: artifact باسم `laqino-release-aab` (حجم AAB: 4,271,748 بايت) وartifact باسم `laqino-release-apk` (حجم APK: 4,176,976 بايت). تحقق الـWorkflow من وجود التوقيع وصحته قبل رفعهما.
-> - أكد المستخدم تثبيت نسخة أندرويد من فرع GitHub على هاتف فعلي واختبار الإشعارات والوظائف الأساسية بنجاح.
-> - اختبار الهاتف تأكيد يدوي منفصل؛ لا يفترض هذا التوثيق أن نسخة الهاتف هي بالضرورة نفس artifact الناتج من التشغيل رقم 3 ما لم تتم مطابقة النسخة المثبتة مع Commit/Artifact.
-> - نجاح البناء والاختبار المذكورين لا يغني عن مراجعة كل متطلبات Google Play واختبارات الإصدار النهائي.
+يعتمد تطبيق أندرويد على Capacitor لفتح واجهة لاقينو عبر WebView، مع تكاملات أندرويد الأصلية مثل إشعارات FCM والموقع. تُحمّل ملفات الواجهة مثل `static/native.js` من الموقع `https://laqino.tech`.
 
-التطبيق مبني باستخدام Capacitor: يفتح موقع لاقينو من سيرفرك (`server.url`) داخل WebView، ويضيف إشعارات FCM الأصلية عبر `static/native.js` (الذي يتحمّل من الموقع نفسه).
-
+## حالة البناء والاختبار
+- **بناء Release AAB وAPK:** نجح GitHub Actions في التشغيل [#3](https://github.com/Tarek2024/Laqino/actions/runs/42701517193) من Workflow `Build Android Release AAB`، على الفرع `feature/android-aab-release-prep` والالتزام `50a3dbb3bdaf5ec63635fc9f46282271a8d5a9fd` بتاريخ 9 نوفمبر 2026.
+- **التوقيع والمخرجات:** تحقّق التشغيل من صحة توقيع AAB وAPK قبل رفعهما كـartifacts باسمَي `laqino-release-aab` و`laqino-release-apk`.
+- **اختبار الهاتف:** أفاد صاحب المشروع بأنه ثبّت نسخة أندرويد من فرع GitHub واختبر الإشعارات ووظائف التطبيق الأساسية على هاتف فعلي، وكانت تعمل.
+- هذان تحققان منفصلان: نجاح بناء CI لا يثبت وحده أن الملف الناتج هو نفسه الذي ثُبّت واختُبر يدويًا. عند تجهيز رفع جديد، اربط ملف AAB برقم التشغيل والالتزام المطابقين له، ثم اختبر النسخة النهائية نفسها.
+- لا تعني هذه النتائج ضمان قبول Google Play؛ يلزم استكمال متطلبات Play Console والسياسات والاختبارات الخاصة بالإصدار المرفوع.
 ## المتطلبات (على كمبيوتر، لا Termux) — Capacitor 8 / API 36
-- **Node 22+**، **JDK 21**، Android Studio 2025.2.1 أو أحدث مع Android SDK 36، حساب Firebase، ونطاق **HTTPS**: `https://laqino.tech` (مضبوط في `capacitor.config.json`؛ أندرويد يمنع HTTP الصريح).
-- Capacitor 8 يستهدف `compileSdk/targetSdk = 36` و`minSdk = 24` (AGP 8.13.0 وGradle 8.14.3). **لا تغيّر targetSdk يدويًا** (غير مدعوم من Capacitor)؛ أعلى بكثير من 35 مطلوب من Google Play للتطبيقات الجديدة والتحديثات منذ 31 أغسطس 2026 (تحقق من صفحة «Target API level requirements» في Play Console).
+- **Node 22+**، **JDK 21**، Android Studio (إصدار حديث يحوي SDK 36)، حساب Firebase، ونطاق **HTTPS**: `https://laqino.tech` (مضبوط في `capacitor.config.json`؛ أندرويد يمنع HTTP الصريح).
+- Capacitor 8 يستهدف `compileSdk/targetSdk = 36` و`minSdk = 24` (AGP 8.13 وGradle 8.14.x). **لا تغيّر targetSdk يدويًا** (غير مدعوم من Capacitor)؛ أعلى بكثير من 35 مطلوب من Google Play للتطبيقات الجديدة والتحديثات منذ 31 أغسطس 2026 (تحقق من صفحة «Target API level requirements» في Play Console).
 - التطبيق الأصلي يحتفظ بـ`appId = com.laqino.app` — **لا يمكن تغييره بعد النشر**.
 
 ## الخطوات
@@ -40,13 +38,13 @@
 7. ثبّت التطبيق، سجّل الدخول (مندوب)، اسمح بالإشعارات؛ يظهر الجهاز في `devices`.
 
 ## الحافة إلى الحافة (Android 15/16)
-عند targetSdk 36 لا يمكن إيقاف رسم المحتوى خلف شريطي الحالة والتنقل. صفحات `index/courier/pharmacy/admin` تعالج ذلك أصلًا (`viewport-fit=cover` + `env(safe-area-inset-*)`)، وأُضيف نفس المعالجة لـ`market.html` في phase-35. افحص يدويًا أن الهيدر لا يختفي تحت شريط الحالة وأن شريط التبويبات السفلي لا يختفي تحت شريط التنقل في كل صفحة. إن ظهر خطأ في الـconsole عن «safe area CSS» فهو مسجَّل عند Capacitor 8.4.x (issue #8530) وليس من كود التطبيق.
+عند targetSdk 36 لا يمكن إيقاف رسم المحتوى خلف شريطي الحالة والتنقل. صفحات `index/courier/pharmacy/admin` تعالج ذلك أصلًا (`viewport-fit=cover` + `env(safe-area-inset-*)`)، وأُضيف نفس المعالجة لـ`market.html` في phase-35. لم يُسجَّل هنا فحص مستقل لكل صفحة ولكل مقاس شاشة؛ راجع مواضع الهيدر وشريط التبويبات على أجهزة وأحجام شاشات مختلفة قبل الإصدار العام. إن ظهر خطأ في الـconsole عن «safe area CSS» فهو مسجَّل عند Capacitor 8.4.x (issue #8530) وليس من كود التطبيق.
 **ملاحظة 16KB:** تأكد من فحص «16 KB page size» في Play Console عند رفع الـAAB (التطبيق بلا مكتبات native خاصة، لكن الإضافات الرسمية 8.x هي المسؤولة).
 
 ## الموقع (المرحلة 22)
 التطبيق يطلب الموقع مرة واحدة عند الفتح عبر `static/location.js` (يتحمّل من السيرفر مثل `native.js`). `@capacitor/geolocation` مضاف إلى `package.json`
 فيضيف `ACCESS_COARSE_LOCATION` و`ACCESS_FINE_LOCATION` للـmanifest تلقائيًا بعد `npm install` و`npx cap sync android`؛ و`location.js` يستعمله إن وُجد وإلا يرجع إلى `navigator.geolocation` في الـWebView.
-تأكد بعد البناء من وجود الإذنين في `android/app/src/main/AndroidManifest.xml` (وإلا أضفهما يدويًا). تم تضمين هذا الجزء ضمن إعدادات المشروع؛ تحقّق من الأذونات والسلوك على نسخة الإصدار النهائية.
+تأكد بعد كل `cap sync` من وجود الإذنين في `android/app/src/main/AndroidManifest.xml`، واختبر طلب الإذن واستخدام الموقع على الجهاز المستهدف قبل تفعيل الميزة للمستخدمين.
 
 ## ما يصل وما لا يصل
 - إشعار عام فقط («طلب توصيل جديد في منطقتك» / «عندك رسالة جديدة») بلا أسماء أو أرقام أو عناوين، ويفتح لوحة المندوب أو محادثات السوق عند الضغط.
@@ -59,7 +57,7 @@
 ## بناء AAB موقّع
 1. أنشئ مفتاح الرفع مرة واحدة وخزّنه **خارج المشروع** مع نسخة احتياطية (فقدانه يعطّل التحديثات):
    `keytool -genkeypair -v -keystore laqino-release.jks -alias laqino -keyalg RSA -keysize 2048 -validity 10000`
-2. انسخ `keystore.properties.example` إلى `keystore.properties` (في مجلد `android/`) واملأه. الملف محجوب في `.gitignore`؛ لا ترفعه إلى Git.
+2. انسخ `keystore.properties.example` إلى `keystore.properties` (في مجلد `android/`) واملأه. الملف محجوب في `.gitignore` ويرفضه `release_check.py` لو دخل المجلد.
 3. فعّل **Play App Signing** عند أول رفع في Play Console (مفتاحك يصير «مفتاح رفع» وجوجل تحتفظ بمفتاح التوقيع النهائي).
 4. من مجلد `android/`: `sh tools/build_aab.sh` (يشغّل: `npm install` ← `cap add` عند الحاجة ← `cap sync` ← `apply_signing.py` ← `check_manifest.py` ← `gradlew bundleRelease`).
 5. الناتج: `android/android/app/build/outputs/bundle/release/app-release.aab`. **زوّد `versionCode`** في `android/android/app/build.gradle` مع كل رفع جديد.
@@ -67,7 +65,8 @@
 
 ## فحص AndroidManifest (خطوة 8 — phase-36)
 `python3 tools/check_manifest.py` (من `android/`، أو مرّر مسار المجلد المولَّد). يفشل (خروج 1) عند: غياب `INTERNET`/`POST_NOTIFICATIONS`/`ACCESS_COARSE_LOCATION`/`ACCESS_FINE_LOCATION`، وجود إذن حساس (SMS/جهات اتصال/ميكروفون/موقع خلفي...)، `usesCleartextTraffic=true`، `debuggable=true`، launcher بلا `exported=true`، sdk غير 36/36/24، `applicationId` غير `com.laqino.app`، غياب `versionCode` أو إعداد التوقيع أو `google-services.json`، أو `server.url` غير HTTPS. يحذّر فقط من `allowBackup=true`.
-**حدود الفاحص:** يجب إعادة تشغيل الفاحص على manifest المولَّد مع كل تحديث لإصدارات Capacitor أو Android Gradle Plugin؛ قد تختلف بنية الملفات بين الإصدارات. نجاح بناء AAB لا يعني تلقائيًا أن كل فحوص manifest أو كل حالات الاستخدام اجتازت الاختبار. إذن `POST_NOTIFICATIONS` تضيفه إضافة push-notifications في 8.x (تحقق بعد `cap sync`؛ وإلا أضفه يدويًا في `AndroidManifest.xml`).
+**حدود الفحص:** الاختبار الآلي للفاحص على ملفات manifest نموذجية لا يغني عن تشغيله على manifest مولَّد فعليًا من إصدار Capacitor المستخدم، ومراجعة الناتج قبل رفع الإصدار. إذن `POST_NOTIFICATIONS` تضيفه إضافة push-notifications في 8.x (تحقق بعد `cap sync`؛ وإلا أضفه يدويًا في `AndroidManifest.xml`).
+
 
 
 ## GitHub Actions: signed Release AAB (isolated workflow)
