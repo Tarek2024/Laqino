@@ -311,8 +311,22 @@ with sync_playwright() as playwright:
     # Customer app shell: bottom navigation on phone/tablet and a non-overlapping
     # sticky horizontal navigation on desktop.
     app_page = context.new_page()
+    app_page.add_init_script("""() => {
+      Object.defineProperty(navigator, "permissions", {configurable: true, value: {
+        query: () => Promise.resolve({state: "prompt"})
+      }});
+      Object.defineProperty(navigator, "geolocation", {configurable: true, value: {
+        getCurrentPosition: (success, error) => {
+          window.__gpsCalls = (window.__gpsCalls || 0) + 1;
+          if (error) error({code: 1});
+        }
+      }});
+    }""")
     app_page.goto(BASE + "/", wait_until="domcontentloaded")
     app_page.locator("#v .find").wait_for(state="visible", timeout=20000)
+    app_page.wait_for_timeout(900)
+    check("first app open does not trigger a location permission prompt",
+          app_page.evaluate("window.__gpsCalls === 0"))
     for width, height, label, expected_nav in [
         (390, 844, "phone", "fixed"),
         (800, 1024, "tablet", "fixed"),
@@ -336,6 +350,12 @@ with sync_playwright() as playwright:
         if label == "desktop":
             check("desktop navigation stays below the sticky header",
                   metrics["navTop"] >= metrics["headerHeight"] - 2)
+    app_page.locator("#rc").click()
+    app_page.locator("#lq-loc-go").wait_for(state="visible", timeout=5000)
+    app_page.locator("#lq-loc-go").click()
+    app_page.wait_for_function("window.__gpsCalls === 1", timeout=5000)
+    check("location permission is requested after the user selects the location button",
+          app_page.evaluate("window.__gpsCalls === 1"))
     app_page.close()
     context.close()
     browser.close()
