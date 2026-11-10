@@ -766,3 +766,28 @@ body.app .site-footer>small{display:block;margin-top:14px;color:#c8d4e8}
  body.app .home-trust-steps>div{background:#263449}
  body.app .home-auth>summary{background:#1d2736;color:#f2f5fb;border-color:#53627a}
 }
+
+
+/* Tablet portrait layout: give client sub-pages the available width without changing phone or desktop navigation. */
+@media (min-width: 760px) and (max-width: 899px){
+  body.app main#v:not(:has(.find)){
+    width:100%;
+    max-width:760px!important;
+    margin-inline:auto;
+    padding:20px 24px calc(96px + env(safe-area-inset-bottom))!important;
+  }
+  body.app .home{
+    width:100%;
+    max-width:760px;
+    margin-inline:auto;
+    padding-inline:20px;
+  }
+  body.app .find{
+    padding-inline:max(24px,calc((100% - 760px)/2));
+  }
+  body.app .find .fi,
+  body.app .find .sbar.lg{
+    max-width:760px;
+    margin-inline:auto;
+  }
+}
