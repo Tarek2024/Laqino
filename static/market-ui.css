@@ -1,5 +1,5 @@
 /* Laqino market UI: responsive desktop layout, compact cards, navigation and readable themes. */
-:root{color-scheme:light dark}
+:root{color-scheme:light dark;--ac:#0f2a5c}
 body{min-width:320px}
 .market-topbar{max-width:1280px;margin:0 auto 10px;display:flex;align-items:center;justify-content:space-between;gap:14px}
 .market-brand{display:inline-flex;align-items:center;gap:9px;color:#fff;text-decoration:none;font-weight:900;font-size:19px;white-space:nowrap}
@@ -8,6 +8,8 @@ body{min-width:320px}
 .market-nav a{display:inline-flex;align-items:center;justify-content:center;min-height:38px;padding:0 12px;border-radius:11px;background:rgba(255,255,255,.13);color:#fff;text-decoration:none;font-size:13px;font-weight:800}
 .market-nav a[aria-current="page"]{background:#f28c1b;color:#2b1a08}
 header h1{max-width:1280px;margin:0 auto 8px!important}
+button.pri,.add-listing-btn,.cbox button.pri{background:#0f2a5c!important;border-color:#0f2a5c!important;color:#fff!important}
+button.pri:active,.add-listing-btn:active{background:#0a1d44!important}
 body>main#app{width:min(calc(100% - 28px),1280px)!important;max-width:1280px!important;margin-inline:auto!important;padding:14px 0 28px!important}
 .grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr))!important;gap:12px!important}
 .grid>.card{min-width:0}
