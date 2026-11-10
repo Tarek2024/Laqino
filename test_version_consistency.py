@@ -20,6 +20,10 @@ class ClassificationTests(unittest.TestCase):
             "docs/implementation/PHASE44_AUTH_SEPARATION.md",
             "docs/archive/legacy-notes.txt",
             "UPDATE-INSTRUCTIONS.txt",
+            "TEST_RESULTS_2026-10-23.md",
+            "TEST_RESULTS_PHASE48.md",
+            "BACKUP_AND_ROLLBACK_PHASE48.md",
+            "PATCH_README.txt",
         )
         for name in cases:
             with self.subTest(name=name):
@@ -28,6 +32,7 @@ class ClassificationTests(unittest.TestCase):
     def test_out_of_scope_documents(self):
         self.assertEqual(checker.classify_doc("android/README_ANDROID.md"), "out-of-scope")
         self.assertEqual(checker.classify_doc("DEPLOY.md"), "out-of-scope")
+        self.assertEqual(checker.classify_doc("docs/SHOPS_PLAN.md"), "out-of-scope")
 
     def test_unknown_readme_is_not_silently_accepted(self):
         self.assertEqual(checker.classify_doc("misc/README_EXTRA.md"), "unclassified")
