@@ -1,0 +1,162 @@
+name: Build Android Release AAB
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - feature/android-aab-release-prep
+
+permissions:
+  contents: read
+
+concurrency:
+  group: android-release-aab
+  cancel-in-progress: false
+
+jobs:
+  build-release-aab:
+    name: Build signed Laqino AAB
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - name: Checkout source
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Set up Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 21
+
+      - name: Set up Android SDK
+        uses: android-actions/setup-android@v4
+        with:
+          packages: 'platform-tools'
+
+      - name: Install Android SDK 36
+        run: |
+          yes | sdkmanager --licenses >/dev/null
+          sdkmanager "platform-tools" "platforms;android-36" "build-tools;35.0.0"
+
+      - name: Install pinned Capacitor dependencies
+        working-directory: android
+        run: |
+          if [ ! -f package-lock.json ]; then
+            npm install --package-lock-only --ignore-scripts --no-audit --no-fund
+          fi
+          npm ci --no-audit --no-fund
+
+      - name: Generate native Android project
+        working-directory: android
+        run: |
+          if [ ! -f android/app/build.gradle ]; then
+            npx cap add android
+          fi
+
+      - name: Configure Firebase for native FCM
+        working-directory: android
+        env:
+          GOOGLE_SERVICES_JSON: ${{ secrets.GOOGLE_SERVICES_JSON }}
+        run: |
+          python3 - <<'PY'
+          import json, os
+          raw = os.environ.get("GOOGLE_SERVICES_JSON", "")
+          if not raw:
+              raise SystemExit("Missing GitHub secret GOOGLE_SERVICES_JSON")
+          data = json.loads(raw)
+          names = [c.get("client_info", {}).get("android_client_info", {}).get("package_name")
+                   for c in data.get("client", [])]
+          if "com.laqino.app" not in names:
+              raise SystemExit("Firebase config does not contain package com.laqino.app")
+          os.makedirs("android/app", exist_ok=True)
+          with open("android/app/google-services.json", "w", encoding="utf-8") as f:
+              json.dump(data, f)
+          PY
+
+      - name: Configure upload keystore and Gradle properties
+        working-directory: android
+        env:
+          ANDROID_KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+          ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+          ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
+        run: |
+          set -eu
+          test -n "$ANDROID_KEYSTORE_BASE64" || { echo "::error::Missing ANDROID_KEYSTORE_BASE64"; exit 1; }
+          test -n "$ANDROID_KEYSTORE_PASSWORD" || { echo "::error::Missing ANDROID_KEYSTORE_PASSWORD"; exit 1; }
+          test -n "$ANDROID_KEY_ALIAS" || { echo "::error::Missing ANDROID_KEY_ALIAS"; exit 1; }
+          test -n "$ANDROID_KEY_PASSWORD" || { echo "::error::Missing ANDROID_KEY_PASSWORD"; exit 1; }
+          KEYSTORE_PATH="$RUNNER_TEMP/laqino-upload.jks"
+          printf '%s' "$ANDROID_KEYSTORE_BASE64" | base64 --decode > "$KEYSTORE_PATH"
+          test -s "$KEYSTORE_PATH"
+          export KEYSTORE_PATH
+          python3 - <<'PY'
+          import os
+          def prop(value):
+              return value.replace("\\", "\\\\").replace("\n", "\\n").replace("\r", "\\r").replace(":", "\\:").replace("=", "\\=")
+          values = {
+              "storeFile": os.environ["KEYSTORE_PATH"],
+              "storePassword": os.environ["ANDROID_KEYSTORE_PASSWORD"],
+              "keyAlias": os.environ["ANDROID_KEY_ALIAS"],
+              "keyPassword": os.environ["ANDROID_KEY_PASSWORD"],
+          }
+          with open("keystore.properties", "w", encoding="utf-8") as f:
+              for key, value in values.items():
+                  f.write(key + "=" + prop(value) + "\n")
+          PY
+
+      - name: Sync Capacitor plugins
+        working-directory: android
+        run: npx cap sync android
+
+      - name: Build and validate signed AAB
+        working-directory: android
+        run: sh tools/build_aab.sh
+
+      - name: Build signed Release APK
+        working-directory: android/android
+        run: ./gradlew --no-daemon --stacktrace assembleRelease
+
+      - name: Verify AAB and APK signatures
+        run: |
+          AAB="android/android/app/build/outputs/bundle/release/app-release.aab"
+          APK="android/android/app/build/outputs/apk/release/app-release.apk"
+          test -s "$AAB"
+          test -s "$APK"
+          VERIFY_AAB="$(jarsigner -verify -verbose "$AAB" 2>&1)"
+          printf '%s\\n' "$VERIFY_AAB" | grep -q "jar verified"
+          "$ANDROID_HOME/build-tools/35.0.0/apksigner" verify --verbose --print-certs "$APK"
+          echo "PASS: AAB and APK signatures are present and valid"
+          ls -lh "$AAB" "$APK"
+
+      - name: Upload Release APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: laqino-release-apk
+          path: android/android/app/build/outputs/apk/release/app-release.apk
+          if-no-files-found: error
+          retention-days: 14
+
+      - name: Verify AAB signature and artifact
+        run: |
+          AAB="android/android/app/build/outputs/bundle/release/app-release.aab"
+          test -s "$AAB"
+          VERIFY_OUTPUT="$(jarsigner -verify -verbose "$AAB" 2>&1)"
+          printf '%s\n' "$VERIFY_OUTPUT" | grep -q "jar verified"
+          echo "PASS: AAB signature is present and cryptographically valid"
+          ls -lh "$AAB"
+
+      - name: Upload Release AAB and generated dependency lock
+        uses: actions/upload-artifact@v4
+        with:
+          name: laqino-release-aab
+          path: |
+            android/android/app/build/outputs/bundle/release/app-release.aab
+            android/package-lock.json
+          if-no-files-found: error
+          retention-days: 14
