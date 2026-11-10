@@ -191,10 +191,12 @@ check("client navigation ignores stale asynchronous page renders",
       "__laqGoSeq" in index and "seq!==window.__laqGoSeq" in index)
 check("app shell ignores stale navigation completion effects",
       "goSeq = 0" in shell_js and "if (seq !== goSeq) return r" in shell_js)
-check("location permission is not requested automatically on first app open",
-      "if (!lsGet(ASK)) request({})" not in location_js
-      and "if (l && Date.now() - l.ts > STALE_MS) request({});" in location_js
-      and "لا نطلب إذن الموقع إلا بعد اختيار المستخدم" in location_js)
+check("location permission is not requested automatically on first app open or app resume",
+      "لا نطلب إذن الموقع أو نحدّثه إلا بعد اختيار المستخدم" in location_js
+      and "if (s === 'granted')" in location_js
+      and "لا نحدّث GPS تلقائيًا عند بدء التطبيق" in location_js
+      and "visibilitychange" not in location_js
+      and "STALE_MS" not in location_js)
 check("manual location action still explicitly requests and resolves the user location",
       "request({ explicit: true })" in location_js
       and "حدّد موقعي تلقائيًا" in location_js)
