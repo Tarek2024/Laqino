@@ -335,8 +335,9 @@ with sync_playwright() as playwright:
     app_page = app_context.new_page()
     app_page.add_init_script("""try { localStorage.clear(); } catch (e) {}
       window.__gpsCalls = 0;
+      window.__permissionState = "prompt";
       Object.defineProperty(navigator, "permissions", {configurable: true, value: {
-        query: () => Promise.resolve({state: "prompt"})
+        query: () => Promise.resolve({state: window.__permissionState})
       }});
       Object.defineProperty(navigator, "geolocation", {configurable: true, value: {
         getCurrentPosition: (success, error) => {
@@ -350,6 +351,16 @@ with sync_playwright() as playwright:
     app_page.wait_for_timeout(900)
     check("first app open does not trigger a location permission prompt",
           app_page.evaluate("window.__gpsCalls === 0"))
+    # Even when the OS/browser permission was granted previously, merely opening
+    # delivery must not request a fresh GPS reading without a user action.
+    app_page.evaluate("window.__permissionState = 'granted'")
+    app_page.locator("#v .sc.dlv").click()
+    app_page.locator("#lq-dl").wait_for(state="visible", timeout=5000)
+    app_page.wait_for_timeout(250)
+    check("opening delivery with granted permission does not request GPS automatically",
+          app_page.evaluate("window.__gpsCalls === 0"))
+    app_page.locator("#t0").click()
+    app_page.locator("#v .find").wait_for(state="visible", timeout=5000)
     for width, height, label, expected_nav in [
         (390, 844, "phone", "fixed"),
         (800, 1024, "tablet", "fixed"),
