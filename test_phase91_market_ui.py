@@ -277,6 +277,8 @@ with sync_playwright() as playwright:
     page.locator(".lb").wait_for(state="visible")
     check("gallery starts on the first image with the correct count",
           page.locator(".lb-count").inner_text() == "الصورة 1 من 3")
+    check("gallery thumbnails stay in the thumbnail strip",
+          page.locator(".lb-thumb").first.evaluate("(el) => getComputedStyle(el).position") == "static")
     page.locator(".lb-next").click()
     check("gallery next control advances within the same listing",
           page.locator(".lb-count").inner_text() == "الصورة 2 من 3")
