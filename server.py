@@ -890,7 +890,7 @@ class H(BaseHTTPRequestHandler):
     def route(self, method):
         p = urlparse(self.path); q = parse_qs(p.query); path = p.path
         if not path.startswith("/api/"):
-            share_match = re.fullmatch(r"/share/listing/(\\d+)", path)
+            share_match = re.fullmatch(r"/share/listing/([0-9]+)", path)
             if method == "GET" and share_match:
                 listing_id = int(share_match[1])
                 c = db()
