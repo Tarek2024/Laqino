@@ -1,5 +1,6 @@
 """Phase 44 smoke tests: registration page is separate and legacy auth APIs remain compatible."""
 import json, os, tempfile, threading, urllib.request, urllib.error
+from pathlib import Path
 from http.server import ThreadingHTTPServer
 
 os.environ['LAQINO_DB'] = tempfile.mktemp(suffix='.db')
@@ -35,6 +36,9 @@ try:
     status, home = request('/')
     check('home page serves login-only form', status == 200 and 'تسجيل الدخول' in home and 'id="ph"' in home and 'href="/register.html"' in home)
     check('home auth form no longer includes registration name field', 'id="nm"' not in home and "auth('register')" not in home)
+    app_source = Path(__file__).with_name('static').joinpath('index.html').read_text(encoding='utf-8')
+    check('unauthenticated account tab opens login form directly', "async function mine(){const hd='<div class=\"ph\"><h2>حسابي</h2></div>';if(!T)return hd+authBox();" in app_source)
+    check('delivery sign-in CTA opens the account tab', "محتاج حساب عشان تطلب وتتابع المندوب." in app_source and "<button onclick=\"go(3)\">روح للتسجيل</button>" in app_source)
     status, regpage = request('/register.html')
     check('dedicated registration page serves required fields', status == 200 and 'id="name"' in regpage and 'id="phone"' in regpage and 'id="password2"' in regpage)
     check('registration reuses existing phone verification APIs', "'/verify/start'" in regpage and "'/verify/status'" in regpage and "'/register'" in regpage and "'/login'" in regpage)
