@@ -312,6 +312,7 @@ with sync_playwright() as playwright:
     # sticky horizontal navigation on desktop.
     app_page = context.new_page()
     app_page.add_init_script("""() => {
+      window.__gpsCalls = 0;
       Object.defineProperty(navigator, "permissions", {configurable: true, value: {
         query: () => Promise.resolve({state: "prompt"})
       }});
