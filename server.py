@@ -911,7 +911,7 @@ class H(BaseHTTPRequestHandler):
                         amount = float(listing["price"])
                         amount_text = (format(amount, ",.2f").rstrip("0").rstrip(".") if amount % 1 else format(amount, ",.0f"))
                         price_text = "السعر: " + amount_text + " جنيه"
-                    description = html_lib.escape(((raw_description + " | ") if raw_description else "") + price_text, quote=True)
+                    description = html_lib.escape(price_text + ((" | " + raw_description) if raw_description else ""), quote=True)
                     canonical = "https://laqino.tech/share/listing/%d" % listing_id
                     listing_url = "/market.html#/l/%d" % listing_id
                     page = """<!doctype html>
