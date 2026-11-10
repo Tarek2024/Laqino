@@ -331,8 +331,7 @@ with sync_playwright() as playwright:
     # Customer app shell: bottom navigation on phone/tablet and a non-overlapping
     # sticky horizontal navigation on desktop.
     app_page = context.new_page()
-    app_page.add_init_script("""() => {
-      window.__gpsCalls = 0;
+    app_page.add_init_script("""window.__gpsCalls = 0;
       Object.defineProperty(navigator, "permissions", {configurable: true, value: {
         query: () => Promise.resolve({state: "prompt"})
       }});
