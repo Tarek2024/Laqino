@@ -1,3 +1,5 @@
+> **سجل تاريخي مؤرشف — ليس مرجعًا حاليًا.** أرقام المراحل والإصدارات والتقييمات الواردة هنا تخص وقت إعداد هذا المستند فقط؛ المرجع الحالي الموحد للإصدار والكاش هو `VERSION`، وللحالة الحالية `STATUS.md` و`PROJECT_STATE.md` و`README_UPDATE.md`.
+
 # تعديلات المرحلة 11 (تدقيق A + ترتيب البنية B + بداية C)
 
 الملفات المتغيّرة: server.py، static/index.html، static/admin.html، static/app.css، static/sw.js (laqino-v9)،

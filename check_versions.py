@@ -1,41 +1,130 @@
-"""Single-source version check: VERSION is the only place the release id and cache name are defined.
-Run from the project root:  python3 check_versions.py"""
-import re, sys
+"""Read-only release/cache and documentation inventory check.
+
+Run from the repository root: python3 check_versions.py
+This check does not build Android, contact Firebase, or deploy anything.
+"""
+import re
+import sys
 from pathlib import Path
 
-ROOT = Path(__file__).parent
-cfg = dict(l.split("=", 1) for l in (ROOT / "VERSION").read_text().split() if "=" in l)
-release, cache = cfg["release"], cfg["cache"]
-errors = []
+ROOT = Path(__file__).resolve().parent
+CURRENT_DOCS = {
+    "README.md", "README_UPDATE.md", "STATUS.md",
+    "PROJECT_STATE.md", "HANDOFF.md",
+}
+OUT_OF_SCOPE_DOCS = {"android/README_ANDROID.md"}
+ARCHIVE_EXACT = {
+    "README_HISTORY.md", "PHASE18_HANDOFF.md", "UPDATE-INSTRUCTIONS.txt",
+    "docs/ROADMAP.md", "docs/PROJECT_STATUS.md", "docs/CONSOLIDATED_REPORT.md",
+    "CHANGES_PHASE11.md", "PROJECT_REVIEW_PHASE19.md",
+    "RX_AUTO_DISTRIBUTION_PHASE53.md", "TEST_RESULTS_2026-10-23.md", "TEST_RESULTS_PHASE48.md",
+    "BACKUP_AND_ROLLBACK_PHASE48.md", "PATCH_README.txt",
+}
+ARCHIVE_PREFIXES = (
+    "README_UPDATE_PHASE", "BACKUP_AND_ROLLBACK_PHASE",
+    "TEST_RESULTS_PHASE", "PHASE",
+)
+ARCHIVE_DIRS = ("docs/steps/", "docs/phases/", "docs/implementation/", "docs/archive/")
+OPERATIONAL_DOCS = {
+    "CHANGELOG.md", "DEPLOY.md", "PLAN_PHARMACY_DELIVERY.md", "docs/SHOPS_PLAN.md",
+}
 
-sw = (ROOT / "static/sw.js").read_text()
-m = re.search(r'const V = "(laqino-v\d+)"', sw)
-if not m or m.group(1) != cache:
-    errors.append(f"sw.js cache is {m.group(1) if m else 'missing'}, VERSION says {cache}")
+def classify_doc(relative):
+    """Return current, historical, out-of-scope, or None (unclassified)."""
+    name = Path(relative).name
+    if relative in CURRENT_DOCS:
+        return "current"
+    if relative in OUT_OF_SCOPE_DOCS:
+        return "out-of-scope"
+    if relative in OPERATIONAL_DOCS:
+        return "out-of-scope"
+    if relative in ARCHIVE_EXACT or relative.startswith(ARCHIVE_DIRS):
+        return "historical"
+    if name.startswith(ARCHIVE_PREFIXES):
+        return "historical"
+    if re.match(r"^(?:PHASE|.*_PHASE)\d", name, re.I):
+        return "historical"
+    if name.lower().startswith("readme"):
+        return "unclassified"
+    if relative.startswith("docs/") and Path(relative).suffix.lower() in {".md", ".txt", ".rst"}:
+        return "unclassified"
+    if relative in {"CHANGELOG.md", "DEPLOY.md", "PLAN_PHARMACY_DELIVERY.md", "docs/SHOPS_PLAN.md"}:
+        return "out-of-scope"
+    return "out-of-scope"
 
-# Only the per-release note is enforced; README/STATUS/PROJECT_STATUS keep historical cache names legitimately.
-for name in ("README_UPDATE.md",):
-    p = ROOT / name
-    if p.exists():
-        t = p.read_text()
-        if release not in t:
-            errors.append(f"{name} does not mention {release}")
-        stale = set(re.findall(r"laqino-v\d+", t)) - {cache}
-        # older cache names are allowed only on lines that say they are the previous one (السابق / previous)
-        for line in t.splitlines():
-            for s in stale:
-                if s in line and not re.search(r"السابق|previous|←|->", line):
-                    errors.append(f"{name}: stale cache name {s} outside a 'previous' line: {line.strip()[:60]}")
+def has_archive_notice(text):
+    head = "\n".join(text.splitlines()[:8]).upper()
+    return "ARCHIVE" in head or "مؤرشف" in head or "أرشيف" in head
 
-# The four state documents must declare the current release and cache in their first lines.
-for name in ("README.md", "HANDOFF.md", "PROJECT_STATE.md", "STATUS.md"):
-    p = ROOT / name
-    if p.exists():
-        head = "\n".join(p.read_text().splitlines()[:8])
-        for what, val in (("release", release), ("cache", cache)):
-            if val not in head:
-                errors.append(f"{name}: first lines do not state current {what} {val}")
+def run_check(root=ROOT):
+    errors = []
+    version_path = root / "VERSION"
+    values = {}
+    for line in version_path.read_text(encoding="utf-8").splitlines():
+        if not line.strip() or line.lstrip().startswith("#"):
+            continue
+        if "=" not in line:
+            errors.append(f"VERSION: malformed line: {line!r}")
+            continue
+        key, value = line.split("=", 1)
+        key, value = key.strip(), value.strip()
+        if key in values:
+            errors.append(f"VERSION: duplicate key: {key}")
+        values[key] = value
+    release, cache = values.get("release", ""), values.get("cache", "")
+    if set(values) != {"release", "cache"}:
+        errors.append("VERSION: expected exactly release and cache keys")
+    if not re.fullmatch(r"phase-\d+[a-zA-Z0-9_-]*", release):
+        errors.append(f"VERSION: invalid release {release!r}")
+    if not re.fullmatch(r"laqino-v\d+", cache):
+        errors.append(f"VERSION: invalid cache {cache!r}")
 
-if errors:
-    print("\n".join("FAIL " + e for e in errors)); sys.exit(1)
-print(f"OK  release={release}  cache={cache}  (VERSION, sw.js and docs agree)")
+    sw = (root / "static/sw.js").read_text(encoding="utf-8")
+    matches = re.findall(r'\bconst\s+V\s*=\s*["\'](laqino-v\d+)["\']', sw)
+    if len(matches) != 1:
+        errors.append(f"static/sw.js: expected one cache declaration, found {len(matches)}")
+    elif cache and matches[0] != cache:
+        errors.append(f"static/sw.js: {matches[0]} != VERSION {cache}")
+
+    counts = {"current": 0, "historical": 0, "out-of-scope": 0}
+    doc_paths = sorted(
+        p for p in root.rglob("*") if p.is_file()
+        and p.suffix.lower() in {".md", ".txt", ".rst"}
+        and not any(part in {".git", ".venv", "venv", "node_modules", "__pycache__"}
+                    for part in p.relative_to(root).parts)
+    )
+    for path in doc_paths:
+        relative = path.relative_to(root).as_posix()
+        category = classify_doc(relative)
+        if category == "unclassified":
+            errors.append(f"{relative}: documentation has no explicit inventory classification")
+            continue
+        counts[category] += 1
+        content = path.read_text(encoding="utf-8", errors="replace")
+        if category == "historical" and not has_archive_notice(content):
+            errors.append(f"{relative}: historical document lacks archive notice")
+
+    for name in sorted(CURRENT_DOCS):
+        path = root / name
+        if not path.exists():
+            errors.append(f"{name}: required current document is missing")
+            continue
+        head = "\n".join(path.read_text(encoding="utf-8").splitlines()[:16])
+        if release and release not in head:
+            errors.append(f"{name}: opening 16 lines omit {release}")
+        if cache and cache not in head:
+            errors.append(f"{name}: opening 16 lines omit {cache}")
+
+    update_note = (root / "README_UPDATE.md").read_text(encoding="utf-8")
+    if release not in update_note or cache not in update_note:
+        errors.append("README_UPDATE.md: current release/cache reference is missing")
+
+    return errors, counts, release, cache
+
+if __name__ == "__main__":
+    errors, counts, release, cache = run_check()
+    print("DOCUMENT INVENTORY: " + ", ".join(f"{k}={v}" for k, v in counts.items()))
+    if errors:
+        print("\n".join("FAIL " + error for error in errors))
+        sys.exit(1)
+    print(f"OK release={release} cache={cache}; source, service worker and documentation inventory agree")

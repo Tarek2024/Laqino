@@ -1,3 +1,4 @@
+import html as html_lib
 import base64, sqlite3, json, os, secrets, hashlib, hmac, sys, time, mimetypes, re, threading, ipaddress
 import notif, account
 from http.server import ThreadingHTTPServer, BaseHTTPRequestHandler
@@ -889,6 +890,50 @@ class H(BaseHTTPRequestHandler):
     def route(self, method):
         p = urlparse(self.path); q = parse_qs(p.query); path = p.path
         if not path.startswith("/api/"):
+            share_match = re.fullmatch(r"/share/listing/([0-9]+)", path)
+            if method == "GET" and share_match:
+                listing_id = int(share_match[1])
+                c = db()
+                try:
+                    listing = c.execute(
+                        "SELECT id,title,description,price,status,category_id FROM listings WHERE id=?",
+                        (listing_id,)
+                    ).fetchone()
+                    if not listing or listing["status"] != "approved" or not market.is_visible_category(c, listing["category_id"]):
+                        return self.send(404, {"error": "غير موجود"})
+                    image_ids = market.images_for(c, [listing_id]).get(listing_id, [])
+                    image_url = ("https://laqino.tech/api/listings/%d/images/%d" % (listing_id, image_ids[0])) if image_ids else "https://laqino.tech/assets/icon-512.png"
+                    title = html_lib.escape(str(listing["title"] or "إعلان على سوق لاقينو"), quote=True)
+                    raw_description = " ".join(str(listing["description"] or "").split())[:220]
+                    if listing["price"] is None:
+                        price_text = "السعر: تواصل مع البائع"
+                    else:
+                        amount = float(listing["price"])
+                        amount_text = (format(amount, ",.2f").rstrip("0").rstrip(".") if amount % 1 else format(amount, ",.0f"))
+                        price_text = "السعر: " + amount_text + " جنيه"
+                    description = html_lib.escape(price_text + ((" | " + raw_description) if raw_description else ""), quote=True)
+                    canonical = "https://laqino.tech/share/listing/%d" % listing_id
+                    listing_url = "/market.html#/l/%d" % listing_id
+                    page = """<!doctype html>
+<html lang="ar" dir="rtl"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>%s — سوق لاقينو</title><meta name="description" content="%s"><link rel="canonical" href="%s">
+<meta property="og:type" content="product"><meta property="og:site_name" content="سوق لاقينو">
+<meta property="og:title" content="%s"><meta property="og:description" content="%s">
+<meta property="og:url" content="%s"><meta property="og:image" content="%s"><meta property="og:image:alt" content="%s">
+<meta name="twitter:card" content="summary_large_image"><meta name="twitter:title" content="%s"><meta name="twitter:description" content="%s"><meta name="twitter:image" content="%s">
+<style>body{margin:0;padding:24px;font-family:system-ui,Tahoma,sans-serif;background:#f4f6fb;color:#16213a;text-align:center}.wrap{max-width:620px;margin:6vh auto;background:#fff;border:1px solid #dce4f2;border-radius:20px;padding:20px;box-shadow:0 12px 32px #0f2a5c12}img{display:block;width:100%%;max-height:420px;object-fit:contain;border-radius:14px;background:#f0f3f8}h1{font-size:22px;line-height:1.5}p{line-height:1.8;color:#4c5870}.price{font-size:20px;font-weight:800;color:#0f2a5c}a{display:inline-flex;align-items:center;justify-content:center;min-height:48px;padding:0 22px;border-radius:12px;background:#f28c1b;color:#fff;text-decoration:none;font-weight:800}</style></head>
+<body><main class="wrap">%s<h1>%s</h1><p class="price">%s</p><p>%s</p><a href="%s">عرض الإعلان على سوق لاقينو</a></main></body></html>""" % (
+                        title, description, canonical, title, description, canonical, image_url, title,
+                        title, description, image_url,
+                        ('<img src="%s" alt="%s">' % (image_url, title)) if image_ids else "",
+                        title, price_text, html_lib.escape(raw_description, quote=True), listing_url
+                    )
+                    return self.send(200, None, "text/html", page.encode("utf-8"), {"Cache-Control": "public, max-age=300"})
+                except Exception as e:
+                    print("SHARE PAGE ERR", e, file=sys.stderr)
+                    return self.send(500, {"error": "تعذّر تجهيز معاينة الإعلان"})
+                finally:
+                    c.close()
             if path == "/healthz":
                 try: c = db(); c.execute("SELECT 1").fetchone(); c.close()
                 except sqlite3.Error: return self.send(503, {"ok": False})

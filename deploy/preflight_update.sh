@@ -2,6 +2,7 @@
 # Fast release gate for a staging copy. Tests use temporary databases; no production data is modified.
 set -eu
 python3 check_versions.py
+python3 test_version_consistency.py
 python3 release_check.py
 python3 -m py_compile server.py rx.py svc.py
 python3 test_phase44_auth_separation.py

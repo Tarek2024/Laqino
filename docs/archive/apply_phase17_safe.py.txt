@@ -1,3 +1,5 @@
+# ARCHIVE NOTICE: Historical Phase 17 script retained for reference only. Do not execute or apply to the current project.
+
 from pathlib import Path
 from datetime import datetime
 import shutil, subprocess, sys

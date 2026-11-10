@@ -1,3 +1,11 @@
+ARCHIVE NOTICE — HISTORICAL UPDATE INSTRUCTIONS
+This file documents an old Phase 77 -> Phase 79 ZIP update package only.
+It is retained for project history and must NOT be used to update the current project, overwrite current files, or guide a current deployment.
+Current project reference: VERSION (release=phase-90, cache=laqino-v134) and the current sections of README.md, STATUS.md, PROJECT_STATE.md, and HANDOFF.md.
+Current development work must follow the owner's latest instructions and the development branch. Do not apply this historical ZIP package.
+
+--- HISTORICAL CONTENT (PRESERVED) ---
+
 Laqino Phase 77 -> Phase 79 Update
 
 This package contains only the 33 files identified in the comparison:
