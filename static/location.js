@@ -1,6 +1,6 @@
 /* لاقينو — الموقع الموحد (المرحلة 22). ملف واحد مستقل بلا مكتبات، يتحمّل بعد السكربت الرئيسي في index.html.
    المبادئ:
-   • لا نطلب الموقع عند أول فتح؛ نحدّث موقعًا محفوظًا قديمًا مرة واحدة عند الفتح/العودة إذا كان الإذن ممنوحًا بالفعل.
+   • لا نطلب الموقع تلقائيًا عند الفتح أو العودة للتطبيق؛ أي قراءة GPS جديدة تتطلب اختيارًا صريحًا من المستخدم.
    • الإحداثيات تُحفظ على جهاز المستخدم فقط (localStorage['laq_loc']). السيرفر يستلمها في مكانين فقط: /api/location/resolve
      (لتحويلها لمنطقة، ولا يخزّنها) وطلب التوصيل إذا اختار المستخدم إرفاقها (يراها المندوب بعد قبول الطلب فقط).
    • نظام اختيار المنطقة اليدوي (المحافظة ← المركز ← القرية) كما هو. عند رفض الإذن أو تعذّر الموقع لا يتغير أي شيء في التطبيق.
@@ -10,7 +10,6 @@
   'use strict';
   if (window.LaqLoc) return;
   var KEY = 'laq_loc', ASK = 'laq_loc_ask', DENY = 'laq_loc_deny';
-  var STALE_MS = 30 * 60 * 1000;      // نحدّث موقعًا محفوظًا قديمًا عند الفتح/العودة فقط إذا كان الإذن ممنوحًا أصلًا
   var PIN_FRESH_MS = 10 * 60 * 1000;  // أقصى عمر لموقع نرفقه بطلب توصيل دون تحديث
   var C = window.Capacitor, native = !!(C && typeof C.isNativePlatform === 'function' && C.isNativePlatform());
   var NG = native && C.Plugins && C.Plugins.Geolocation;
@@ -223,7 +222,7 @@
     return r;
   };
 
-  /* ---------- بدء التشغيل: لا نطلب إذن الموقع إلا بعد اختيار المستخدم ---------- */
+  /* ---------- بدء التشغيل: لا نطلب إذن الموقع أو نحدّثه إلا بعد اختيار المستخدم ---------- */
   function boot() {
     injectSheet();
     setTimeout(function () {
@@ -240,12 +239,6 @@
       });
     }, 700);
   }
-  document.addEventListener('visibilitychange', function () {
-    if (document.hidden) return;
-    var l = read(); if (!l || Date.now() - l.ts <= STALE_MS) return;
-    permState().then(function (s) { if (s === 'granted') request({}); });
-  });
-
   window.LaqLoc = { get: read, fresh: fresh, request: request, clear: clear, mapUrl: mapUrl, pinFields: pinFields, state: permState };
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', boot); else boot();
 })();
