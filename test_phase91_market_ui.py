@@ -113,6 +113,10 @@ create_status, created = api("POST", "/listings", {
 }, seller)
 check("market listing creation remains available", create_status == 201 and created.get("status") == "pending")
 listing_id = created["id"]
+# Seed the optional price directly so this test exercises the share-preview price branch,
+# independently of the listing form/API defaults.
+with sqlite3.connect(server.DB) as connection:
+    connection.execute("UPDATE listings SET price=? WHERE id=?", (1250, listing_id))
 
 pending_status, _, _ = page("/share/listing/%d" % listing_id)
 check("unapproved listing is not exposed by public share route", pending_status == 404)
