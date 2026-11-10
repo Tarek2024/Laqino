@@ -202,10 +202,10 @@
     var box = document.createElement('div'); box.id = 'lq-dl'; box.className = 'lql';
     rt.parentNode.insertBefore(box, rt.nextSibling);
     pin = null; lastPinReason = ''; paintPin();
-    // لا نطلب إذنًا جديدًا هنا تلقائيًا إلا لو سبق طلبه (المستخدم لم يرفض): لو فيه موقع حديث نستخدمه فورًا
+    // لا نقرأ GPS تلقائيًا عند فتح شاشة التوصيل، حتى لو كان الإذن ممنوحًا.
+    // نستخدم الموقع المحفوظ الحديث فقط؛ وأي قراءة جديدة تحتاج ضغطة صريحة من المستخدم.
     var l = fresh(PIN_FRESH_MS);
-    if (l) return setPinFrom(l);
-    permState().then(function (s) { if (s === 'granted' && !pin && document.getElementById('lq-dl') === box) usePin(false); });
+    if (l) setPinFrom(l);
   }
 
   /* ---------- أنماط ---------- */
