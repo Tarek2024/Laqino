@@ -372,9 +372,16 @@ function detail(id) {
       var cur = 0, cnt = h("div", {class: "cnt"});
       var show = function (i) { cur = (i + d.images.length) % d.images.length; main.src = img(d.id, d.images[cur]); Array.prototype.forEach.call(thumbs.children, function (c, k) { c.className = k === cur ? "on" : ""; }); cnt.textContent = d.images.length > 1 ? "الصورة " + (cur + 1) + " من " + d.images.length : ""; };
       if (d.images.length > 1) d.images.forEach(function (f, i) { var t = h("img", {src: img(d.id, f), alt: "", class: i ? "" : "on", onclick: function () { show(i); }}); thumbs.appendChild(t); });
-      var sx = null; main.addEventListener("touchstart", function (e) { sx = e.touches[0].clientX; }, {passive: true});
-      main.addEventListener("touchend", function (e) { if (sx == null || d.images.length < 2) return; var dx = e.changedTouches[0].clientX - sx; sx = null; if (Math.abs(dx) > 40) show(cur + (dx < 0 ? 1 : -1)); }, {passive: true});
-      main.addEventListener("click", openGallery);
+      var sx = null, didSwipe = false;
+      main.setAttribute("tabindex", "0"); main.setAttribute("role", "button"); main.setAttribute("aria-label", "افتح معرض صور الإعلان");
+      main.addEventListener("touchstart", function (e) { sx = e.touches[0].clientX; didSwipe = false; }, {passive: true});
+      main.addEventListener("touchend", function (e) {
+        if (sx == null || d.images.length < 2) { sx = null; return; }
+        var dx = e.changedTouches[0].clientX - sx; sx = null;
+        if (Math.abs(dx) > 40) { didSwipe = true; show(cur + (dx < 0 ? 1 : -1)); }
+      }, {passive: true});
+      main.addEventListener("click", function () { if (didSwipe) { didSwipe = false; return; } openGallery(); });
+      main.addEventListener("keydown", function (e) { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); openGallery(); } });
       function openGallery() {
         var oldOverflow = document.body.style.overflow, zoomed = false, sx = null;
         var photo = h("img", {class: "lb-photo", src: img(d.id, d.images[cur]), alt: "صورة " + (cur + 1) + " من " + d.images.length});
@@ -413,7 +420,7 @@ function detail(id) {
         }
         prev.addEventListener("click", function (e) { e.stopPropagation(); move(-1); });
         next.addEventListener("click", function (e) { e.stopPropagation(); move(1); });
-        zoom.addEventListener("click", function (e) { e.stopPropagation(); zoomed = !zoomed; photo.classList.toggle("zoomed", zoomed); zoom.textContent = zoomed ? "تصغير" : "تكبير"; });
+        zoom.addEventListener("click", function (e) { e.stopPropagation(); zoomed = !zoomed; photo.classList.toggle("zoomed", zoomed); lb.classList.toggle("zoomed", zoomed); zoom.textContent = zoomed ? "تصغير" : "تكبير"; });
         closeBtn.addEventListener("click", function (e) { e.stopPropagation(); close(); });
         lb.addEventListener("click", function (e) { if (e.target === lb) close(); });
         photo.addEventListener("click", function (e) { e.stopPropagation(); });
