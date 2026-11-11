@@ -120,11 +120,11 @@ with sync_playwright() as playwright:
         servicesFolded: byTitle('طلبات الخدمات')?.open === false,
         pharmacyProductsFolded: byTitle('طلبات منتجات الصيدليات')?.open === false,
         adsFolded: byTitle('إعلاناتي وإدارة السوق')?.open === false,
-        serviceIcon: !!byTitle('طلبات الخدمات')?.querySelector(':scope > summary .account-fold-icon.services svg'),
-        pharmacyIcon: !!byTitle('طلبات منتجات الصيدليات')?.querySelector(':scope > summary .account-fold-icon.pharmacy svg'),
-        archiveIcon: !!previous?.querySelector(':scope > summary .account-fold-icon.archive svg'),
-        adsIcon: !!byTitle('إعلاناتي وإدارة السوق')?.querySelector(':scope > summary .account-fold-icon.market svg'),
-        deliveryIcon: !!document.querySelector('#v>.sec .account-fold-icon.delivery svg')
+        serviceIcon: !!byTitle('طلبات الخدمات')?.querySelector('summary .account-fold-icon.services svg'),
+        pharmacyIcon: !!byTitle('طلبات منتجات الصيدليات')?.querySelector('summary .account-fold-icon.pharmacy svg'),
+        archiveIcon: !!previous?.querySelector('summary .account-fold-icon.archive svg'),
+        adsIcon: !!byTitle('إعلاناتي وإدارة السوق')?.querySelector('summary .account-fold-icon.market svg'),
+        deliveryIcon: !!document.querySelector('#v .sec .account-fold-icon.delivery svg')
       };
     }""")
 
