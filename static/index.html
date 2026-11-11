@@ -92,6 +92,15 @@ box().innerHTML=`<div class="cphero"><span class="cpa xl" aria-hidden="true">${p
 <div class="cpg"><div><b>${p.rating_avg!=null?p.rating_avg+' ★':'—'}</b><small>متوسط التقييم</small></div><div><b>${p.rating_count}</b><small>عدد التقييمات</small></div><div><b>${p.completed}</b><small>طلبات مكتملة</small></div><div><b>${p.completion_rate!=null?Math.round(p.completion_rate*100)+'%':'—'}</b><small>معدل إكمال الطلبات</small></div></div>
 <div class="cpsec">تعليقات العملاء</div>${p.comments.length?p.comments.map(c=>`<div class="cpc"><div class="cpch"><b>${esc(c.customer)}</b><span class="cps" aria-label="${c.stars} من 5">${'★'.repeat(c.stars)}<i>${'★'.repeat(5-c.stars)}</i></span><small>${new Date(c.created_at*1000).toLocaleDateString('ar-EG')}</small></div><p>${esc(c.comment)}</p></div>`).join(''):'<div class="cpl">لا توجد تعليقات من العملاء بعد.</div>'}`};
 function accountNext(){const raw=new URLSearchParams(location.search).get('next')||'';if(!raw.startsWith('/')||raw.startsWith('//')||raw.includes('\\'))return '';try{const u=new URL(raw,location.origin);if(u.origin!==location.origin)return '';return u.pathname+u.search+u.hash}catch(e){return ''}}
+window.__laqinoHomeDiagnostics=window.__laqinoHomeDiagnostics||[];
+window.__laqinoHomeLog=(stage,error,extra)=>{
+const item={at:new Date().toISOString(),stage:String(stage||'unknown'),message:String(error&&error.message||error||'unknown error'),stack:String(error&&error.stack||'').slice(0,1800),extra:extra||null};
+try{window.__laqinoHomeDiagnostics.push(item);if(window.__laqinoHomeDiagnostics.length>40)window.__laqinoHomeDiagnostics.shift()}catch(_){}
+try{sessionStorage.setItem('laqino_home_diagnostics',JSON.stringify(window.__laqinoHomeDiagnostics))}catch(_){}
+try{console.error('[Laqino Home]',item)}catch(_){}
+};
+window.addEventListener('error',e=>{if(window._lt===0)window.__laqinoHomeLog('window-error',e.error||e.message,{file:e.filename,line:e.lineno,column:e.colno})});
+window.addEventListener('unhandledrejection',e=>{if(window._lt===0)window.__laqinoHomeLog('unhandled-rejection',e.reason)});
 function startHomePromo(){clearInterval(window.__homePromoTimer);const track=document.querySelector('.home-promo-track');if(!track||window.matchMedia?.('(prefers-reduced-motion: reduce)').matches)return;const slides=Array.from(track.querySelectorAll('.home-promo-slide'));if(slides.length<2)return;let n=0,paused=false;const pause=()=>{paused=true;clearInterval(window.__homePromoTimer)};track.addEventListener('pointerdown',pause,{once:true,passive:true});track.addEventListener('focusin',pause,{once:true});window.__homePromoTimer=setInterval(()=>{if(paused||document.hidden)return;n=(n+1)%slides.length;slides[n].scrollIntoView({behavior:'smooth',block:'nearest',inline:'start'})},6500)};
 const note=()=>msg?`<p class="${/^تم/.test(msg)?'okb':'e'}" role="status">${esc(msg)}</p>`:'';const run=f=>async(...a)=>{msg='';try{await f(...a)}catch(e){msg=e;go(tab)}};
 async function go(t){
@@ -118,10 +127,16 @@ else if(t!==0){
   AP=nextAP;SH=nextSH;
 }
 if(seq!==window.__laqGoSeq)return;
-const html=await [home,souq,deliv,mine,med,gsr,svc][t]();
+let html;
+try{html=await [home,souq,deliv,mine,med,gsr,svc][t]()}
+catch(e){
+if(t!==0)throw e;
+window.__laqinoHomeLog('home-initial-render',e,{fallback:'minimal-home-shell'});
+html=`<section class="home-hero" aria-label="بحث لاقينو"><div class="sbar gs lg" role="search"><span aria-hidden="true">⌕</span><input id="gq" type="search" placeholder="دواء، دكتور، خدمة، أو إعلان" aria-label="بحث عام" onkeydown="if(event.key==='Enter'){window.gq=this.value.trim();go(5)}"><button class="s" onclick="window.gq=(document.getElementById('gq').value||'').trim();go(5)">بحث</button></div><div class="home-promo home-promo-welcome"><strong>لاقينو… سيبها علينا</strong><span>ابحث عن اللي محتاجه</span></div></section><div class="home"><div class="tiles"><button class="sc med" onclick="go(4)">الخدمات الطبية</button><button class="sc souq" onclick="go(1)">سوق لاقينو</button><button class="sc svc" onclick="go(6)">الخدمات المحلية</button><button class="sc dlv" onclick="go(2)">التوصيل</button></div><p role="status">ظهرت النسخة الأساسية من الرئيسية. بعض العناصر الإضافية لم تُحمّل.</p></div>`;
+}
 if(seq!==window.__laqGoSeq)return;
 window._sk=0;
-if(tab===t){if(window._pl&&/INPUT|TEXTAREA|SELECT/.test((document.activeElement||{}).tagName||'')){window._sg=''}else{V.innerHTML=html;if(t===0)startHomePromo();else clearInterval(window.__homePromoTimer);if(t===3&&window._mineExtrasPending){const load=window._mineExtrasPending;window._mineExtrasPending=null;load()}if(t===4&&mt==='dr')setTimeout(()=>dsr(),0)}}
+if(tab===t){if(window._pl&&/INPUT|TEXTAREA|SELECT/.test((document.activeElement||{}).tagName||'')){window._sg=''}else{V.innerHTML=html;if(t===0){try{startHomePromo()}catch(e){window.__laqinoHomeLog('home-promo-start',e)}}else clearInterval(window.__homePromoTimer);if(t===3&&window._mineExtrasPending){const load=window._mineExtrasPending;window._mineExtrasPending=null;load()}if(t===4&&mt==='dr')setTimeout(()=>dsr(),0)}}
 }
 const APL={pending:'قيد المراجعة',approved:'معتمد',rejected:'مرفوض',suspended:'موقوف'};
 const pnlCard=(k,ic,title,a,href,okTxt)=>{if(!a)return'';const s=a.status,ok=s=='approved';
@@ -242,7 +257,9 @@ timeout(api('/home-campaigns'),1800),
 ...(T?[timeout(ME?Promise.resolve(ME):api('/me'),1800),timeout(AP?Promise.resolve(AP):api('/my/applications'),1200),timeout(api('/owner/shops'),1200)]:[])
 ]).then(async results=>{
 if(loadId!==window.__homeLoadId||window._lt!==0||!document.getElementById('homeTiles'))return;
-const value=(i,fallback)=>results[i].status==='fulfilled'?results[i].value:fallback;
+const labels=['service-types','market-listings','home-sections','shop-types','local-services','managed-campaigns','current-user','my-applications','owned-shops'];
+results.forEach((result,i)=>{if(result.status==='rejected')window.__laqinoHomeLog('api:'+labels[i],result.reason,{fallback:'initial-home-content-retained'})});
+const value=(i,fallback)=>results[i]&&results[i].status==='fulfilled'?results[i].value:fallback;
 const types=value(0,[]),ads=value(1,[]),cfg=value(2,HOME_SECTION_DEFAULTS),shopTypes=value(3,null),providers=value(4,[]),campaigns=value(5,[]);
 if(T){
 if(results[6]&&results[6].status==='fulfilled')ME=results[6].value;
@@ -266,7 +283,11 @@ const services=document.getElementById('homeServices');
 if(services){services.innerHTML=svOn?`<div class="sec">${IC.tool}خدمات متاحة</div><div class="chips">${(Array.isArray(types)?types:[]).slice(0,8).map(x=>`<button onclick="svt(${x.id})">${esc(x.name_ar)}</button>`).join('')}</div>`:''}
 const footer=document.querySelector('.site-footer-links');
 if(footer&&shOn&&!SH.length&&!footer.querySelector('a[href="/shop.html"]'))footer.insertAdjacentHTML('beforeend','<a href="/shop.html">عندك محل؟ لوحة المحل وطلب الانضمام</a>');
-}).catch(()=>{});
+if(footer&&T&&results[7]&&results[7].status==='fulfilled'){
+const pharmacyLink=footer.querySelector('a[href="/pharmacy.html"]');
+if(!canApplyPharmacy()&&pharmacyLink)pharmacyLink.remove();
+}
+}).catch(e=>window.__laqinoHomeLog('home-hydration-render',e,{fallback:'rendered-shell-retained'}));
 return shell;
 }
 let FG=0,CP=0,DA=0,VF=null,VT=0;const authBox=()=>VF?vfBox():FG?`<div class="card"><b>استعادة كلمة المرور</b><p class="n">الأسهل: اكتب رقمك وكلمة المرور الجديدة واضغط «استعادة عبر واتساب»، وابعت الكود من نفس الرقم. أو تواصل مع الإدارة وستعطيك كودًا من 8 أرقام صالحًا 30 دقيقة.</p><input id="fph" placeholder="رقم الهاتف" aria-label="رقم الهاتف" inputmode="tel" autocomplete="tel"><input id="fco" placeholder="كود الاستعادة (8 أرقام)" aria-label="كود الاستعادة" inputmode="numeric" maxlength="8"><input id="fpw" type="password" placeholder="كلمة المرور الجديدة (8 أحرف على الأقل)" aria-label="كلمة المرور الجديدة" autocomplete="new-password"><button class="full" onclick="rstw()">استعادة عبر واتساب</button><div class="row"><button class="s" onclick="rst()">تغيير بكود الإدارة</button><button class="line" onclick="FG=0;go(tab)">رجوع</button></div>${note()}</div>`:`<details class="home-auth"><summary>عندك حساب بالفعل؟ سجّل الدخول</summary><div class="card"><b>تسجيل الدخول</b><p class="n">ادخل لحسابك عشان تطلب وتتابع طلباتك.</p><input id="ph" placeholder="رقم الهاتف 01xxxxxxxxx" aria-label="رقم الهاتف" inputmode="tel" autocomplete="tel"><input id="pw" type="password" placeholder="كلمة المرور" aria-label="كلمة المرور" autocomplete="current-password"><button class="full" onclick="auth('login')">دخول</button><p class="n" style="margin:12px 0 0">لسه معندكش حساب؟ <a href="/register.html${accountNext()?'?next='+encodeURIComponent(accountNext()):''}">إنشاء حساب جديد</a></p><p class="n" style="margin:8px 0 0"><a href="#" onclick="FG=1;msg='';go(tab);return false">نسيت كلمة المرور؟</a></p>${note()}</div></details>`;
