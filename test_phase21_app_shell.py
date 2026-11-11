@@ -39,7 +39,9 @@ with sync_playwright() as p:
         ctx = b.new_context(viewport={"width": w, "height": h}, locale="ar-EG", service_workers="block"); pg = ctx.new_page(); pg.errs = []; pg.ctx = ctx
         pg.on("pageerror", lambda e: pg.errs.append(str(e))); pg.add_init_script("localStorage.setItem('rg','3');"); return pg
     for w in (320, 360, 390, 430, 768, 1024, 1440):
-        pg = page(w); pg.goto(BASE + "/"); pg.wait_for_timeout(1200)
+        pg = page(w); pg.route("**/api/**", lambda route: route.abort()); started = time.monotonic(); pg.goto(BASE + "/", wait_until="domcontentloaded"); pg.wait_for_selector("#gq", timeout=1500); first_paint = time.monotonic() - started; pg.wait_for_timeout(1200)
+        ok("[%d] search-first shell appears within 1.5s with API requests failing (%.2fs)" % (w, first_paint), first_paint < 1.5 and pg.evaluate("!!document.querySelector('.home-search #gq')"))
+        ok("[%d] API failures are recorded diagnostically" % w, pg.evaluate("Array.isArray(window.__laqinoHomeDiagnostics)&&window.__laqinoHomeDiagnostics.some(x=>x.stage.startsWith('api:'))"))
         ok("[%d] home search, promo, and sections render in order; no overflow or JS errors" % w, pg.evaluate("(()=>{const q=document.querySelector('.home-search #gq'),p=document.querySelector('.home-promo'),t=document.querySelector('.tiles');return !!q&&!!p&&!!t&&q.getBoundingClientRect().top<p.getBoundingClientRect().top&&p.getBoundingClientRect().top<t.getBoundingClientRect().top&&document.documentElement.scrollWidth<=innerWidth+1})()") and not pg.errs)
         ok("[%d] nav: 5 tabs with 3D icons, tap targets >=44px" % w, pg.evaluate("(()=>{const b=[...document.querySelectorAll('body.app>nav button')];return b.length==5&&b.every(x=>x.querySelector('svg.i3 use')&&x.getBoundingClientRect().height>=44)})()"))
         ok("[%d] four home cards keep their original 3D icons" % w, pg.evaluate("document.querySelectorAll('.tiles .sc svg.i3').length==4"))
