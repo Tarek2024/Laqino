@@ -74,6 +74,40 @@ ok("server remains responsive after concurrent chat-list requests", call("GET", 
 ok("empty conversations stay hidden until the first message", T1 not in empty_b1 and T2 not in empty_b2 and T1 not in empty_seller)
 ok("third account cannot see or open either unrelated conversation", T1 not in empty_other and T2 not in empty_other and call("GET", f"/chats/{T1}", None, tk[OTHER])[0] == 404 and call("GET", f"/chats/{T2}", None, tk[OTHER])[0] == 404)
 ok("hidden empty conversation can still be resumed from its listing", call("POST", f"/listings/{Lc}/chat", None, tk[B1]) == (200, {"thread_id": T1}))
+
+# Browser-level chat journey: resume the same empty thread from the listing,
+# send a message, find it in the conversation list, and reopen the same thread.
+from playwright.sync_api import sync_playwright
+with sync_playwright() as playwright:
+    browser = playwright.chromium.launch()
+    context = browser.new_context(viewport={"width": 390, "height": 844}, service_workers="block")
+    context.add_init_script("localStorage.setItem('t', " + json.dumps(tk[B1]) + ");")
+    page = context.new_page()
+    browser_errors = []
+    page.on("pageerror", lambda error: browser_errors.append(str(error)))
+    page.goto(BASE + f"/market.html#/l/{Lc}", wait_until="domcontentloaded")
+    page.get_by_role("button", name="راسل البائع").wait_for(state="visible", timeout=10000)
+    page.get_by_role("button", name="راسل البائع").click()
+    page.wait_for_function("() => location.hash === '#/chat/" + str(T1) + "'", timeout=10000)
+    page.locator(".chat-input").wait_for(state="visible", timeout=10000)
+    page.locator(".chat-input").fill("رسالة تجربة من واجهة المستخدم")
+    page.get_by_role("button", name="إرسال").click()
+    page.locator(".msg.mine").filter(has_text="رسالة تجربة من واجهة المستخدم").wait_for(state="visible", timeout=10000)
+    ok("buyer can resume the existing conversation and send a message from the browser",
+       page.locator(".msg.mine").filter(has_text="رسالة تجربة من واجهة المستخدم").count() == 1)
+    page.locator("a.back").click()
+    page.wait_for_function("() => location.hash === '#/chats'", timeout=10000)
+    page.get_by_text("محادثة فقط", exact=False).wait_for(state="visible", timeout=10000)
+    ok("conversation appears in the user's chat list after the first real message",
+       page.get_by_text("محادثة فقط", exact=False).count() >= 1)
+    page.goto(BASE + f"/market.html#/l/{Lc}", wait_until="domcontentloaded")
+    page.get_by_role("button", name="راسل البائع").wait_for(state="visible", timeout=10000)
+    page.get_by_role("button", name="راسل البائع").click()
+    page.wait_for_function("() => location.hash === '#/chat/" + str(T1) + "'", timeout=10000)
+    ok("reopening chat from the same listing reuses the original thread id",
+       page.locator(".chat-input").is_visible() and location_hash := page.evaluate("location.hash") == "#/chat/" + str(T1))
+    ok("chat browser flow has no JavaScript errors", not browser_errors)
+    browser.close()
 ok("both/default listings accept chat", call("POST", f"/listings/{Lb}/chat", None, tk[B3])[0] == 201 and call("POST", f"/listings/{Ld}/chat", None, tk[B3])[0] == 201)
 
 # ---------- خصوصية الإعلان مجهول الهوية
