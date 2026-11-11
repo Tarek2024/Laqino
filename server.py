@@ -1,4 +1,6 @@
 import html as html_lib
+from datetime import datetime
+from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 import base64, sqlite3, json, os, secrets, hashlib, hmac, sys, time, mimetypes, re, threading, ipaddress
 import notif, account
 from http.server import ThreadingHTTPServer, BaseHTTPRequestHandler
@@ -7,6 +9,15 @@ import market
 import gsearch, products, product_orders, provider_delivery, shops, shop_delivery, shop_delivery_stats, rx, chat, svc, overview, fcm, exchange, lsocial, bulk_import
 DB = os.environ.get("LAQINO_DB", "laqino.db")
 UP = os.environ.get("LAQINO_UPLOADS", "uploads")
+
+def home_campaign_today():
+    """Return today's date in Cairo, honoring daylight-saving changes."""
+    try:
+        return datetime.now(ZoneInfo("Africa/Cairo")).date()
+    except (ZoneInfoNotFoundError, OSError):
+        # Last-resort fallback uses the host's configured local timezone, never a fixed UTC offset.
+        return datetime.now().astimezone().date()
+
 ROOT = os.path.realpath(os.path.join(os.path.dirname(os.path.abspath(__file__)), "static"))
 MIME = {".webmanifest": "application/manifest+json", ".js": "text/javascript", ".png": "image/png", ".webp": "image/webp"}
 SCHEMA = """
@@ -1713,7 +1724,7 @@ class H(BaseHTTPRequestHandler):
                 audit(c, u["id"], "settings.products_enabled", None, {"products": d["products"]}); c.commit(); return self.send(200, {"products": d["products"]})
 
             if path == "/api/home-campaigns" and method == "GET":
-                today = time.strftime("%Y-%m-%d", time.gmtime(time.time() + 7200))
+                today = home_campaign_today().isoformat()
                 rows = c.execute("SELECT * FROM home_campaigns WHERE is_active=1 AND (start_date IS NULL OR start_date='' OR start_date<=?) AND (end_date IS NULL OR end_date='' OR end_date>=?) ORDER BY sort_order,id DESC LIMIT 8",(today,today)).fetchall()
                 out=[]
                 for r in rows:
@@ -1726,7 +1737,7 @@ class H(BaseHTTPRequestHandler):
                 return self.send(200,out)
             m=re.fullmatch(r"/api/home-campaigns/(\d+)/image",path)
             if method=="GET" and m:
-                today=time.strftime("%Y-%m-%d",time.gmtime(time.time()+7200))
+                today = home_campaign_today().isoformat()
                 row=c.execute("SELECT f.path,f.mime FROM home_campaigns h JOIN files f ON f.id=h.image_file_id WHERE h.id=? AND h.is_active=1 AND (h.start_date IS NULL OR h.start_date='' OR h.start_date<=?) AND (h.end_date IS NULL OR h.end_date='' OR h.end_date>=?)",(int(m[1]),today,today)).fetchone()
                 if not row: raise E(404,"الصورة غير موجودة")
                 return self.send(200,None,row["mime"],open(os.path.join(UP,row["path"]),"rb").read(),{"Cache-Control":"public, max-age=300"})
