@@ -17,7 +17,7 @@ jobs:
           python -m pip install cryptography Pillow playwright
           python -m playwright install --with-deps chromium
       - name: Compile changed Python files
-        run: python -m py_compile server.py notif.py fcm.py product_orders.py shop_delivery.py test_phase90_fcm.py test_phase69_shop_delivery.py test_phase87_product_orders.py test_phase_marketplace_ad_management.py test_phase4_chat.py test_registration_account_recovery.py test_phase91_market_ui.py
+        run: python -m py_compile server.py notif.py fcm.py product_orders.py shop_delivery.py test_phase90_fcm.py test_phase69_shop_delivery.py test_phase87_product_orders.py test_phase_marketplace_ad_management.py test_phase4_chat.py test_registration_account_recovery.py test_phase91_market_ui.py test_phase92_account_orders.py
       - name: Validate release and service-worker cache version
         run: python check_versions.py
       - name: Run full release readiness checks
@@ -26,6 +26,8 @@ jobs:
         run: python test_registration_account_recovery.py
       - name: Run Phase 91 focused UI and marketplace share regression tests
         run: python test_phase91_market_ui.py
+      - name: Run Phase 92 account current/history order grouping regression
+        run: python test_phase92_account_orders.py
       - name: Run isolated marketplace regression tests
         run: python test_phase_marketplace_ad_management.py
       - name: Run existing marketplace favorites and reports regression tests
