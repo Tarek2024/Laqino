@@ -43,6 +43,7 @@ check("customer cannot read admin campaign manager", call("GET", "/admin/home-ca
 check("customer cannot create homepage campaign", call("POST", "/admin/home-campaigns", {"title":"محاولة","destination_type":"home","is_active":True}, customer)[0] == 403)
 
 today = server.home_campaign_today()
+check("campaign date uses the Cairo timezone database", today == datetime.datetime.now(server.ZoneInfo("Africa/Cairo")).date())
 tomorrow = (today + datetime.timedelta(days=1)).isoformat()
 yesterday = (today - datetime.timedelta(days=1)).isoformat()
 base = {"title":"حملة اختبار","description":"وصف مختصر","destination_type":"market","destination_value":"","sort_order":2,"is_active":True}
