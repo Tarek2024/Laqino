@@ -218,6 +218,9 @@ with sync_playwright() as playwright:
     archive_summary = page.locator("#mine-fold-archive > summary")
     archive_summary.focus()
     page.evaluate("window.__accountFoldNodes = [...document.querySelectorAll('#v details.account-fold')]; window.__archiveSummaryNode = document.querySelector('#mine-fold-archive > summary')")
+    with sqlite3.connect(DB) as db:
+        db.execute("UPDATE delivery_orders SET status='completed' WHERE id=?", (ids["disputed"],))
+        db.commit()
     page.wait_for_timeout(8500)
     check("automatic account refresh does not steal focus from the active summary",
           page.evaluate("document.activeElement === document.querySelector('#mine-fold-archive > summary')"))
@@ -227,6 +230,10 @@ with sync_playwright() as playwright:
           page.evaluate("window.__accountFoldNodes.every(el => el.isConnected && document.getElementById(el.id) === el) && window.__archiveSummaryNode === document.querySelector('#mine-fold-archive > summary')"))
     check("service, pharmacy and market sections remain open after the 8-second refresh",
           page.evaluate("['#mine-fold-services','#mine-fold-pharmacy','#mine-fold-market'].every(id => document.querySelector(id)?.open === true)"))
+    check("delivery status refreshes while an accordion summary keeps keyboard focus",
+          page.evaluate("document.querySelectorAll('#mine-active-orders > .card.od').length === 0 && document.querySelectorAll('#mine-archive-orders > .card.od').length === 4"))
+    check("keyboard focus remains on the same archive summary after delivery data changes",
+          page.evaluate("window.__archiveSummaryNode === document.activeElement && document.activeElement === document.querySelector('#mine-fold-archive > summary')"))
 
     check("no browser JavaScript errors", not errors)
     browser.close()
