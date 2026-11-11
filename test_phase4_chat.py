@@ -1,5 +1,5 @@
 # المرحلة 4: محادثة سوق لاقينو (chat.py) + اختيار البائع لطريقة التواصل. قاعدة مؤقتة. اختبار API + فحص نصي للواجهة.
-import os, json, threading, urllib.request, urllib.error, tempfile, time, sqlite3
+import os, json, threading, urllib.request, urllib.error, tempfile, time, sqlite3, concurrent.futures
 os.environ["LAQINO_DB"] = tempfile.mktemp(suffix=".db"); os.environ["LAQINO_UPLOADS"] = tempfile.mkdtemp()
 import server
 import chat
@@ -65,6 +65,12 @@ empty_b1 = [x["id"] for x in call("GET", "/chats", None, tk[B1])[1]]
 empty_b2 = [x["id"] for x in call("GET", "/chats", None, tk[B2])[1]]
 empty_seller = [x["id"] for x in call("GET", "/chats", None, tk[SELLER])[1]]
 empty_other = [x["id"] for x in call("GET", "/chats", None, tk[OTHER])[1]]
+# Exercise the new list query concurrently across all participant roles; every request
+# must return normally and the threaded HTTP server must remain responsive.
+with concurrent.futures.ThreadPoolExecutor(max_workers=8) as pool:
+    results = list(pool.map(lambda item: call("GET", "/chats", None, tk[item]), [B1, B2, SELLER, OTHER] * 6))
+ok("concurrent chat-list requests return 200 without server errors", len(results) == 24 and all(status == 200 for status, _ in results))
+ok("server remains responsive after concurrent chat-list requests", call("GET", "/regions")[0] == 200)
 ok("empty conversations stay hidden until the first message", T1 not in empty_b1 and T2 not in empty_b2 and T1 not in empty_seller)
 ok("third account cannot see or open either unrelated conversation", T1 not in empty_other and T2 not in empty_other and call("GET", f"/chats/{T1}", None, tk[OTHER])[0] == 404 and call("GET", f"/chats/{T2}", None, tk[OTHER])[0] == 404)
 ok("hidden empty conversation can still be resumed from its listing", call("POST", f"/listings/{Lc}/chat", None, tk[B1]) == (200, {"thread_id": T1}))
