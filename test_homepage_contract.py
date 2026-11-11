@@ -15,7 +15,7 @@ cards=extract(html,"async function homeSectionCards(","\nasync function home(){"
 symbols={k:extract(html,f'<symbol id="{k}"',"</symbol>") for k in ("i3-med","i3-souq","i3-svc","i3-moto")}
 check("four original section icons are present", all(symbols.values()))
 check("home section builder retains medical, market, local-services, and delivery cards", all(k in cards for k in ("med:","souq:","svc:","dlv:")))
-check("local services remains visible as a disabled card when no providers exist", "soon" in cards and "x.key!=='svc'||svOn" not in cards)
+check("local services remains visible as a disabled card when no providers exist", "!svOn" in cards and "x.key!==" not in cards)
 check("search renders before managed promo, then section cards", home.index('class="home-search"') < home.index('class="home-promo"') and home.index('class="home-promo"') < home.index('class="tiles"'))
 check("home shell is returned without awaiting remote data", "await Promise.allSettled" not in home and "Promise.allSettled([" in home and "return shell;" in home)
 check("initial-render emergency fallback and diagnostic logger exist", "home-initial-render" in html and "window.__laqinoHomeLog" in html and "home-hydration-render" in html)
