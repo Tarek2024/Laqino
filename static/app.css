@@ -839,3 +839,31 @@ body.app .account-support-copy{display:flex;flex-direction:column;min-width:0;li
 body.app .account-support-copy b{font-size:.9rem;font-weight:700}
 body.app .account-support-copy small{font-size:.76rem;color:var(--mute)}
 body.app .account-support-arrow{margin-inline-start:auto;flex:none;color:#91a0bd;font-size:1.5rem;line-height:1}
+
+
+/* ---------- الرئيسية: مساحة إعلانية مندمجة والبحث ---------- */
+body.app main:has(.home-hero){max-width:none;padding:0 14px 8px}
+body.app .home-hero{width:100%;max-width:560px;margin:12px auto 0}
+body.app .home-promo{position:relative;isolation:isolate;min-height:148px;overflow:hidden;margin:0 0 10px;padding:13px 14px 12px;border:1px solid #dce5f1;border-radius:23px;background:linear-gradient(118deg,#f0f4fa 0%,#e9eff8 54%,#e7f2ef 100%);box-shadow:0 5px 16px #0f2a5c0c}
+body.app .home-promo::before{content:"";position:absolute;z-index:-1;width:190px;height:190px;inset-inline-end:-76px;top:-108px;border-radius:50%;background:#fff8;pointer-events:none}
+body.app .home-promo-glow{position:absolute;z-index:-1;inset-inline-end:0;bottom:-62px;width:160px;height:130px;border-radius:50%;background:radial-gradient(ellipse,#c9e4df88 0%,#c9e4df00 72%);pointer-events:none}
+body.app .home-promo-mascot{position:absolute;z-index:2;inset-inline-end:5px;bottom:-5px;width:91px;height:119px;object-fit:contain;object-position:center bottom;filter:drop-shadow(0 3px 5px #0f2a5c20);pointer-events:none}
+body.app .home-promo-window{position:relative;z-index:1;min-height:112px;margin-inline-end:96px;overflow:hidden;direction:rtl}
+body.app .home-promo-track{display:flex;align-items:stretch;gap:0;min-height:112px;overflow-x:auto;overflow-y:hidden;direction:rtl;scroll-snap-type:x mandatory;scrollbar-width:none;overscroll-behavior-inline:contain;-webkit-overflow-scrolling:touch}
+body.app .home-promo-track::-webkit-scrollbar{display:none}
+body.app .home-promo-slide{flex:0 0 100%;min-width:0;min-height:112px;display:flex;flex-direction:column;align-items:flex-start;justify-content:center;gap:3px;scroll-snap-align:start;color:var(--navy);text-decoration:none;padding:2px 0}
+body.app .home-promo-kicker{display:inline-flex;align-items:center;max-width:100%;padding:2px 9px;border-radius:999px;background:#fcebd7;color:#89500d;font:700 .7rem var(--fb);line-height:1.5}
+body.app .home-promo-slide strong{display:-webkit-box;max-width:100%;overflow:hidden;-webkit-line-clamp:2;-webkit-box-orient:vertical;font:700 1.04rem/1.35 var(--fd);color:var(--navy)}
+body.app .home-promo-price{font:700 .86rem var(--fb);color:var(--teal)}
+body.app .home-promo-cta{display:inline-flex;align-items:center;gap:5px;margin-top:2px;font:600 .76rem var(--fb);color:#536987}
+body.app .home-promo-welcome strong{font-size:1.12rem}
+body.app .home-promo-hint{position:absolute;z-index:3;bottom:5px;inset-inline-start:12px;color:#75839b;font:500 .62rem var(--fb);pointer-events:none}
+body.app .home-search .sbar.lg{margin:0;min-height:54px;border:1px solid var(--line);border-radius:16px;background:#fff;box-shadow:0 4px 14px #0f2a5c12}
+body.app .home-search .sbar.lg input{min-height:52px}
+@media(max-width:360px){
+  body.app .home-promo{min-height:140px;padding:10px 11px}
+  body.app .home-promo-mascot{width:78px;height:108px}
+  body.app .home-promo-window{margin-inline-end:82px}
+  body.app .home-promo-slide strong{font-size:.96rem}
+}
+@media(prefers-reduced-motion:reduce){body.app .home-promo-track{scroll-behavior:auto}}
