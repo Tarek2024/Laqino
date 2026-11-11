@@ -103,7 +103,7 @@
   addEventListener('popstate', function () {
     if (skip > 0) { skip--; return; }
     if (pushedSheet) { pushedSheet = false; if (oc) oc(); return; }
-    if (pushedTab) { pushedTab = false; og(0); paintHead(0); }
+    if (pushedTab) { pushedTab = false; window.go(0); }
   });
 
   /* ---------- سحب للتحديث ---------- */
