@@ -45,7 +45,7 @@ with sync_playwright() as pw:
     ok("request moved to awaiting_quotes with 2 invites", sql("select status from service_requests where id=?", (R1,))[0][0] == "awaiting_quotes" and sql("select count(*) from service_request_invites")[0][0] == 2)
     ok("invite button is gone afterwards", pc.locator("button:has-text('اطلب عروض أسعار')").count() == 0)
     # ---------- المقدم الأول يقدّم عرضه من الواجهة
-    pp = page_for(PV1); pp.wait_for_timeout(600); pp.evaluate("go(3)"); pp.wait_for_selector("#qp%d" % R1, timeout=8000)
+    pp = page_for(PV1); pp.wait_for_timeout(600); pp.evaluate("go(3)"); pp.locator("#mine-fold-services").evaluate("(e) => { e.open = true; }"); pp.wait_for_selector("#qp%d" % R1, timeout=8000)
     ok("provider sees a quote form and no direct-accept button", pp.locator("button:has-text('اقبل الطلب')").count() == 0 and pp.locator("button:has-text('قدّم عرضك')").count() == 1)
     pp.fill("#qp%d" % R1, "200"); pp.fill("#qn%d" % R1, "شامل الخامات"); pp.click("button:has-text('قدّم عرضك')"); pp.wait_for_selector("text=بانتظار اعتماد الإدارة", timeout=8000)
     ok("quote saved as pending", sql("select price,status from service_quotes where request_id=?", (R1,)) == [(200, "pending")])
