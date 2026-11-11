@@ -170,9 +170,11 @@ with sync_playwright() as playwright:
 
     check("service, pharmacy-product and marketplace sections are folded",
           state["servicesFolded"] and state["pharmacyProductsFolded"] and state["adsFolded"])
-    check("account sections use branded icons from the app icon family",
-          state["serviceIcon"] and state["pharmacyIcon"] and state["archiveIcon"] and
-          state["adsIcon"] and state["deliveryIcon"])
+    check("service requests section renders its SVG icon", state["serviceIcon"])
+    check("pharmacy product orders section renders its SVG icon", state["pharmacyIcon"])
+    check("previous orders section renders its SVG icon", state["archiveIcon"])
+    check("market management section renders its SVG icon", state["adsIcon"])
+    check("delivery orders heading renders its SVG icon", state["deliveryIcon"])
 
     page.locator("#v details.account-fold summary").filter(
         has_text="الطلبات السابقة"
