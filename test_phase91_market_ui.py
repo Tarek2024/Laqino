@@ -336,28 +336,54 @@ with sync_playwright() as playwright:
     app_context = browser.new_context(viewport={"width": 390, "height": 844}, device_scale_factor=1)
     app_page = app_context.new_page()
     app_page.add_init_script("""try { localStorage.clear(); } catch (e) {}
-      window.__gpsCalls = 0;
-      window.__gpsStacks = [];
       window.__permissionState = "prompt";
-      Object.defineProperty(navigator, "permissions", {configurable: true, value: {
-        query: () => Promise.resolve({state: window.__permissionState})
-      }});
-      Object.defineProperty(navigator, "geolocation", {configurable: true, value: {
-        getCurrentPosition: (success, error) => {
-          window.__gpsCalls = (window.__gpsCalls || 0) + 1;
-          window.__gpsStacks.push((new Error("GPS requested")).stack || "stack unavailable");
+      const probe = {calls: 0, stacks: [], installed: false, error: ""};
+      Object.defineProperty(window, "__laqGpsProbe", {value: probe, configurable: false});
+      const fakeGeo = {
+        getCurrentPosition: function (success, error) {
+          probe.calls += 1;
+          probe.stacks.push((new Error("GPS requested")).stack || "stack unavailable");
           if (error) error({code: 1});
         }
-      }});
+      };
+      try {
+        Object.defineProperty(navigator, "geolocation", {configurable: true, value: fakeGeo});
+        probe.installed = navigator.geolocation === fakeGeo;
+      } catch (e) {
+        probe.error = "navigator.geolocation: " + String(e);
+        try {
+          Object.defineProperty(Object.getPrototypeOf(navigator), "geolocation", {
+            configurable: true, get: () => fakeGeo
+          });
+          probe.installed = navigator.geolocation === fakeGeo;
+        } catch (e2) { probe.error += "; prototype: " + String(e2); }
+      }
+      const fakePermissions = {query: () => Promise.resolve({state: window.__permissionState})};
+      try {
+        Object.defineProperty(navigator, "permissions", {configurable: true, value: fakePermissions});
+      } catch (e) {
+        try { Object.defineProperty(Object.getPrototypeOf(navigator), "permissions", {
+          configurable: true, get: () => fakePermissions
+        }); } catch (e2) {}
+      }
     }""")
     app_page.goto(BASE + "/", wait_until="domcontentloaded")
     app_page.locator("#v .find").wait_for(state="visible", timeout=20000)
     app_page.wait_for_timeout(900)
-    gps_first_open = app_page.evaluate("({calls: window.__gpsCalls, stacks: window.__gpsStacks || [], hook: !!(navigator.geolocation && navigator.geolocation.getCurrentPosition)})")
-    if gps_first_open["calls"] != 0:
-        print("GPS_FIRST_OPEN_DIAGNOSTIC=" + repr(gps_first_open), flush=True)
+    gps_first_open = app_page.evaluate("""() => ({
+      probe: window.__laqGpsProbe ? {
+        calls: window.__laqGpsProbe.calls,
+        stacks: window.__laqGpsProbe.stacks,
+        installed: window.__laqGpsProbe.installed,
+        error: window.__laqGpsProbe.error
+      } : null,
+      hook: !!(navigator.geolocation && navigator.geolocation.getCurrentPosition)
+    })""")
+    print("GPS_FIRST_OPEN_DIAGNOSTIC=" + repr(gps_first_open), flush=True)
+    check("GPS regression probe is installed before app scripts",
+          bool(gps_first_open["probe"] and gps_first_open["probe"]["installed"]))
     check("first app open does not trigger a location permission prompt",
-          gps_first_open["calls"] == 0)
+          bool(gps_first_open["probe"] and gps_first_open["probe"]["calls"] == 0))
     # Even when the OS/browser permission was granted previously, merely opening
     # delivery must not request a fresh GPS reading without a user action.
     app_page.evaluate("window.__permissionState = 'granted'")
