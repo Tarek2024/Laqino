@@ -119,7 +119,12 @@ with sync_playwright() as playwright:
         cancelledInPrevious: (previous?.textContent || '').includes('ملغي'),
         servicesFolded: byTitle('طلبات الخدمات')?.open === false,
         pharmacyProductsFolded: byTitle('طلبات منتجات الصيدليات')?.open === false,
-        adsFolded: byTitle('إعلاناتي وإدارة السوق')?.open === false
+        adsFolded: byTitle('إعلاناتي وإدارة السوق')?.open === false,
+        serviceIcon: !!byTitle('طلبات الخدمات')?.querySelector(':scope > summary .account-fold-icon.services svg'),
+        pharmacyIcon: !!byTitle('طلبات منتجات الصيدليات')?.querySelector(':scope > summary .account-fold-icon.pharmacy svg'),
+        archiveIcon: !!previous?.querySelector(':scope > summary .account-fold-icon.archive svg'),
+        adsIcon: !!byTitle('إعلاناتي وإدارة السوق')?.querySelector(':scope > summary .account-fold-icon.market svg'),
+        deliveryIcon: !!document.querySelector('#v>.sec .account-fold-icon.delivery svg')
       };
     }""")
 
@@ -165,6 +170,9 @@ with sync_playwright() as playwright:
 
     check("service, pharmacy-product and marketplace sections are folded",
           state["servicesFolded"] and state["pharmacyProductsFolded"] and state["adsFolded"])
+    check("account sections use branded icons from the app icon family",
+          state["serviceIcon"] and state["pharmacyIcon"] and state["archiveIcon"] and
+          state["adsIcon"] and state["deliveryIcon"])
 
     page.locator("#v details.account-fold summary").filter(
         has_text="الطلبات السابقة"
