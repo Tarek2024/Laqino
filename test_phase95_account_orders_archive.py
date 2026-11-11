@@ -184,6 +184,45 @@ with sync_playwright() as playwright:
               has_text="الطلبات السابقة"
           ).evaluate("(el) => el.open"))
 
+    # Exercise the actual account accordion state across a full account re-render.
+    # This catches regressions that source-only checks cannot see.
+    for title in ("طلبات الخدمات", "طلبات منتجات الصيدليات", "إعلاناتي وإدارة السوق"):
+        fold = page.locator("#v details.account-fold").filter(has=page.locator("summary").filter(has_text=title))
+        if fold.count():
+            if not fold.evaluate("(el) => el.open"):
+                fold.locator(":scope > summary").click()
+            check(title + " section opens by user tap", fold.evaluate("(el) => el.open"))
+
+    page.evaluate("go(3)")
+    page.wait_for_function("""() => {
+      const titles = ["طلبات الخدمات", "طلبات منتجات الصيدليات", "إعلاناتي وإدارة السوق", "الطلبات السابقة"];
+      const all = [...document.querySelectorAll("#v details.account-fold")];
+      return titles.every(title => all.some(el =>
+        (el.querySelector(":scope > summary")?.textContent || "").includes(title) && el.open));
+    }""", timeout=10000)
+    check("all opened account sections stay open after a full re-render", True)
+
+    # The courier application section is conditional by eligibility. If the
+    # test account is eligible, verify its disclosure state is preserved too.
+    courier = page.locator("#mine-fold-courier")
+    if courier.count():
+        courier.locator(":scope > summary").click()
+        page.evaluate("go(3)")
+        page.wait_for_function("() => document.querySelector('#mine-fold-courier')?.open === true")
+        check("courier application section preserves its open state", True)
+    else:
+        print("INFO courier application section is not available to this test account")
+
+    # Keep keyboard focus on an accordion summary while the 8-second account
+    # refresh interval elapses; the user must not lose the active control.
+    archive_summary = page.locator("#mine-fold-archive > summary")
+    archive_summary.focus()
+    page.wait_for_timeout(8500)
+    check("automatic account refresh does not steal focus from the active summary",
+          page.evaluate("document.activeElement === document.querySelector('#mine-fold-archive > summary')"))
+    check("archive remains open after the automatic refresh interval",
+          page.locator("#mine-fold-archive").evaluate("(el) => el.open"))
+
     check("no browser JavaScript errors", not errors)
     browser.close()
 
