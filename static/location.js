@@ -1,6 +1,6 @@
 /* لاقينو — الموقع الموحد (المرحلة 22). ملف واحد مستقل بلا مكتبات، يتحمّل بعد السكربت الرئيسي في index.html.
    المبادئ:
-   • لا نطلب الموقع تلقائيًا عند الفتح أو العودة للتطبيق؛ أي قراءة GPS جديدة تتطلب اختيارًا صريحًا من المستخدم.
+   • طلب واحد للموقع (getCurrentPosition) عند فتح التطبيق، لا تتبّع مستمر (لا تتبّع إطلاقًا).
    • الإحداثيات تُحفظ على جهاز المستخدم فقط (localStorage['laq_loc']). السيرفر يستلمها في مكانين فقط: /api/location/resolve
      (لتحويلها لمنطقة، ولا يخزّنها) وطلب التوصيل إذا اختار المستخدم إرفاقها (يراها المندوب بعد قبول الطلب فقط).
    • نظام اختيار المنطقة اليدوي (المحافظة ← المركز ← القرية) كما هو. عند رفض الإذن أو تعذّر الموقع لا يتغير أي شيء في التطبيق.
@@ -10,6 +10,7 @@
   'use strict';
   if (window.LaqLoc) return;
   var KEY = 'laq_loc', ASK = 'laq_loc_ask', DENY = 'laq_loc_deny';
+  var STALE_MS = 30 * 60 * 1000;      // بعدها نحدّث الموقع مرة واحدة عند فتح التطبيق/العودة إليه (لو الإذن ممنوح أصلًا)
   var PIN_FRESH_MS = 10 * 60 * 1000;  // أقصى عمر لموقع نرفقه بطلب توصيل دون تحديث
   var C = window.Capacitor, native = !!(C && typeof C.isNativePlatform === 'function' && C.isNativePlatform());
   var NG = native && C.Plugins && C.Plugins.Geolocation;
@@ -201,10 +202,10 @@
     var box = document.createElement('div'); box.id = 'lq-dl'; box.className = 'lql';
     rt.parentNode.insertBefore(box, rt.nextSibling);
     pin = null; lastPinReason = ''; paintPin();
-    // لا نقرأ GPS تلقائيًا عند فتح شاشة التوصيل، حتى لو كان الإذن ممنوحًا.
-    // نستخدم الموقع المحفوظ الحديث فقط؛ وأي قراءة جديدة تحتاج ضغطة صريحة من المستخدم.
+    // لا نطلب إذنًا جديدًا هنا تلقائيًا إلا لو سبق طلبه (المستخدم لم يرفض): لو فيه موقع حديث نستخدمه فورًا
     var l = fresh(PIN_FRESH_MS);
-    if (l) setPinFrom(l);
+    if (l) return setPinFrom(l);
+    permState().then(function (s) { if (s === 'granted' && !pin && document.getElementById('lq-dl') === box) usePin(false); });
   }
 
   /* ---------- أنماط ---------- */
@@ -222,23 +223,24 @@
     return r;
   };
 
-  /* ---------- بدء التشغيل: لا نطلب إذن الموقع أو نحدّثه إلا بعد اختيار المستخدم ---------- */
+  /* ---------- بدء التشغيل: طلب واحد عند فتح التطبيق + تحديث بعد 30 دقيقة عند العودة (بدون تتبع) ---------- */
   function boot() {
     injectSheet();
     setTimeout(function () {
       permState().then(function (s) {
         var l = read();
         if (s === 'denied') { lsSet(DENY, '1'); paintSheet(); return; }
-        if (s === 'granted') {
-          // لا نحدّث GPS تلقائيًا عند بدء التطبيق، حتى لو كان الموقع المحفوظ قديمًا.
-          // تحديث الموقع يتم فقط بعد اختيار المستخدم لزر تحديد الموقع.
-          return;
-        }
-        /* حالة prompt/unknown: نعرض خيار تحديد الموقع، ولا نظهر نافذة النظام تلقائيًا. */
-        paintSheet();
+        if (s === 'granted') { if (!l || Date.now() - l.ts > STALE_MS) request({}); return; }
+        if (!lsGet(ASK)) request({});   // أول مرة فقط: نظهر نافذة إذن المتصفح مرة واحدة. بعد كده الزر اليدوي «حدّد موقعي» هو الطريق.
       });
     }, 700);
   }
+  document.addEventListener('visibilitychange', function () {
+    if (document.hidden) return;
+    var l = read(); if (!l || Date.now() - l.ts <= STALE_MS) return;
+    permState().then(function (s) { if (s === 'granted') request({}); });
+  });
+
   window.LaqLoc = { get: read, fresh: fresh, request: request, clear: clear, mapUrl: mapUrl, pinFields: pinFields, state: permState };
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', boot); else boot();
 })();
