@@ -39,7 +39,8 @@ r = ui("courier", cu, [{"js": FR}, {"js": "document.getElementById('x_rg').query
 ok("front+back submit -> pending courier with 2 documents", q("SELECT status FROM couriers") == [("pending",)] and q("SELECT COUNT(*) FROM courier_documents")[0][0] == 2 and not r["errs"])
 ok("application status shown after submit", "قيد مراجعة الإدارة" in r["m"])
 r = ui("admin", at, [{"js": "tab='couriers';shell()", "wait": 4000, "snap": "v"}])
-ok("admin page lists the documents with labels", "البطاقة — الوجه" in r["v"] and "البطاقة — الظهر" in r["v"] and r["v"].count('id="cd') == 2 and not r["errs"])
+doc_ids=[x[0] for x in q("SELECT file_id FROM courier_documents")]
+ok("admin page lists the documents with labels", "البطاقة — الوجه" in r["v"] and "البطاقة — الظهر" in r["v"] and len(doc_ids)==2 and all(f'id="cd{fid}"' in r["v"] for fid in doc_ids) and not r["errs"])
 cu2 = user("01055555555", "قديم")
 sqlite3.connect(os.environ["LAQINO_DB"]).execute("INSERT INTO couriers(user_id,region_id,created_at) VALUES(?,?,?)", (call("GET", "/me", None, cu2)[1]["id"], 3, int(time.time()))).connection.commit()
 r = ui("admin", at, [{"js": "tab='couriers';shell()", "wait": 4000, "snap": "v"}])
