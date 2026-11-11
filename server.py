@@ -1718,7 +1718,7 @@ class H(BaseHTTPRequestHandler):
                 out=[]
                 for r in rows:
                     typ,val=r["destination_type"],r["destination_value"]
-                    href={"home":"/","market":"/market.html","shops":"/shops.html","pharmacy":"/pharmacy.html","contact":"/contact"}.get(typ,"")
+                    href={"home":"/","medical":"/?section=medical","market":"/market.html","services":"/?section=services","delivery":"/?section=delivery","shops":"/shops.html","pharmacy":"/pharmacy.html","contact":"/contact"}.get(typ,"")
                     if typ=="listing": href="/market.html#/l/%d" % int(val)
                     elif typ=="external": href=val
                     elif typ=="whatsapp": href="https://wa.me/"+re.sub(r"\D","",val)
@@ -1753,8 +1753,8 @@ class H(BaseHTTPRequestHandler):
                 title=str(d.get("title","")).strip(); desc=str(d.get("description","")).strip()
                 typ=str(d.get("destination_type","")); val=str(d.get("destination_value","")).strip()
                 if not 2<=len(title)<=80 or len(desc)>180: raise E(400,"العنوان مطلوب (2–80 حرفًا) والوصف حتى 180 حرفًا")
-                if typ not in ("home","market","shops","pharmacy","contact","listing","external","whatsapp"): raise E(400,"وجهة الإعلان غير صالحة")
-                if typ in ("home","market","shops","pharmacy","contact"): val=""
+                if typ not in ("home","medical","market","services","delivery","shops","pharmacy","contact","listing","external","whatsapp"): raise E(400,"وجهة الإعلان غير صالحة")
+                if typ in ("home","medical","market","services","delivery","shops","pharmacy","contact"): val=""
                 elif typ=="listing":
                     if not val.isdigit() or int(val)<1: raise E(400,"رقم إعلان السوق غير صالح")
                     val=str(int(val))
