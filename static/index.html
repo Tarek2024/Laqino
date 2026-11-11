@@ -43,7 +43,7 @@ window.gq='';window.sq='';window.ms='';
 /* أيقونات 3D من السبرايت أعلى الصفحة (مرحلة 21) */
 const I3=k=>`<svg class="i3" viewBox="0 0 48 48" aria-hidden="true"><use href="#i3-${k}"/></svg>`;
 const esc=x=>String(x??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
-const api=async(p,b)=>{let r;try{r=await fetch('/api'+p,{method:b===undefined?'GET':'POST',headers:{'Content-Type':'application/json',...(T?{Authorization:'Bearer '+T}:{})},body:b===undefined?undefined:JSON.stringify(b)})}catch(e){throw 'لا يوجد اتصال بالإنترنت، حاول مرة أخرى'}const j=await r.json();if(!r.ok)throw j.error;return j};
+const api=async(p,b,signal)=>{let r;try{r=await fetch('/api'+p,{method:b===undefined?'GET':'POST',headers:{'Content-Type':'application/json',...(T?{Authorization:'Bearer '+T}:{})},body:b===undefined?undefined:JSON.stringify(b),...(signal?{signal}:{})})}catch(e){if(e&&e.name==='AbortError')throw new Error('request_aborted_timeout');throw 'لا يوجد اتصال بالإنترنت، حاول مرة أخرى'}const j=await r.json();if(!r.ok)throw j.error;return j};
 const IC={pin:'<svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 21s7-6.2 7-11.2A7 7 0 005 9.8C5 14.8 12 21 12 21z"/><circle cx="12" cy="10" r="2.5"/></svg>',
 search:'<svg class="i" viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="6.5"/><path d="M16 16l4.5 4.5"/></svg>',
 moto:'<svg class="i" viewBox="0 0 24 24" aria-hidden="true"><circle cx="6" cy="17" r="3"/><circle cx="18" cy="17" r="3"/><path d="M6 17h5l3-8h3"/><path d="M14 9l1 8"/></svg>',
@@ -247,15 +247,15 @@ const shell=`<section class="home-hero" aria-label="البحث وإعلانات 
 <div style="height:12px"></div><div id="homeAccount">${acct}</div>
 <footer class="site-footer"><div class="site-footer-brand"><img src="/assets/logo.jpg" alt="شعار لاقينو"><div><b>لاقينو</b><span>منكم وليكم</span></div></div><p>ابعت والباقي علينا — لاقينو حلقة وصل بتقرّب لك اللي محتاجه.</p><div class="site-footer-links"><a href="https://wa.me/201017011170" target="_blank" rel="noopener">واتساب لاقينو</a><a href="/contact">تواصل معنا</a><a href="/privacy">سياسة الخصوصية</a><a href="/terms">الشروط والأحكام</a>${(!T||AP&&canApplyPharmacy())?'<a href="/pharmacy.html">صيدلية؟ لوحة الصيدلية وطلب الانضمام</a>':''}</div><small>لاقينو • منكم وليكم</small></footer></div>`;
 const loadId=window.__homeLoadId=(window.__homeLoadId||0)+1;
-const timeout=(p,ms)=>Promise.race([p,new Promise((_,reject)=>setTimeout(()=>reject(new Error('timeout')),ms))]);
+const timeout=(request,ms)=>{const controller=typeof AbortController!=='undefined'?new AbortController():null;const timer=setTimeout(()=>{try{controller?.abort()}catch(_){}},ms);let task;try{task=typeof request==='function'?request(controller?controller.signal:undefined):request}catch(e){clearTimeout(timer);return Promise.reject(e)}return Promise.resolve(task).finally(()=>clearTimeout(timer))};
 Promise.allSettled([
-timeout(api('/service-types'),2200),
-timeout(api('/listings?limit=3'+(R?'&region_id='+R:'')),2200),
-timeout(api('/home-sections'),1800),
-timeout(api('/shop-types'),2200),
-timeout(api('/services'+(R?'?region_id='+R:'')),2200),
-timeout(api('/home-campaigns'),1800),
-...(T?[timeout(ME?Promise.resolve(ME):api('/me'),1800),timeout(AP?Promise.resolve(AP):api('/my/applications'),1200),timeout(api('/owner/shops'),1200)]:[])
+timeout(signal=>api('/service-types',undefined,signal),2200),
+timeout(signal=>api('/listings?limit=3'+(R?'&region_id='+R:''),undefined,signal),2200),
+timeout(signal=>api('/home-sections',undefined,signal),1800),
+timeout(signal=>api('/shop-types',undefined,signal),2200),
+timeout(signal=>api('/services'+(R?'?region_id='+R:''),undefined,signal),2200),
+timeout(signal=>api('/home-campaigns',undefined,signal),1800),
+...(T?[timeout(signal=>ME?Promise.resolve(ME):api('/me',undefined,signal),1800),timeout(signal=>AP?Promise.resolve(AP):api('/my/applications',undefined,signal),1200),timeout(signal=>api('/owner/shops',undefined,signal),1200)]:[])
 ]).then(async results=>{
 if(loadId!==window.__homeLoadId||window._lt!==0||!document.getElementById('homeTiles'))return;
 const labels=['service-types','market-listings','home-sections','shop-types','local-services','managed-campaigns','current-user','my-applications','owned-shops'];
