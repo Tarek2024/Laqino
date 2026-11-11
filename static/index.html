@@ -244,7 +244,7 @@ const shell=`<section class="home-hero" aria-label="البحث وإعلانات 
 <div class="home-trust-steps"><div><b>١. دور على اللي محتاجه</b><span>ابحث في الأقسام والإعلانات المتاحة.</span></div><div><b>٢. شوف الاختيارات</b><span>اطّلع على التفاصيل والمعلومات المتاحة.</span></div><div><b>٣. تواصل مباشرة</b><span>اتواصل مع صاحب الإعلان أو مقدم الخدمة.</span></div></div>
 </section>
 <div style="height:12px"></div><div id="homeAccount">${acct}</div>
-<footer class="site-footer"><div class="site-footer-brand"><img src="/assets/logo.jpg" alt="شعار لاقينو"><div><b>لاقينو</b><span>منكم وليكم</span></div></div><p>ابعت والباقي علينا — لاقينو حلقة وصل بتقرّب لك اللي محتاجه.</p><div class="site-footer-links"><a href="https://wa.me/201017011170" target="_blank" rel="noopener">واتساب لاقينو</a><a href="/contact">تواصل معنا</a><a href="/privacy">سياسة الخصوصية</a><a href="/terms">الشروط والأحكام</a>${canApplyPharmacy()?'<a href="/pharmacy.html">صيدلية؟ لوحة الصيدلية وطلب الانضمام</a>':''}</div><small>لاقينو • منكم وليكم</small></footer></div>`;
+<footer class="site-footer"><div class="site-footer-brand"><img src="/assets/logo.jpg" alt="شعار لاقينو"><div><b>لاقينو</b><span>منكم وليكم</span></div></div><p>ابعت والباقي علينا — لاقينو حلقة وصل بتقرّب لك اللي محتاجه.</p><div class="site-footer-links"><a href="https://wa.me/201017011170" target="_blank" rel="noopener">واتساب لاقينو</a><a href="/contact">تواصل معنا</a><a href="/privacy">سياسة الخصوصية</a><a href="/terms">الشروط والأحكام</a>${(!T||AP&&canApplyPharmacy())?'<a href="/pharmacy.html">صيدلية؟ لوحة الصيدلية وطلب الانضمام</a>':''}</div><small>لاقينو • منكم وليكم</small></footer></div>`;
 const loadId=window.__homeLoadId=(window.__homeLoadId||0)+1;
 const timeout=(p,ms)=>Promise.race([p,new Promise((_,reject)=>setTimeout(()=>reject(new Error('timeout')),ms))]);
 Promise.allSettled([
@@ -286,6 +286,7 @@ if(footer&&shOn&&!SH.length&&!footer.querySelector('a[href="/shop.html"]'))foote
 if(footer&&T&&results[7]&&results[7].status==='fulfilled'){
 const pharmacyLink=footer.querySelector('a[href="/pharmacy.html"]');
 if(!canApplyPharmacy()&&pharmacyLink)pharmacyLink.remove();
+else if(canApplyPharmacy()&&!pharmacyLink)footer.insertAdjacentHTML('beforeend','<a href="/pharmacy.html">صيدلية؟ لوحة الصيدلية وطلب الانضمام</a>');
 }
 }).catch(e=>window.__laqinoHomeLog('home-hydration-render',e,{fallback:'rendered-shell-retained'}));
 return shell;
