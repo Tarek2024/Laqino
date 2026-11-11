@@ -4,7 +4,7 @@ const fs=require('fs'),vm=require('vm'),path=require('path');
 const [,, page, base, token, stepsJson]=process.argv;
 const html=fs.readFileSync(path.join(__dirname,'static',page+'.html'),'utf8');
 const code=html.match(/<script>([\s\S]*?)<\/script>/)[1];
-const els={};const el=i=>els[i]||(els[i]={value:'',innerHTML:'',textContent:'',hidden:false,className:'',checked:false,files:[],options:[],dataset:{},style:{}});
+const els={};const el=i=>els[i]||(els[i]={value:'',innerHTML:'',textContent:'',hidden:false,className:'',checked:false,files:[],options:[],dataset:{},style:{},querySelectorAll:()=>[],addEventListener(){},scrollIntoView(){}});
 let promptAns=null,confirmAns=true;const alerts=[],errs=[];
 const store=t=>({getItem:k=>(k==='t'||k==='at')?(token||null):(k==='rg'?'3':null),setItem(){},removeItem(){}});
 const ctx={document:{hidden:false,activeElement:{tagName:'BODY'},querySelectorAll:()=>[],getElementById:el,body:{},addEventListener(){},querySelector:()=>el('q')},localStorage:store(),sessionStorage:store(),
