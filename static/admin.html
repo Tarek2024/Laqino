@@ -93,7 +93,7 @@ v(`<div class="card"><h3>إعلانات الصفحة الرئيسية</h3><p><sm
 <label>عنوان الإعلان<input id="hc-title" maxlength="80" value="${esc(x?.title||'')}" placeholder="عنوان مختصر وواضح"></label>
 <label>وصف مختصر (اختياري)<textarea id="hc-desc" maxlength="180" rows="2" placeholder="تفاصيل بسيطة">${esc(x?.description||'')}</textarea></label>
 <label>صورة الإعلان — JPG أو PNG، حتى 4 ميجابايت<input id="hc-image" type="file" accept="image/jpeg,image/png"></label>
-<div id="hc-current-image">${x?.image_file_id?'<small>الصورة الحالية محفوظة. اختيار صورة جديدة يستبدلها.</small>':''}</div>
+<div id="hc-current-image">${x?.image_file_id?'<small>الصورة الحالية محفوظة. اختيار صورة جديدة يستبدلها.</small><label><input id="hc-remove-image" type="checkbox"> إزالة الصورة الحالية</label>':''}</div>
 <label>وجهة الضغط<select id="hc-type" onchange="homeCampaignTargetHint()">${Object.entries(labels).map(([k,n])=>`<option value="${k}" ${(x?.destination_type||'market')===k?'selected':''}>${n}</option>`).join('')}</select></label>
 <label id="hc-target-label">بيانات الوجهة<input id="hc-target" maxlength="500" value="${esc(x?.destination_value||'')}" placeholder="حسب نوع الوجهة"></label>
 <small id="hc-target-hint">اختار وجهة الإعلان؛ سيتم فتحها عند الضغط على اللوحة.</small>
@@ -109,13 +109,13 @@ window.homeCampaignTargetHint=()=>{const t=document.getElementById('hc-type')?.v
 window.newHomeCampaign=()=>{editing=null;currentImage=null;draw()};
 window.cancelHomeCampaign=()=>{editing=null;currentImage=null;draw()};
 window.editHomeCampaign=id=>{editing=id;currentImage=null;draw()};
-window.deleteHomeCampaign=async id=>{if(!confirm('حذف الإعلان نهائيًا؟'))return;try{await api('/admin/home-campaigns/'+id+'/delete',{});rows=await api('/admin/home-campaigns');editing=null;draw();okm('تم حذف الإعلان')}catch(e){fail(e)}};
+window.deleteHomeCampaign=async id=>{if(!confirm('حذف الإعلان نهائيًا؟'))return;try{const old=rows.find(z=>z.id===id);await api('/admin/home-campaigns/'+id+'/delete',{});if(old?.image_file_id)try{await api('/files/'+old.image_file_id+'/delete',{})}catch(_){};rows=await api('/admin/home-campaigns');editing=null;draw();okm('تم حذف الإعلان')}catch(e){fail(e)}};
 window.saveHomeCampaign=async()=>{let uploaded=null;try{
 const title=document.getElementById('hc-title').value.trim(),desc=document.getElementById('hc-desc').value.trim(),file=document.getElementById('hc-image').files[0],x=editing?rows.find(z=>z.id===editing):null;
-let imageId=x?.image_file_id??null;
+let imageId=x?.image_file_id??null;const previousImage=imageId;if(document.getElementById('hc-remove-image')?.checked)imageId=null;
 if(file){if(!['image/jpeg','image/png'].includes(file.type)||file.size>4*1024*1024)throw 'اختر صورة JPG أو PNG لا تتجاوز 4 ميجابايت';const data=await new Promise((resolve,reject)=>{const fr=new FileReader();fr.onload=()=>resolve(String(fr.result).split(',')[1]);fr.onerror=()=>reject('تعذرت قراءة الصورة');fr.readAsDataURL(file)});uploaded=(await api('/files',{data})).id;imageId=uploaded}
 const payload={title,description:desc,image_file_id:imageId,destination_type:document.getElementById('hc-type').value,destination_value:document.getElementById('hc-target').value.trim(),start_date:document.getElementById('hc-start').value,end_date:document.getElementById('hc-end').value,sort_order:Number(document.getElementById('hc-order').value),is_active:document.getElementById('hc-active').checked};
-await api(editing?'/admin/home-campaigns/'+editing:'/admin/home-campaigns',payload);rows=await api('/admin/home-campaigns');editing=null;draw();okm('تم حفظ إعلان الرئيسية بنجاح');
+await api(editing?'/admin/home-campaigns/'+editing:'/admin/home-campaigns',payload);if(previousImage&&previousImage!==imageId)try{await api('/files/'+previousImage+'/delete',{})}catch(_){};rows=await api('/admin/home-campaigns');editing=null;draw();okm('تم حفظ إعلان الرئيسية بنجاح');
 }catch(e){if(uploaded)try{await api('/files/'+uploaded+'/delete',{})}catch(_){};const m=document.getElementById('hc-msg');if(m)m.textContent=String(e);fail(e)}};
 draw();
 },
