@@ -791,3 +791,30 @@ body.app .site-footer>small{display:block;margin-top:14px;color:#c8d4e8}
     margin-inline:auto;
   }
 }
+
+
+/* هوية أيقونات أقسام حسابي — متوافقة مع ألوان وأيقونات لاقينو */
+body.app .account-fold>summary{
+  display:flex;align-items:center;gap:11px;min-height:62px;
+  padding:10px 14px;list-style:none;cursor:pointer;
+  color:var(--navy);font:700 .96rem var(--fd);
+}
+body.app .account-fold>summary::-webkit-details-marker{display:none}
+body.app .account-fold>summary::after{
+  content:"";width:8px;height:8px;flex:none;margin-inline-start:auto;
+  border-inline-end:2px solid #91a0bd;border-bottom:2px solid #91a0bd;
+  transform:rotate(45deg);transition:transform .18s ease;
+}
+body.app .account-fold[open]>summary::after{transform:rotate(225deg)}
+body.app .account-fold-icon{
+  display:grid;place-items:center;flex:none;width:40px;height:40px;
+  border-radius:13px;background:var(--sky-bg);color:var(--navy);
+  box-shadow:inset 0 0 0 1px #dce6f7;
+}
+body.app .account-fold-icon svg{width:21px;height:21px;stroke:currentColor;fill:none;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round}
+body.app .account-fold-icon.services{background:var(--sand-bg);color:var(--orange-d);box-shadow:inset 0 0 0 1px #f3dfc4}
+body.app .account-fold-icon.pharmacy{background:var(--teal-bg);color:var(--teal);box-shadow:inset 0 0 0 1px #ccebe6}
+body.app .account-fold-icon.archive{background:var(--sky-bg);color:var(--navy2)}
+body.app .account-fold-icon.market{background:#efe8fb;color:#6a3fb5;box-shadow:inset 0 0 0 1px #e3d8f5}
+body.app .account-fold-label{min-width:0;line-height:1.45}
+@media(max-width:360px){body.app .account-fold>summary{gap:9px;padding-inline:11px;font-size:.9rem}body.app .account-fold-icon{width:36px;height:36px;border-radius:12px}}
