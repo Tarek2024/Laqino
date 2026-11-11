@@ -214,10 +214,13 @@ check("market UI defines dark-mode colors for cards and controls",
       "@media(prefers-color-scheme:dark)" in market_css
       and ".card,.det" in market_css
       and "input,select,textarea" in market_css)
-check("local-services home card is omitted when no published providers exist",
+check("local-services home tile keeps its fixed position and is disabled when no published providers exist",
       "async function homeSectionCards(card,svOn,provided)" in index
-      and "(x.key!=='svc'||svOn)" in index
-      and "svOn=providers.length>0" in index)
+      and "svc:()=>card('svc'" in index
+      and "cfg.filter(x=>x.visible!==false&&defs[x.key])" in index
+      and "soon?' disabled aria-disabled=\"true\"'" in index
+      and "soon?'<span class=\"soonp\">قريبًا</span>'" in index
+      and "svOn=Array.isArray(providers)&&providers.length>0" in index)
 check("home login is collapsed by default and can be expanded by the visitor",
       '<details class="home-auth"><summary>عندك حساب بالفعل؟ سجّل الدخول</summary>' in index)
 check("homepage trust/footer links and contact route remain present",
