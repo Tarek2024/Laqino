@@ -330,7 +330,8 @@ with sync_playwright() as playwright:
     app_page.locator("#v .find").wait_for(state="visible", timeout=20000)
     app_page.wait_for_timeout(900)
     app_page.locator("#v .sc.dlv").click()
-    app_page.locator("#v input#pk").wait_for(state="visible", timeout=5000)
+    app_page.locator("#v .ph h2").filter(has_text="اطلب دليفري").wait_for(state="visible", timeout=5000)
+    app_page.locator("#v .card.empty h3").filter(has_text="سجّل دخولك الأول").wait_for(state="visible", timeout=5000)
     app_page.locator("#t0").click()
     app_page.locator("#v .find").wait_for(state="visible", timeout=5000)
     for width, height, label, expected_nav in [
