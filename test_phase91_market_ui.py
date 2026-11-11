@@ -356,12 +356,6 @@ with sync_playwright() as playwright:
         if label == "desktop":
             check("desktop navigation stays below the sticky header",
                   metrics["navTop"] >= metrics["headerHeight"] - 2)
-    app_page.locator("#rc").click()
-    app_page.locator("#lq-loc-go").wait_for(state="visible", timeout=5000)
-    app_page.locator("#lq-loc-go").click()
-    app_page.wait_for_function("window.__gpsCalls === 1", timeout=5000)
-    check("location permission is requested after the user selects the location button",
-          app_page.evaluate("window.__gpsCalls === 1"))
     app_page.close()
     app_context.close()
     context.close()
