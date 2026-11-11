@@ -42,7 +42,7 @@ check("anonymous cannot read admin campaign manager", call("GET", "/admin/home-c
 check("customer cannot read admin campaign manager", call("GET", "/admin/home-campaigns", token=customer)[0] == 403)
 check("customer cannot create homepage campaign", call("POST", "/admin/home-campaigns", {"title":"محاولة","destination_type":"home","is_active":True}, customer)[0] == 403)
 
-today = datetime.datetime.fromtimestamp(time.time() + 7200).date()
+today = server.home_campaign_today()
 tomorrow = (today + datetime.timedelta(days=1)).isoformat()
 yesterday = (today - datetime.timedelta(days=1)).isoformat()
 base = {"title":"حملة اختبار","description":"وصف مختصر","destination_type":"market","destination_value":"","sort_order":2,"is_active":True}
