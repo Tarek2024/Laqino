@@ -166,9 +166,11 @@ check("market details open a dedicated in-app image gallery",
 check("image gallery supports previous/next and thumbnail selection",
       'class: "lb-prev"' in market and 'class: "lb-next"' in market
       and 'class: "lb-thumb"' in market and "paintGallery()" in market)
-check("image gallery supports keyboard navigation and Escape close",
+check("image gallery supports keyboard navigation, Escape close, and focus trapping",
       'e.key === "Escape"' in market and 'e.key === "ArrowRight"' in market
-      and 'e.key === "ArrowLeft"' in market)
+      and 'e.key === "ArrowLeft"' in market and 'e.key === "Tab"' in market
+      and 'document.activeElement === first' in market
+      and 'document.activeElement === last' in market)
 gallery_css = (ROOT / "static" / "market-enhancements.css").read_text(encoding="utf-8")
 check("image gallery supports touch swipes and zoom",
       'e.changedTouches[0].clientX' in market
@@ -190,6 +192,11 @@ check("client navigation ignores stale asynchronous page renders",
       "__laqGoSeq" in index and "seq!==window.__laqGoSeq" in index)
 check("app shell ignores stale navigation completion effects",
       "goSeq = 0" in shell_js and "if (seq !== goSeq) return r" in shell_js)
+check("app shell does not restore scroll from a stale navigation frame",
+      "requestAnimationFrame(function () { if (seq === goSeq) window.scrollTo(0, y); });" in shell_js)
+check("account collapsible sections preserve open state across automatic refreshes",
+      "window._laqAccountFolds" in index and "const foldOpen=id=>" in index
+      and all(x in index for x in ["mine-fold-services","mine-fold-pharmacy","mine-fold-archive","mine-fold-market"]))
 check("browser Back uses the guarded navigation wrapper",
       "if (pushedTab) { pushedTab = false; window.go(0); }" in shell_js
       and "if (pushedTab) { pushedTab = false; og(0); paintHead(0); }" not in shell_js)
