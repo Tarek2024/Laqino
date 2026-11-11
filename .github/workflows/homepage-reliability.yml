@@ -3,16 +3,10 @@ name: Homepage Reliability Gate
 on:
   push:
     branches: [feature/homepage-campaigns-admin-20261111]
-  pull_request:
-    branches: [ui/home-integrated-ad-mascot-20261111, main]
   workflow_dispatch:
 
 permissions:
   contents: read
-
-concurrency:
-  group: homepage-reliability-${{ github.ref }}
-  cancel-in-progress: false
 
 jobs:
   backend_campaigns:
