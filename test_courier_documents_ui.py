@@ -27,15 +27,15 @@ FR = "FileReader=class{readAsDataURL(f){this.result='data:image/png;base64,'+f.b
 NOS = {"js": "document.getElementById('cs').files=[]"}  # a real <input type=file> always has .files; the fake DOM does not
 fl = lambda i, n=10: f"document.getElementById('{i}').files=[{{size:{n},b64:'{png()}'}}]"
 # Phase 69 moved courier applications from the customer account tab to courier.html.
-r = ui("courier", cu, [{"js": "rgPick=()=>3", "snap": "m"}])
+r = ui("courier", cu, [{"js": "document.getElementById('x_rg').querySelectorAll=()=>[{value:'3'}]", "snap": "m"}])
 ok("courier page shows the three upload inputs", all(x in r["m"] for x in ('id="x_f1"', 'id="x_f2"', 'id="x_f3"')))
-r = ui("courier", cu, [{"js": "rgPick=()=>3"}, {"js": "sendApply()", "snap": "m"}])
+r = ui("courier", cu, [{"js": "document.getElementById('x_rg').querySelectorAll=()=>[{value:'3'}]"}, {"js": "sendApply()", "snap": "m"}])
 ok("no files -> asks for ID photos, nothing created", "ارفع صورة البطاقة" in r["m"] and not q("SELECT * FROM couriers"))
-r = ui("courier", cu, [{"js": "rgPick=()=>3"}, {"js": fl("x_f1")}, {"js": "sendApply()", "snap": "m"}])
+r = ui("courier", cu, [{"js": "document.getElementById('x_rg').querySelectorAll=()=>[{value:'3'}]"}, {"js": fl("x_f1")}, {"js": "sendApply()", "snap": "m"}])
 ok("only front -> asked for back, nothing created", "ارفع صورة البطاقة" in r["m"] and not q("SELECT * FROM couriers"))
-r = ui("courier", cu, [{"js": "rgPick=()=>3"}, {"js": fl("x_f1", 5_000_000)}, {"js": fl("x_f2")}, {"js": "sendApply()", "snap": "x_err"}])
+r = ui("courier", cu, [{"js": "document.getElementById('x_rg').querySelectorAll=()=>[{value:'3'}]"}, {"js": fl("x_f1", 5_000_000)}, {"js": fl("x_f2")}, {"js": "sendApply()", "snap": "x_err"}])
 ok("oversize photo rejected client-side", "كبيرة" in r["x_err"] and not q("SELECT * FROM couriers"))
-r = ui("courier", cu, [{"js": FR}, {"js": "rgPick=()=>3"}, {"js": fl("x_f1")}, {"js": fl("x_f2")}, {"js": "sendApply()", "snap": "m"}])
+r = ui("courier", cu, [{"js": FR}, {"js": "document.getElementById('x_rg').querySelectorAll=()=>[{value:'3'}]"}, {"js": fl("x_f1")}, {"js": fl("x_f2")}, {"js": "sendApply()", "snap": "m"}])
 ok("front+back submit -> pending courier with 2 documents", q("SELECT status FROM couriers") == [("pending",)] and q("SELECT COUNT(*) FROM courier_documents")[0][0] == 2 and not r["errs"])
 ok("application status shown after submit", "قيد مراجعة الإدارة" in r["m"])
 r = ui("admin", at, [{"js": "tab='couriers';shell()", "wait": 800, "snap": "v"}])
