@@ -36,6 +36,14 @@ def verify(label, value):
 delivery_page = extract("async function deliv(){", "let RK=''", "delivery page")
 lifecycle = extract("const STEP=", "const SHP=", "delivery lifecycle")
 
+# The account-orders archive adds DELIVERY_PAST beside the original lifecycle
+# maps. It is an archive filter, not a change to delivery stages or progress.
+# Remove only that known addition before checking the original main fingerprint.
+archive_filter = ",DELIVERY_PAST=['completed','cancelled']"
+if lifecycle.count(archive_filter) != 1:
+    raise AssertionError("delivery lifecycle: expected the account archive filter exactly once")
+lifecycle = lifecycle.replace(archive_filter, "", 1)
+
 verify("delivery_page", delivery_page)
 verify("lifecycle", lifecycle)
 print("ALL DELIVERY-UNCHANGED CHECKS PASSED")
