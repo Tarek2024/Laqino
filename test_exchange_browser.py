@@ -26,8 +26,10 @@ atexit.register(_stop_test_server)
 time.sleep(.3); BASE = "http://127.0.0.1:%d" % srv.server_address[1]
 def call(m, p, d=None, t=None):
     r = urllib.request.Request(BASE + "/api" + p, json.dumps(d).encode() if d is not None else None, {"Content-Type": "application/json", **({"Authorization": "Bearer " + t} if t else {})}, method=m)
-    try: x = urllib.request.urlopen(r); return x.status, json.loads(x.read())
-    except urllib.error.HTTPError as e: return e.code, json.loads(e.read())
+    try:
+        with urllib.request.urlopen(r) as x: return x.status, json.loads(x.read())
+    except urllib.error.HTTPError as e:
+        with e: return e.code, json.loads(e.read())
 def until(pg, expr, sec=40):  # polling via evaluate: wait_for_function is blocked by the page's CSP (no unsafe-eval)
     for _ in range(int(sec * 10)):
         if pg.evaluate(expr): return True
