@@ -35,7 +35,7 @@ r = page("", [{"js": "go(0)", "snap": "v", "wait": 1000}])
 ok("approved market ad appears in the hydrated promo fallback with its price", not r["errs"] and "إعلان من السوق" in r.get("promo","") and "كنبة ثلاثية" in r.get("promo","") and any(x in r.get("promo","") for x in ("3,500", "٣٬٥٠٠", "3٬500", "٣,٥٠٠")))
 t1 = call("POST", "/admin/service-types", {"name_ar": "سباكة"}, at)[1]["id"]
 s1 = call("POST", "/admin/services", {"name_ar": "الأسطى محمود", "type_id": t1, "region_id": 3, "description": "x", "address": "y", "phone": "01012340000"}, at)[1]["id"]
-r = page("", [{"js": "go(0)", "snap": "v", "wait": 2600}]); print("DEBUG unpublished tiles=",repr(r.get("tiles")), "services=",repr(r.get("services")), "diagnostics=",repr(r.get("diagnostics"))); ok("unpublished provider: services card stays disabled, no chips", "soon" in r.get("tiles","") and "خدمات متاحة" not in r.get("services",""))
+r = page("", [{"js": "go(0)", "snap": "v", "wait": 2600}]); ok("unpublished provider: services card stays disabled, no chips", "soon" in r.get("tiles","") and "خدمات متاحة" not in r.get("services",""))
 call("POST", f"/admin/services/{s1}/publish", {"published": True}, at)
 r = page("", [{"js": "go(0)", "snap": "v", "wait": 2600}]); v = r["v"]
 ok("published provider: services card becomes a link and a type chip appears", not r["errs"] and "soon" not in r.get("tiles","") and "SV={q:'',t:0};go(6)" in r.get("tiles","") and "خدمات متاحة" in r.get("services","") and f"svt({t1})" in r.get("services","") and "الأسطى محمود" not in v)
