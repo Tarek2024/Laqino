@@ -822,3 +822,20 @@ body.app .account-fold-label{min-width:0;line-height:1.45}
 body.app .account-fold-icon.delivery{background:var(--sky-bg);color:var(--navy);box-shadow:inset 0 0 0 1px #dce6f7}
 body.app #v>.sec .account-fold-icon{width:34px;height:34px;border-radius:11px;vertical-align:middle}
 body.app #v>.sec .account-fold-icon svg{width:19px;height:19px}
+
+/* رابط دعم هادئ داخل حسابي؛ لا يظهر كزر عائم ولا يزاحم طلب الخدمات */
+body.app .account-support-link{
+  display:flex;align-items:center;gap:11px;margin-top:14px;padding:11px 12px;
+  border:1px solid var(--line);border-radius:13px;background:#f9fbfe;
+  color:var(--navy2);text-decoration:none;min-height:58px;
+}
+body.app .account-support-link:active{background:#f0f4fa}
+body.app .account-support-icon{
+  display:grid;place-items:center;flex:none;width:36px;height:36px;
+  border-radius:11px;background:var(--teal-bg);color:var(--teal);
+}
+body.app .account-support-icon svg{width:20px;height:20px;stroke:currentColor;fill:none;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round}
+body.app .account-support-copy{display:flex;flex-direction:column;min-width:0;line-height:1.4}
+body.app .account-support-copy b{font-size:.9rem;font-weight:700}
+body.app .account-support-copy small{font-size:.76rem;color:var(--mute)}
+body.app .account-support-arrow{margin-inline-start:auto;flex:none;color:#91a0bd;font-size:1.5rem;line-height:1}
