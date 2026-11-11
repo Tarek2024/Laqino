@@ -98,7 +98,7 @@ with sync_playwright() as playwright:
     page.evaluate("go(3)")
     deadline = time.time() + 10
     while time.time() < deadline:
-        if page.evaluate("document.querySelectorAll('#v > .card.od').length === 2"):
+        if page.evaluate("document.querySelectorAll('#mine-active-orders > .card.od').length === 2"):
             break
         page.wait_for_timeout(200)
     else:
@@ -111,8 +111,8 @@ with sync_playwright() as playwright:
       const previous = byTitle('الطلبات السابقة');
       const completed = previous?.querySelector('.card.od:has(.sc3d[data-st="completed"])');
       return {
-        activeCards: [...document.querySelectorAll('#v > .card.od')].map(x => x.textContent),
-        previousCount: previous?.querySelectorAll(':scope > .card.od').length ?? -1,
+        activeCards: [...document.querySelectorAll('#mine-active-orders > .card.od')].map(x => x.textContent),
+        previousCount: previous?.querySelectorAll('#mine-archive-orders > .card.od').length ?? -1,
         previousOpen: previous?.open ?? null,
         completedHas3D: !!completed?.querySelector('.sc3d[data-st="completed"]'),
         completedCanRate: !!completed?.querySelector('button[onclick^="rt("]'),
@@ -151,11 +151,11 @@ with sync_playwright() as playwright:
         transition = page.evaluate("""() => {
           const previous = [...document.querySelectorAll('#v details.account-fold')]
             .find(d => (d.querySelector(':scope > summary')?.textContent || '').includes('الطلبات السابقة'));
-          const completed = [...(previous?.querySelectorAll(':scope > .card.od') || [])]
+          const completed = [...(previous?.querySelectorAll('#mine-archive-orders > .card.od') || [])]
             .filter(card => card.querySelector('.sc3d[data-st="completed"]'));
           return {
-            activeCount: document.querySelectorAll('#v > .card.od').length,
-            previousCount: previous?.querySelectorAll(':scope > .card.od').length ?? -1,
+            activeCount: document.querySelectorAll('#mine-active-orders > .card.od').length,
+            previousCount: previous?.querySelectorAll('#mine-archive-orders > .card.od').length ?? -1,
             completedRateable: completed.filter(card => card.querySelector('button[onclick^="rt("]')).length
           };
         }""")
@@ -217,11 +217,16 @@ with sync_playwright() as playwright:
     # refresh interval elapses; the user must not lose the active control.
     archive_summary = page.locator("#mine-fold-archive > summary")
     archive_summary.focus()
+    page.evaluate("window.__accountFoldNodes = [...document.querySelectorAll('#v details.account-fold')]; window.__archiveSummaryNode = document.querySelector('#mine-fold-archive > summary')")
     page.wait_for_timeout(8500)
     check("automatic account refresh does not steal focus from the active summary",
           page.evaluate("document.activeElement === document.querySelector('#mine-fold-archive > summary')"))
     check("archive remains open after the automatic refresh interval",
           page.locator("#mine-fold-archive").evaluate("(el) => el.open"))
+    check("automatic delivery refresh keeps the same accordion DOM nodes",
+          page.evaluate("window.__accountFoldNodes.every(el => el.isConnected && document.getElementById(el.id) === el) && window.__archiveSummaryNode === document.querySelector('#mine-fold-archive > summary')"))
+    check("service, pharmacy and market sections remain open after the 8-second refresh",
+          page.evaluate("['#mine-fold-services','#mine-fold-pharmacy','#mine-fold-market'].every(id => document.querySelector(id)?.open === true)"))
 
     check("no browser JavaScript errors", not errors)
     browser.close()
