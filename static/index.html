@@ -34,8 +34,8 @@ try{window.__laqinoHomeDiagnostics.push(item);if(window.__laqinoHomeDiagnostics.
 try{sessionStorage.setItem('laqino_home_diagnostics',JSON.stringify(window.__laqinoHomeDiagnostics))}catch(_){}
 try{console.error('[Laqino Home]',item)}catch(_){}
 };
-window.addEventListener?.('error',e=>{if(window._lt===0)window.__laqinoHomeLog('window-error',e.error||e.message,{file:e.filename,line:e.lineno,column:e.colno})});
-window.addEventListener?.('unhandledrejection',e=>{if(window._lt===0)window.__laqinoHomeLog('unhandled-rejection',e.reason)});
+window.addEventListener?.('error',e=>{if(window._lt===0||window._lt==null)window.__laqinoHomeLog('window-error',e.error||e.message,{file:e.filename,line:e.lineno,column:e.colno})});
+window.addEventListener?.('unhandledrejection',e=>{if(window._lt===0||window._lt==null)window.__laqinoHomeLog('unhandled-rejection',e.reason)});
 const safeLocalGet=k=>{try{return localStorage.getItem(k)}catch(e){window.__laqinoHomeLog('storage-read:'+k,e);return null}};
 const $=i=>document.getElementById(i),V=$('v');let T=safeLocalGet('t')||'',R=+safeLocalGet('rg')||0,ME=null,AP=null,SH=[],tab=0,msg='';
 /* المتصفح يربط أي عنصر له id بكائن النافذة؛ نعرّف هذه الحالات صراحةً حتى لا يرجع الاسم العنصر نفسه */
