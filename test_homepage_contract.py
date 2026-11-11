@@ -19,6 +19,7 @@ check("local services remains visible as a disabled card when no providers exist
 check("search renders before managed promo, then section cards", home.index('class="home-search"') < home.index('class="home-promo"') and home.index('class="home-promo"') < home.index('class="tiles"'))
 check("home shell is returned without awaiting remote data", "await Promise.allSettled" not in home and "Promise.allSettled([" in home and "return shell;" in home)
 check("initial-render emergency fallback and diagnostic logger exist", "home-initial-render" in html and "window.__laqinoHomeLog" in html and "home-hydration-render" in html)
-check("managed campaigns are distinct from user marketplace feed", "api('/home-campaigns')" in home and "managedSlides||marketSlides||fallbackPromo" in home)
+check("managed campaigns are distinct from user marketplace feed", "home-campaigns'" in home and "managedSlides||marketSlides||fallbackPromo" in home)
+check("homepage request timeouts abort the underlying fetch", "const timeout=(request,ms)" in home and "signal?{signal}" in html and "signal=>api('/home-campaigns'" in home)
 check("service worker cache and VERSION agree", version.get("cache") in sw)
 print("ALL HOMEPAGE CONTRACT CHECKS PASSED")
