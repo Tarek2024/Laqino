@@ -132,5 +132,5 @@ ok("chat message text and bubble borders use stronger contrast", ".msgs.chat-mes
 home_css = re.search(r'<link rel="stylesheet" href="(/market-enhancements\.css\?v=(\d+))">', idx)
 ok("homepage and standalone market use the same versioned marketplace stylesheet", bool(home_css and market_css and home_css.group(2) == re.search(r"\?v=(\d+)", market_css.group(1)).group(1)))
 ok("gold styling applies only to featured ad cards", ".card.ad.featured-card{position:relative;" in css and ".card.ad:not(.featured-card)" in css and ".card.ad{position:relative;" not in css)
-ok("featured status checks reject truthy non-boolean strings", "function isFeatured(x)" in market_html and "isFeaturedListing(l)" in idx)
+ok("featured status checks reject truthy non-boolean strings", "function isFeatured(x) { return !!x && (x.featured === true || x.featured === 1 || x.featured === \"1\"); }" in market_html and 'const isFeaturedListing=x=>!!x&&(x.featured===true||x.featured===1||x.featured==="1");' in idx)
 print("Marketplace ad-management regression checks passed.")
