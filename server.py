@@ -1758,6 +1758,8 @@ class H(BaseHTTPRequestHandler):
                 elif typ=="listing":
                     if not val.isdigit() or int(val)<1: raise E(400,"رقم إعلان السوق غير صالح")
                     val=str(int(val))
+                    listing=c.execute("SELECT id,category_id,status FROM listings WHERE id=?",(int(val),)).fetchone()
+                    if not listing or listing["status"]!="approved" or not market.is_visible_category(c,listing["category_id"]): raise E(400,"الإعلان غير منشور أو غير متاح في السوق")
                 elif typ=="external":
                     parsed=urlparse(val)
                     if parsed.scheme!="https" or not parsed.netloc or parsed.username or parsed.password or len(val)>500: raise E(400,"الرابط الخارجي يجب أن يبدأ بـ https://")
