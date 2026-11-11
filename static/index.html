@@ -99,8 +99,8 @@ try{window.__laqinoHomeDiagnostics.push(item);if(window.__laqinoHomeDiagnostics.
 try{sessionStorage.setItem('laqino_home_diagnostics',JSON.stringify(window.__laqinoHomeDiagnostics))}catch(_){}
 try{console.error('[Laqino Home]',item)}catch(_){}
 };
-window.addEventListener('error',e=>{if(window._lt===0)window.__laqinoHomeLog('window-error',e.error||e.message,{file:e.filename,line:e.lineno,column:e.colno})});
-window.addEventListener('unhandledrejection',e=>{if(window._lt===0)window.__laqinoHomeLog('unhandled-rejection',e.reason)});
+window.addEventListener?.('error',e=>{if(window._lt===0)window.__laqinoHomeLog('window-error',e.error||e.message,{file:e.filename,line:e.lineno,column:e.colno})});
+window.addEventListener?.('unhandledrejection',e=>{if(window._lt===0)window.__laqinoHomeLog('unhandled-rejection',e.reason)});
 function startHomePromo(){clearInterval(window.__homePromoTimer);const track=document.querySelector('.home-promo-track');if(!track||window.matchMedia?.('(prefers-reduced-motion: reduce)').matches)return;const slides=Array.from(track.querySelectorAll('.home-promo-slide'));if(slides.length<2)return;let n=0,paused=false;const pause=()=>{paused=true;clearInterval(window.__homePromoTimer)};track.addEventListener('pointerdown',pause,{once:true,passive:true});track.addEventListener('focusin',pause,{once:true});window.__homePromoTimer=setInterval(()=>{if(paused||document.hidden)return;n=(n+1)%slides.length;slides[n].scrollIntoView({behavior:'smooth',block:'nearest',inline:'start'})},6500)};
 const note=()=>msg?`<p class="${/^تم/.test(msg)?'okb':'e'}" role="status">${esc(msg)}</p>`:'';const run=f=>async(...a)=>{msg='';try{await f(...a)}catch(e){msg=e;go(tab)}};
 async function go(t){
