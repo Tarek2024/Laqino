@@ -60,6 +60,7 @@ ok("phone-only listing refuses chat (403)", call("POST", f"/listings/{Lp}/chat",
 s, r = call("POST", f"/listings/{Lc}/chat", None, tk[B1]); T1 = r["thread_id"]
 ok("buyer opens chat (201) and gets same thread again (200)", s == 201 and call("POST", f"/listings/{Lc}/chat", None, tk[B1]) == (200, {"thread_id": T1}))
 T2 = call("POST", f"/listings/{Lc}/chat", None, tk[B2])[1]["thread_id"]; ok("each buyer has an own thread per listing", T2 != T1)
+ok("new threads store the authenticated buyer and real listing owner IDs", sql("select buyer_id,seller_id from chat_threads where id=?", (T1,))[0] == (uid[B1], uid[SELLER]) and sql("select buyer_id,seller_id from chat_threads where id=?", (T2,))[0] == (uid[B2], uid[SELLER]))
 empty_b1 = [x["id"] for x in call("GET", "/chats", None, tk[B1])[1]]
 empty_b2 = [x["id"] for x in call("GET", "/chats", None, tk[B2])[1]]
 empty_seller = [x["id"] for x in call("GET", "/chats", None, tk[SELLER])[1]]
