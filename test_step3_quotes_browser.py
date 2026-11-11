@@ -69,7 +69,7 @@ with sync_playwright() as pw:
     pc.click("button:has-text('اختار العرض ده') >> nth=0"); pc.wait_for_timeout(1500); pc.wait_for_selector("text=مستنيين تأكيد", timeout=8000)
     ok("selection recorded for the cheaper provider", sql("select status,provider_id from service_requests where id=?", (R1,)) == [("provider_selected", p2)])
     # ---------- المقدم المختار يؤكد فيظهر رقم العميل
-    p2g = page_for(PV2); p2g.wait_for_timeout(600); p2g.evaluate("go(3)"); p2g.wait_for_selector("button:has-text('أكّد القبول')", timeout=8000)
+    p2g = page_for(PV2); p2g.wait_for_timeout(600); p2g.evaluate("go(3)"); p2g.locator("#mine-fold-services").evaluate("(e) => { e.open = true; }"); p2g.wait_for_selector("button:has-text('أكّد القبول')", timeout=8000)
     t2 = p2g.inner_text("body")
     ok("selected provider sees no customer phone/address before confirming", "01066660001" not in t2 and "شارع النصر" not in t2)
     p2g.click("button:has-text('أكّد القبول')"); p2g.wait_for_selector("text=01066660001", timeout=8000)
