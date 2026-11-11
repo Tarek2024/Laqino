@@ -190,6 +190,9 @@ check("client navigation ignores stale asynchronous page renders",
       "__laqGoSeq" in index and "seq!==window.__laqGoSeq" in index)
 check("app shell ignores stale navigation completion effects",
       "goSeq = 0" in shell_js and "if (seq !== goSeq) return r" in shell_js)
+check("browser Back uses the guarded navigation wrapper",
+      "if (pushedTab) { pushedTab = false; window.go(0); }" in shell_js
+      and "if (pushedTab) { pushedTab = false; og(0); paintHead(0); }" not in shell_js)
 check("customer app has an explicit tablet portrait width rule",
       "@media (min-width: 760px) and (max-width: 899px)" in app_css
       and "max-width:760px!important" in app_css)
