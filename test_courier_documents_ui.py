@@ -34,6 +34,7 @@ ok("no files -> asks for ID photos, nothing created", "ارفع صورة الب�
 r = ui("courier", cu, [{"js": "document.getElementById('x_rg').querySelectorAll=()=>[{value:'3'}]"}, {"js": fl("x_f1")}, {"js": "sendApply()", "snap": "m"}])
 ok("only front -> asked for back, nothing created", "ارفع صورة البطاقة" in r["m"] and not q("SELECT * FROM couriers"))
 r = ui("courier", cu, [{"js": "document.getElementById('x_rg').querySelectorAll=()=>[{value:'3'}]; document.getElementById('x_f1').files=[{size:5000000,b64:'" + png() + "'}]; document.getElementById('x_f2').files=[{size:10,b64:'" + png() + "'}]; sendApply()", "wait": 100, "snap": "x_err"}])
+print("OVERSIZE_DEBUG", repr(r["x_err"]), r.get("errs"), q("SELECT * FROM couriers"))
 ok("oversize photo rejected client-side", "كبيرة" in r["x_err"] and not q("SELECT * FROM couriers"))
 r = ui("courier", cu, [{"js": FR}, {"js": "document.getElementById('x_rg').querySelectorAll=()=>[{value:'3'}]"}, {"js": fl("x_f1")}, {"js": fl("x_f2")}, {"js": "sendApply()", "snap": "m"}])
 ok("front+back submit -> pending courier with 2 documents", q("SELECT status FROM couriers") == [("pending",)] and q("SELECT COUNT(*) FROM courier_documents")[0][0] == 2 and not r["errs"])
