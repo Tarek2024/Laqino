@@ -46,7 +46,7 @@ jobs:
 
   responsive_browser:
     name: "3/4 Responsive browser checks"
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
