@@ -16,5 +16,8 @@ ok("deletion page clearly offers external email and WhatsApp requests", "اطل�
 ok("privacy policy states in-app deletion is available now", "متاح بالفعل داخل التطبيق" in urllib.request.urlopen(BASE + "/privacy").read().decode())
 ok("no unreplaced placeholders", "{{" not in h)
 ok("links to delete-account and privacy", "/delete-account" in h and "/privacy" in h)
-for p in ("/privacy", "/terms", "/delete-account"):
-    ok("footer link on " + p, 'href="/contact"' in urllib.request.urlopen(BASE + p).read().decode())
+for p in ("/privacy", "/terms", "/delete-account", "/contact"):
+    page = urllib.request.urlopen(BASE + p).read().decode()
+    ok("footer link on " + p, 'href="/contact"' in page)
+    ok("international phone shown on " + p, "+20 10 1701 1170" in page)
+    ok("international WhatsApp URL on " + p, "wa.me/201017011170" in page)
