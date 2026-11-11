@@ -337,6 +337,7 @@ with sync_playwright() as playwright:
     app_page = app_context.new_page()
     app_page.add_init_script("""try { localStorage.clear(); } catch (e) {}
       window.__gpsCalls = 0;
+      window.__gpsStacks = [];
       window.__permissionState = "prompt";
       Object.defineProperty(navigator, "permissions", {configurable: true, value: {
         query: () => Promise.resolve({state: window.__permissionState})
@@ -344,6 +345,7 @@ with sync_playwright() as playwright:
       Object.defineProperty(navigator, "geolocation", {configurable: true, value: {
         getCurrentPosition: (success, error) => {
           window.__gpsCalls = (window.__gpsCalls || 0) + 1;
+          window.__gpsStacks.push((new Error("GPS requested")).stack || "stack unavailable");
           if (error) error({code: 1});
         }
       }});
@@ -351,8 +353,11 @@ with sync_playwright() as playwright:
     app_page.goto(BASE + "/", wait_until="domcontentloaded")
     app_page.locator("#v .find").wait_for(state="visible", timeout=20000)
     app_page.wait_for_timeout(900)
+    gps_first_open = app_page.evaluate("({calls: window.__gpsCalls, stacks: window.__gpsStacks || [], hook: !!(navigator.geolocation && navigator.geolocation.getCurrentPosition)})")
+    if gps_first_open["calls"] != 0:
+        print("GPS_FIRST_OPEN_DIAGNOSTIC=" + repr(gps_first_open), flush=True)
     check("first app open does not trigger a location permission prompt",
-          app_page.evaluate("window.__gpsCalls === 0"))
+          gps_first_open["calls"] == 0)
     # Even when the OS/browser permission was granted previously, merely opening
     # delivery must not request a fresh GPS reading without a user action.
     app_page.evaluate("window.__permissionState = 'granted'")
