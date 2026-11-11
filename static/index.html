@@ -105,14 +105,14 @@ window._lt=t;tab=t;
 if(!same){V.innerHTML='<div class="sk t"></div><div class="sk"></div><div class="sk"></div>';window._sk=1}
 const fast=(p,ms)=>Promise.race([p,new Promise((_,reject)=>setTimeout(()=>reject(new Error('laqino-timeout')),ms))]);
 try{
-  if(T&&!ME){const me=await fast(api('/me'),1800);if(seq!==window.__laqGoSeq)return;ME=me}
+  if(T&&!ME&&t!==0){const me=await fast(api('/me'),1800);if(seq!==window.__laqGoSeq)return;ME=me}
 }catch(e){if(seq!==window.__laqGoSeq)return;if(e&&e.message!=='laqino-timeout'){T='';localStorage.removeItem('t')}}
 if(seq!==window.__laqGoSeq)return;
 if(!T){AP=null;SH=[]}
-else{
+else if(t!==0){
   const jobs=[];let nextAP=AP,nextSH=SH;
-  if(!AP||t==0||t==3)jobs.push(fast(api('/my/applications'),1200).then(x=>{nextAP=x}).catch(()=>{nextAP=nextAP||{courier:null,pharmacy:null}}));
-  if(t==0||t==3)jobs.push(fast(api('/owner/shops'),1200).then(x=>{nextSH=x.items||[]}).catch(()=>{}));
+  if(!AP||t==3)jobs.push(fast(api('/my/applications'),1200).then(x=>{nextAP=x}).catch(()=>{nextAP=nextAP||{courier:null,pharmacy:null}}));
+  if(t==3)jobs.push(fast(api('/owner/shops'),1200).then(x=>{nextSH=x.items||[]}).catch(()=>{}));
   if(jobs.length)await Promise.all(jobs);
   if(seq!==window.__laqGoSeq)return;
   AP=nextAP;SH=nextSH;
@@ -210,7 +210,7 @@ const HOME_SECTION_DEFAULTS=[
 async function homeSectionCards(card,svOn,provided){let cfg=Array.isArray(provided)&&provided.length?provided:HOME_SECTION_DEFAULTS;if(!provided){try{const x=await api('/home-sections');if(Array.isArray(x)&&x.length)cfg=x}catch(e){}}const defs={med:()=>card('med',I3('med'),'الخدمات الطبية','أدوية وصيدليات وأطباء ومعامل',"window._medicalNavActive=true;window._doctorProfileId=null;window._labProfileId=null;mt=\'rx\';mview=null;rxm=\'home\';history.pushState({laqinoMedicalView:\'rx\'},\'\',\'#medical\');go(4)"),souq:()=>card('souq',I3('souq'),'سوق لاقينو','بيع واشتري جنب بيتك','go(1)'),svc:()=>card('svc',I3('svc'),'الخدمات المحلية','مقدّمو خدمات في منطقتك',"SV={q:'',t:0};go(6)",!svOn),dlv:()=>card('dlv',I3('moto'),'التوصيل','ابعت أي حاجة والمندوب يوصلها','go(2)')};return cfg.filter(x=>x.visible!==false&&defs[x.key]&&(x.key!=='svc'||svOn)).sort((a,b)=>Number(a.order)-Number(b.order)).map(x=>{const html=defs[x.key]();return html.replace(/<span class="h">.*?<\/span>/,`<span class="h">${esc(x.name)}</span>`).replace(/<span class="d">.*?<\/span>/,`<span class="d">${esc(x.description)}</span>`)}).join('')}
 async function home(){
 const card=(k,ic,h,d,fn,soon)=>`<button class="sc ${k}${soon?' soon':''}"${soon?' disabled aria-disabled="true"':` onclick="${fn}"`}><span class="ti">${ic}</span><span class="h">${h}</span><span class="d">${d}</span>${soon?'<span class="soonp">قريبًا</span>':IC.chev}</button>`;
-const acct=T?`<div class="card"><div class="me"><span class="av">${esc((ME&&ME.name||'؟').trim().charAt(0))}</span><div class="nm"><b>أهلًا ${esc(ME?.name)}</b><small>سعداء إنك معانا</small></div><button class="ghost" onclick="go(3)">حسابي</button></div></div>`:authBox();
+const acct=T?`<div class="card"><div class="me"><span class="av">؟</span><div class="nm"><b>أهلًا بيك</b><small>سعداء إنك معانا</small></div><button class="ghost" onclick="go(3)">حسابي</button></div></div>`:authBox();
 const initialTiles=[
 card('med',I3('med'),'الخدمات الطبية','أدوية وصيدليات وأطباء ومعامل',"window._medicalNavActive=true;window._doctorProfileId=null;window._labProfileId=null;mt='rx';mview=null;rxm='home';history.pushState({laqinoMedicalView:'rx'},'','#medical');go(4)"),
 card('souq',I3('souq'),'سوق لاقينو','بيع واشتري جنب بيتك','go(1)'),
@@ -228,7 +228,7 @@ const shell=`<section class="home-hero" aria-label="البحث وإعلانات 
 <div class="home-trust-copy"><h2>لاقينو حلقة وصل بينك وبين اللي محتاجه</h2><p>منصة بتسهّل عليك الوصول للمنتجات والخدمات المحلية والتواصل مع أصحابها، من غير ما لاقينو يكون بائع أو مقدم الخدمة.</p></div>
 <div class="home-trust-steps"><div><b>١. دور على اللي محتاجه</b><span>ابحث في الأقسام والإعلانات المتاحة.</span></div><div><b>٢. شوف الاختيارات</b><span>اطّلع على التفاصيل والمعلومات المتاحة.</span></div><div><b>٣. تواصل مباشرة</b><span>اتواصل مع صاحب الإعلان أو مقدم الخدمة.</span></div></div>
 </section>
-<div style="height:12px"></div>${acct}
+<div style="height:12px"></div><div id="homeAccount">${acct}</div>
 <footer class="site-footer"><div class="site-footer-brand"><img src="/assets/logo.jpg" alt="شعار لاقينو"><div><b>لاقينو</b><span>منكم وليكم</span></div></div><p>ابعت والباقي علينا — لاقينو حلقة وصل بتقرّب لك اللي محتاجه.</p><div class="site-footer-links"><a href="https://wa.me/201017011170" target="_blank" rel="noopener">واتساب لاقينو</a><a href="/contact">تواصل معنا</a><a href="/privacy">سياسة الخصوصية</a><a href="/terms">الشروط والأحكام</a>${canApplyPharmacy()?'<a href="/pharmacy.html">صيدلية؟ لوحة الصيدلية وطلب الانضمام</a>':''}</div><small>لاقينو • منكم وليكم</small></footer></div>`;
 const loadId=window.__homeLoadId=(window.__homeLoadId||0)+1;
 const timeout=(p,ms)=>Promise.race([p,new Promise((_,reject)=>setTimeout(()=>reject(new Error('timeout')),ms))]);
@@ -238,11 +238,21 @@ timeout(api('/listings?limit=3'+(R?'&region_id='+R:'')),2200),
 timeout(api('/home-sections'),1800),
 timeout(api('/shop-types'),2200),
 timeout(api('/services'+(R?'?region_id='+R:'')),2200),
-timeout(api('/home-campaigns'),1800)
+timeout(api('/home-campaigns'),1800),
+...(T?[timeout(ME?Promise.resolve(ME):api('/me'),1800),timeout(AP?Promise.resolve(AP):api('/my/applications'),1200),timeout(api('/owner/shops'),1200)]:[])
 ]).then(async results=>{
 if(loadId!==window.__homeLoadId||window._lt!==0||!document.getElementById('homeTiles'))return;
 const value=(i,fallback)=>results[i].status==='fulfilled'?results[i].value:fallback;
 const types=value(0,[]),ads=value(1,[]),cfg=value(2,HOME_SECTION_DEFAULTS),shopTypes=value(3,null),providers=value(4,[]),campaigns=value(5,[]);
+if(T){
+if(results[6]&&results[6].status==='fulfilled')ME=results[6].value;
+if(results[7]&&results[7].status==='fulfilled')AP=results[7].value;
+else AP=AP||{courier:null,pharmacy:null};
+if(results[8]&&results[8].status==='fulfilled')SH=results[8].value.items||[];
+const account=document.getElementById('homeAccount');
+if(account)account.innerHTML=`<div class="card"><div class="me"><span class="av">${esc((ME&&ME.name||'؟').trim().charAt(0))}</span><div class="nm"><b>أهلًا ${esc(ME?.name||'بيك')}</b><small>سعداء إنك معانا</small></div><button class="ghost" onclick="go(3)">حسابي</button></div></div>`;
+const panels=document.getElementById('homePanels');if(panels)panels.innerHTML=pnls();
+}
 const shOn=!!(shopTypes&&shopTypes.enabled&&Array.isArray(shopTypes.items)&&shopTypes.items.length);
 const svOn=Array.isArray(providers)&&providers.length>0;
 const homeCfg=Array.isArray(cfg)&&cfg.length?cfg:HOME_SECTION_DEFAULTS;
