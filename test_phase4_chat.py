@@ -60,11 +60,19 @@ ok("phone-only listing refuses chat (403)", call("POST", f"/listings/{Lp}/chat",
 s, r = call("POST", f"/listings/{Lc}/chat", None, tk[B1]); T1 = r["thread_id"]
 ok("buyer opens chat (201) and gets same thread again (200)", s == 201 and call("POST", f"/listings/{Lc}/chat", None, tk[B1]) == (200, {"thread_id": T1}))
 T2 = call("POST", f"/listings/{Lc}/chat", None, tk[B2])[1]["thread_id"]; ok("each buyer has an own thread per listing", T2 != T1)
+empty_b1 = [x["id"] for x in call("GET", "/chats", None, tk[B1])[1]]
+empty_b2 = [x["id"] for x in call("GET", "/chats", None, tk[B2])[1]]
+empty_seller = [x["id"] for x in call("GET", "/chats", None, tk[SELLER])[1]]
+empty_other = [x["id"] for x in call("GET", "/chats", None, tk[OTHER])[1]]
+ok("empty conversations stay hidden until the first message", T1 not in empty_b1 and T2 not in empty_b2 and T1 not in empty_seller)
+ok("third account cannot see or open either unrelated conversation", T1 not in empty_other and T2 not in empty_other and call("GET", f"/chats/{T1}", None, tk[OTHER])[0] == 404 and call("GET", f"/chats/{T2}", None, tk[OTHER])[0] == 404)
+ok("hidden empty conversation can still be resumed from its listing", call("POST", f"/listings/{Lc}/chat", None, tk[B1]) == (200, {"thread_id": T1}))
 ok("both/default listings accept chat", call("POST", f"/listings/{Lb}/chat", None, tk[B3])[0] == 201 and call("POST", f"/listings/{Ld}/chat", None, tk[B3])[0] == 201)
 
 # ---------- خصوصية الإعلان مجهول الهوية
 Lan = listing("إعلان مجهول الهوية", "chat", anonymous=True)
 Tan = call("POST", f"/listings/{Lan}/chat", None, tk[B2])[1]["thread_id"]
+call("POST", f"/chats/{Tan}/messages", {"text": "استفسار عن الإعلان"}, tk[B2])  # يظهر بعد أول رسالة فعلية
 buyer_threads = call("GET", "/chats", None, tk[B2])[1]
 anon_buyer_row = [x for x in buyer_threads if x["id"] == Tan][0]
 seller_threads = call("GET", "/chats", None, tk[SELLER])[1]
@@ -79,6 +87,7 @@ ok("non-participant cannot read / write (404)", call("GET", f"/chats/{T1}", None
 ok("anon cannot read chats", call("GET", "/chats")[0] == 401 and call("GET", f"/chats/{T1}")[0] == 401)
 ok("empty / whitespace / too-long message -> 400", all(call("POST", f"/chats/{T1}/messages", {"text": t}, tk[B1])[0] == 400 for t in ("", "   ", "ا" * 1001)) and call("POST", f"/chats/{T1}/messages", {})[0] == 401)
 ok("buyer sends message", call("POST", f"/chats/{T1}/messages", {"text": "<b>هل ما زالت متاحة؟</b>"}, tk[B1])[0] == 201)
+ok("first message reveals the conversation only to its two participants", T1 in [x["id"] for x in call("GET", "/chats", None, tk[B1])[1]] and T1 in [x["id"] for x in call("GET", "/chats", None, tk[SELLER])[1]] and T1 not in [x["id"] for x in call("GET", "/chats", None, tk[OTHER])[1]])
 ok("seller reply", call("POST", f"/chats/{T1}/messages", {"text": "نعم متاحة"}, tk[SELLER])[0] == 201)
 r = call("GET", "/chats", None, tk[SELLER])[1]; row = [x for x in r if x["id"] == T1][0]
 ok("seller list: unread=1 from buyer, role seller, other_name set", row["unread"] == 1 and row["role"] == "seller" and row["other_name"] == "u02" and row["last"]["mine"] is True)
