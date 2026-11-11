@@ -21,5 +21,6 @@ check("home shell is returned without awaiting remote data", "await Promise.allS
 check("initial-render emergency fallback and diagnostic logger exist", "home-initial-render" in html and "window.__laqinoHomeLog" in html and "home-hydration-render" in html)
 check("managed campaigns are distinct from user marketplace feed", "home-campaigns'" in home and "managedSlides||marketSlides||fallbackPromo" in home)
 check("homepage request timeouts abort the underlying fetch", "const timeout=(request,ms)" in home and "signal?{signal}" in html and "signal=>api('/home-campaigns'" in home)
+check("diagnostic report requires explicit user confirmation before opening WhatsApp", "window.sendHomeDiagnostics" in html and "confirm(" in html and "homeDiagnosticsAction" in html)
 check("service worker cache and VERSION agree", version.get("cache") in sw)
 print("ALL HOMEPAGE CONTRACT CHECKS PASSED")
