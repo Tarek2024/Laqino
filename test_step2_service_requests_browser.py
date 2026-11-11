@@ -58,7 +58,7 @@ with sync_playwright() as pw:
     pg.click("button:has-text('صورة 1')"); pg.wait_for_selector("img[alt='صورة الطلب']", timeout=8000)
     ok("clicking an image button loads it through the authenticated route", pg.eval_on_selector("img[alt='صورة الطلب']", "i=>new Promise(r=>{if(i.complete)r(i.naturalWidth);else i.onload=()=>r(i.naturalWidth)})") > 0)
     # ---------- المقدم: لا عنوان قبل القبول
-    pp = page_for(PV, region=False); pp.wait_for_timeout(600); pp.evaluate("go(3)"); pp.wait_for_selector("text=اقبل الطلب", timeout=8000)
+    pp = page_for(PV, region=False); pp.wait_for_timeout(600); pp.evaluate("go(3)"); pp.locator("#mine-fold-services").evaluate("(e) => { e.open = true; }"); pp.wait_for_selector("text=اقبل الطلب", timeout=8000)
     ptxt = pp.inner_text("body")
     ok("provider sees time/budget/image count but NOT the address before accepting", "100" in ptxt and "300" in ptxt and "3 صورة" in ptxt and ADDR not in ptxt and "01099990001" not in ptxt)
     pp.click("text=اقبل الطلب"); pp.wait_for_selector("text=في الطريق", timeout=8000); ptxt = pp.inner_text("body")
