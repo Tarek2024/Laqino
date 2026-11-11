@@ -205,8 +205,11 @@ with sync_playwright() as p:
     ok("reject from UI (prompt reason) -> customer sees 'الصيدلية اعتذرت' + reason", _reject_row == ("rejected", "المنتج خلص"))
     cu.evaluate("go(3)")
     ok("rejected pharmacy card is loaded in the previous pharmacy-orders section", until(cu, "document.querySelector('#mine-po .od.po')?.textContent.includes('الصيدلية اعتذرت')"))
-    cu.locator("#v details.account-fold > summary").filter(has_text="طلبات منتجات الصيدليات").click()
-    ok("rejected card remains visible with its reason when the section is opened", "الصيدلية اعتذرت" in cu.inner_text(".od.po") and "المنتج خلص" in cu.inner_text(".od.po"))
+    pharmacy_fold = cu.locator("#mine-fold-pharmacy")
+    if not pharmacy_fold.evaluate("(e) => e.open"):
+        pharmacy_fold.locator("summary").click()
+    rejected_card = cu.locator("#mine-po .od.po:has-text('الصيدلية اعتذرت')")
+    ok("rejected card remains visible with its reason when the section is open", rejected_card.count() == 1 and "المنتج خلص" in rejected_card.inner_text())
     # منتج من صيدلية تانية: السلة تسأل قبل الاستبدال (مرة واحدة)
     cu.evaluate("mt='pr';go(4)"); cu.wait_for_selector(".pcd .padd", timeout=8000)
     ok("no JS page errors", errs == []) if errs == [] else (print(errs) or exit(1))
