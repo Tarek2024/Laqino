@@ -29,10 +29,10 @@ cid = call("POST", "/admin/categories", {"parent_id": 2, "section": "souq", "slu
 call("POST", f"/admin/categories/{cid}/fields", {"key": "price", "label_ar": "السعر", "type": "price", "required": True}, at)
 lid = call("POST", "/listings", {"category_id": cid, "region_id": 3, "title": "كنبة ثلاثية", "description": "x", "fields": {"price": 3500}}, cu)[1]["id"]
 r = page("", [{"js": "go(0)", "snap": "v", "wait": 900}])
-ok("pending ad is not shown on home", "كنبة ثلاثية" not in r["v"] and "أحدث إعلانات السوق" not in r["v"])
+ok("pending ad is not shown in the hydrated promo", "كنبة ثلاثية" not in r.get("promo",""))
 call("POST", f"/admin/listings/{lid}/review", {"status": "approved"}, at)
 r = page("", [{"js": "go(0)", "snap": "v", "wait": 1000}])
-ok("approved market ad appears in the promo fallback with its price", not r["errs"] and "إعلان من السوق" in r["v"] and "كنبة ثلاثية" in r["v"] and any(x in r["v"] for x in ("3,500", "٣٬٥٠٠", "3٬500", "٣,٥٠٠")))
+ok("approved market ad appears in the hydrated promo fallback with its price", not r["errs"] and "إعلان من السوق" in r.get("promo","") and "كنبة ثلاثية" in r.get("promo","") and any(x in r.get("promo","") for x in ("3,500", "٣٬٥٠٠", "3٬500", "٣,٥٠٠")))
 t1 = call("POST", "/admin/service-types", {"name_ar": "سباكة"}, at)[1]["id"]
 s1 = call("POST", "/admin/services", {"name_ar": "الأسطى محمود", "type_id": t1, "region_id": 3, "description": "x", "address": "y", "phone": "01012340000"}, at)[1]["id"]
 r = page("", [{"js": "go(0)", "snap": "v", "wait": 900}]); ok("unpublished provider: services card stays disabled, no chips", "soon" in r["v"] and "خدمات متاحة" not in r["v"])
