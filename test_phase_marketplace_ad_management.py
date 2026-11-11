@@ -120,8 +120,9 @@ ok("admin panel includes active featured list and unfeature control", "api('/adm
 ok("admin panel allows choosing feature duration and setting featured status", "تمييز إعلان منشور" in admin_html and "days:+document.getElementById" in admin_html)
 ok("service-worker cache version bumped for gold featured design", bool(cache_version) and cache_version==sw_version)
 
-ok("home latest marketplace cards show listing photos", "home-market-photo" in idx and "l.images[0]" in idx and "home-market-no-image" in idx)
-ok("home latest marketplace cards open the selected listing detail", 'href="/market.html#/l/${Number(l.id)|0}"' in idx)
+# Homepage redesign: marketplace listings now appear as fallback promo-carousel slides (managed campaigns take priority), not a separate card grid.
+ok("homepage fallback marketplace slides show listing photos", 'const marketSlides=Array.isArray(ads)?ads.slice(0,3).map(a=>`<a class="home-promo-slide"' in idx and 'class="home-promo-thumb" src="/api/listings/${Number(a.id)|0}/images/${Number(a.images[0])|0}"' in idx)
+ok("homepage fallback marketplace slides open the selected listing detail", 'href="/market.html#/l/${Number(a.id)|0}"' in idx and "track.innerHTML=managedSlides||marketSlides||fallbackPromo" in idx)
 ok("market add button routes to the existing publish form", 'id="addlisting"' in market_html and 'href="/?market-add=1"' in market_html and 'id="listing-publish"' in idx and "market-add" in idx)
 ok("market add button opens a dedicated publish view without the removed featured-ad explainer", "if(publishMode)return" in idx and "market-publish-head" in idx and "market-feature-guide" not in idx and "market-publish-form" in idx)
 ok("leaving the publish view clears its route flag before another tab is opened", "searchParams.delete" in idx and "t!==1||window._lt===1" in idx and "window._lt=null" in idx)
