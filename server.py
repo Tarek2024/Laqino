@@ -2513,6 +2513,7 @@ class H(BaseHTTPRequestHandler):
                     if c.execute("SELECT 1 FROM listing_images WHERE file_id=?", (f["id"],)).fetchone(): raise E(409, "هذه الصورة مرتبطة بإعلان؛ عدّل الإعلان لإزالتها")
                     if c.execute("SELECT 1 FROM product_images WHERE file_id=?", (f["id"],)).fetchone(): raise E(409, "هذه الصورة مرتبطة بعرض منتج؛ عدّل العرض لإزالتها")
                     if c.execute("SELECT 1 FROM shop_item_images WHERE file_id=?", (f["id"],)).fetchone(): raise E(409, "هذه الصورة مرتبطة بصنف في محلك؛ عدّل الصنف لإزالتها")
+                    if c.execute("SELECT 1 FROM home_campaigns WHERE image_file_id=?", (f["id"],)).fetchone(): raise E(409, "هذه الصورة مستخدمة في إعلان رئيسي؛ عدّل الإعلان أولًا")
                     if c.execute("SELECT 1 FROM shops WHERE logo_file_id=? OR cover_file_id=?", (f["id"], f["id"])).fetchone(): raise E(409, "هذه الصورة لوجو أو غلاف محلك؛ غيّرها من تبويب المحل")
                     if c.execute("SELECT 1 FROM chat_messages WHERE file_id=?", (f["id"],)).fetchone(): raise E(409, "هذه الصورة جزء من محادثة")
                     if c.execute("SELECT 1 FROM service_request_images WHERE file_id=?", (f["id"],)).fetchone(): raise E(409, "هذه الصورة مرفقة بطلب خدمة؛ احذفها من الطلب")
