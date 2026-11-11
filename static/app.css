@@ -867,3 +867,6 @@ body.app .home-search .sbar.lg input{min-height:52px}
   body.app .home-promo-slide strong{font-size:.96rem}
 }
 @media(prefers-reduced-motion:reduce){body.app .home-promo-track{scroll-behavior:auto}}
+
+body.app .home-promo-slide{position:relative;padding-inline-start:68px}
+body.app .home-promo-thumb{position:absolute;inset-inline-start:0;top:50%;width:60px;height:60px;transform:translateY(-50%);object-fit:cover;border-radius:13px;border:1px solid #d6e0ee;background:#fff}
