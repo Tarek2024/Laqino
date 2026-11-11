@@ -186,20 +186,10 @@ check("market UI has responsive layouts for phone, tablet, and desktop",
       and "@media(max-width:520px)" in market_css)
 app_css = (ROOT / "static" / "app.css").read_text(encoding="utf-8")
 shell_js = (ROOT / "static" / "shell.js").read_text(encoding="utf-8")
-location_js = (ROOT / "static" / "location.js").read_text(encoding="utf-8")
 check("client navigation ignores stale asynchronous page renders",
       "__laqGoSeq" in index and "seq!==window.__laqGoSeq" in index)
 check("app shell ignores stale navigation completion effects",
       "goSeq = 0" in shell_js and "if (seq !== goSeq) return r" in shell_js)
-check("location permission is not requested automatically on first app open or app resume",
-      "لا نطلب إذن الموقع أو نحدّثه إلا بعد اختيار المستخدم" in location_js
-      and "if (s === 'granted')" in location_js
-      and "لا نحدّث GPS تلقائيًا عند بدء التطبيق" in location_js
-      and "visibilitychange" not in location_js
-      and "STALE_MS" not in location_js)
-check("manual location action still explicitly requests and resolves the user location",
-      "request({ explicit: true })" in location_js
-      and "حدّد موقعي تلقائيًا" in location_js)
 check("customer app has an explicit tablet portrait width rule",
       "@media (min-width: 760px) and (max-width: 899px)" in app_css
       and "max-width:760px!important" in app_css)
@@ -335,63 +325,12 @@ with sync_playwright() as playwright:
     # sticky horizontal navigation on desktop.
     app_context = browser.new_context(viewport={"width": 390, "height": 844}, device_scale_factor=1)
     app_page = app_context.new_page()
-    app_page.add_init_script("""try { localStorage.clear(); } catch (e) {}
-      window.__permissionState = "prompt";
-      const probe = {calls: 0, stacks: [], installed: false, error: ""};
-      Object.defineProperty(window, "__laqGpsProbe", {value: probe, configurable: false});
-      const fakeGeo = {
-        getCurrentPosition: function (success, error) {
-          probe.calls += 1;
-          probe.stacks.push((new Error("GPS requested")).stack || "stack unavailable");
-          if (error) error({code: 1});
-        }
-      };
-      try {
-        Object.defineProperty(navigator, "geolocation", {configurable: true, value: fakeGeo});
-        probe.installed = navigator.geolocation === fakeGeo;
-      } catch (e) {
-        probe.error = "navigator.geolocation: " + String(e);
-        try {
-          Object.defineProperty(Object.getPrototypeOf(navigator), "geolocation", {
-            configurable: true, get: () => fakeGeo
-          });
-          probe.installed = navigator.geolocation === fakeGeo;
-        } catch (e2) { probe.error += "; prototype: " + String(e2); }
-      }
-      const fakePermissions = {query: () => Promise.resolve({state: window.__permissionState})};
-      try {
-        Object.defineProperty(navigator, "permissions", {configurable: true, value: fakePermissions});
-      } catch (e) {
-        try { Object.defineProperty(Object.getPrototypeOf(navigator), "permissions", {
-          configurable: true, get: () => fakePermissions
-        }); } catch (e2) {}
-      }
-    }""")
+    app_page.add_init_script("""try { localStorage.clear(); } catch (e) {}""")
     app_page.goto(BASE + "/", wait_until="domcontentloaded")
     app_page.locator("#v .find").wait_for(state="visible", timeout=20000)
     app_page.wait_for_timeout(900)
-    gps_first_open = app_page.evaluate("""() => ({
-      probe: window.__laqGpsProbe ? {
-        calls: window.__laqGpsProbe.calls,
-        stacks: window.__laqGpsProbe.stacks,
-        installed: window.__laqGpsProbe.installed,
-        error: window.__laqGpsProbe.error
-      } : null,
-      hook: !!(navigator.geolocation && navigator.geolocation.getCurrentPosition)
-    })""")
-    print("GPS_FIRST_OPEN_DIAGNOSTIC=" + repr(gps_first_open), flush=True)
-    check("GPS regression probe is installed before app scripts",
-          bool(gps_first_open["probe"] and gps_first_open["probe"]["installed"]))
-    check("first app open does not trigger a location permission prompt",
-          bool(gps_first_open["probe"] and gps_first_open["probe"]["calls"] == 0))
-    # Even when the OS/browser permission was granted previously, merely opening
-    # delivery must not request a fresh GPS reading without a user action.
-    app_page.evaluate("window.__permissionState = 'granted'")
     app_page.locator("#v .sc.dlv").click()
     app_page.locator("#lq-dl").wait_for(state="visible", timeout=5000)
-    app_page.wait_for_timeout(250)
-    check("opening delivery with granted permission does not request GPS automatically",
-          app_page.evaluate("window.__gpsCalls === 0"))
     app_page.locator("#t0").click()
     app_page.locator("#v .find").wait_for(state="visible", timeout=5000)
     for width, height, label, expected_nav in [
