@@ -24,6 +24,9 @@ jobs:
         run: python release_check.py
       - name: Run registration recovery and account activation regression tests
         run: python test_registration_account_recovery.py
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
       - name: Run Phase 91 focused UI and marketplace share regression tests
         run: python test_phase91_market_ui.py
       - name: Run Phase 92 account current/history order grouping regression
@@ -40,9 +43,6 @@ jobs:
         run: python test_phase69_shop_delivery.py
       - name: Run pharmacy product-order push integration regression
         run: python test_phase87_product_orders.py
-      - uses: actions/setup-node@v4
-        with:
-          node-version: '20'
       - name: Syntax-check native notification bridge and permission helper
         run: |
           node --check static/native.js
