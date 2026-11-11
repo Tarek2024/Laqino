@@ -92,9 +92,8 @@ with sync_playwright() as playwright:
     page = context.new_page()
     errors = []
     page.on("pageerror", lambda error: errors.append(str(error)))
-    page.goto(BASE + "/", wait_until="domcontentloaded")
+    page.goto(BASE + "/?account=1", wait_until="domcontentloaded")
     page.wait_for_selector("nav", timeout=10000)
-    page.evaluate("go(3)")
     page.wait_for_function(
         "document.querySelectorAll('#v > .card.od').length === 2",
         timeout=10000,
