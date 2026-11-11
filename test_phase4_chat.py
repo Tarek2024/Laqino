@@ -105,7 +105,7 @@ with sync_playwright() as playwright:
     page.get_by_role("button", name="راسل البائع").click()
     page.wait_for_function("() => location.hash === '#/chat/" + str(T1) + "'", timeout=10000)
     ok("reopening chat from the same listing reuses the original thread id",
-       page.locator(".chat-input").is_visible() and location_hash := page.evaluate("location.hash") == "#/chat/" + str(T1))
+       page.locator(".chat-input").is_visible() and page.evaluate("location.hash === '#/chat/" + str(T1) + "'"))
     ok("chat browser flow has no JavaScript errors", not browser_errors)
     browser.close()
 ok("both/default listings accept chat", call("POST", f"/listings/{Lb}/chat", None, tk[B3])[0] == 201 and call("POST", f"/listings/{Ld}/chat", None, tk[B3])[0] == 201)
