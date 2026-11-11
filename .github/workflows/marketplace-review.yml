@@ -1,7 +1,7 @@
 name: Marketplace ad management review
 on:
   push:
-    branches: [development, fix/market-ui-phase1-2-20261110, feature/marketplace-ad-management, phase90-fcm-native-fix]
+    branches: [development, fix/market-ui-phase1-2-20261110, feature/marketplace-ad-management, phase90-fcm-native-fix, review/integrated-client-ui-account-orders-20261111]
   pull_request:
     branches: [main]
 jobs:
