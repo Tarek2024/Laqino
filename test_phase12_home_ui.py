@@ -23,7 +23,7 @@ ok("four independent section cards in the required order, no script errors", not
 ok("each card has an icon, a short description and an open indicator (except the disabled one)", v.count('class="ti"') == 4 and v.count('class="d"') == 4 and v.count("svg class=\"i go\"") == 3)
 ok("cards route to the right sections", "mt='rx';go(4)" in v and "mt='pr';PQ={q:'',c:0,n:1,showCats:true};go(4)" not in v and 'onclick="go(1)"' in v and 'onclick="go(2)"' in v)
 ok("no dynamic section without real content (no ads, no service types)", "أحدث إعلانات السوق" not in v and "خدمات متاحة" not in v)
-ok("search bar still first, heading present", v.index('id="gq"') < v.index('class="tiles"') and "تدور على إيه النهارده؟" in v)
+ok("search first, managed promo second, and section cards after the hero", v.index('id="gq"') < v.index('class="home-promo"') < v.index('class="tiles"') and 'class="home-hero"' in v and "تدور على إيه النهارده؟" not in v)
 # --- إعلان حقيقي معتمد + مزوّد خدمة منشور
 cid = call("POST", "/admin/categories", {"parent_id": 2, "section": "souq", "slug": "furn", "name_ar": "أثاث", "is_active": True}, at)[1]["id"]
 call("POST", f"/admin/categories/{cid}/fields", {"key": "price", "label_ar": "السعر", "type": "price", "required": True}, at)
@@ -32,7 +32,7 @@ r = page("", [{"js": "go(0)", "snap": "v", "wait": 900}])
 ok("pending ad is not shown on home", "كنبة ثلاثية" not in r["v"] and "أحدث إعلانات السوق" not in r["v"])
 call("POST", f"/admin/listings/{lid}/review", {"status": "approved"}, at)
 r = page("", [{"js": "go(0)", "snap": "v", "wait": 1000}])
-ok("approved ad appears under the latest-ads section with its price", not r["errs"] and "أحدث إعلانات السوق" in r["v"] and "كنبة ثلاثية" in r["v"] and any(x in r["v"] for x in ("3,500", "٣٬٥٠٠", "3٬500", "٣,٥٠٠")))
+ok("approved market ad appears in the promo fallback with its price", not r["errs"] and "إعلان من السوق" in r["v"] and "كنبة ثلاثية" in r["v"] and any(x in r["v"] for x in ("3,500", "٣٬٥٠٠", "3٬500", "٣,٥٠٠")))
 t1 = call("POST", "/admin/service-types", {"name_ar": "سباكة"}, at)[1]["id"]
 s1 = call("POST", "/admin/services", {"name_ar": "الأسطى محمود", "type_id": t1, "region_id": 3, "description": "x", "address": "y", "phone": "01012340000"}, at)[1]["id"]
 r = page("", [{"js": "go(0)", "snap": "v", "wait": 900}]); ok("unpublished provider: services card stays disabled, no chips", "soon" in r["v"] and "خدمات متاحة" not in r["v"])
@@ -42,7 +42,7 @@ ok("published provider: services card becomes a link and a type chip appears", n
 r = page("", [{"js": f"svt({t1})", "snap": "v", "wait": 1000}]); ok("type chip opens the filtered services list", "الأسطى محمود" in r["v"])
 # --- فشل الشبكة لا يكسر الرئيسية
 r = page("", [{"js": "var _f=fetch;fetch=(u,o)=>String(u).includes('/api/listings')||String(u).includes('/service-types')?Promise.reject(new Error('x')):_f(u,o);go(0)", "snap": "v", "wait": 1000}])
-ok("dynamic content failing leaves the cards and search intact", not r["errs"] and r["v"].count('class="ti"') == 4 and 'id="gq"' in r["v"])
+ok("dynamic content failing leaves search, promo, and cards intact and logs the failed API", not r["errs"] and r["v"].count('class="ti"') == 4 and 'id="gq"' in r["v"] and 'class="home-promo"' in r["v"] and 'api:market-listings' in str(r.get('diagnostics',[])))
 # Product catalogue remains available inside the medical section only.
 source = open(os.path.join(D, "static/index.html"), encoding="utf-8").read()
 ok("products remain accessible from the medical tabs (only when the admin flag is on)", "MT('pr','prod'" in source and "FT.products" in source and "const tabs=`" in source)
