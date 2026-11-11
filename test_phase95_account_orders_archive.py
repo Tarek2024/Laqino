@@ -133,6 +133,36 @@ with sync_playwright() as playwright:
     check("completed order keeps the existing 3D tracker", state["completedHas3D"])
     check("completed order remains rateable without requiring a rating to archive",
           state["completedCanRate"])
+
+    # Change a live order after the account page is already open. The existing
+    # polling flow should refresh the account and move it to the archive itself.
+    with sqlite3.connect(DB) as db:
+        db.execute("UPDATE delivery_orders SET status='completed' WHERE id=?",
+                   (ids["searching"],))
+        db.commit()
+    deadline = time.time() + 12
+    transition = None
+    while time.time() < deadline:
+        transition = page.evaluate("""() => {
+          const previous = [...document.querySelectorAll('#v details.account-fold')]
+            .find(d => (d.querySelector(':scope > summary')?.textContent || '').includes('الطلبات السابقة'));
+          const completed = [...(previous?.querySelectorAll(':scope > .card.od') || [])]
+            .filter(card => card.querySelector('.sc3d[data-st="completed"]'));
+          return {
+            activeCount: document.querySelectorAll('#v > .card.od').length,
+            previousCount: previous?.querySelectorAll(':scope > .card.od').length ?? -1,
+            completedRateable: completed.filter(card => card.querySelector('button[onclick^="rt("]')).length
+          };
+        }""")
+        if transition["activeCount"] == 1 and transition["previousCount"] == 3:
+            break
+        page.wait_for_timeout(250)
+    check("a live order moves automatically to previous orders after completion",
+          transition is not None and transition["activeCount"] == 1 and
+          transition["previousCount"] == 3)
+    check("newly completed archived orders remain rateable",
+          transition is not None and transition["completedRateable"] == 2)
+
     check("service, pharmacy-product and marketplace sections are folded",
           state["servicesFolded"] and state["pharmacyProductsFolded"] and state["adsFolded"])
 
