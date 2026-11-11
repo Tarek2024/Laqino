@@ -66,7 +66,7 @@
     if (seq !== goSeq) return r;
     if (sw) {
       var y = SP[t] || 0;
-      if (y) requestAnimationFrame(function () { window.scrollTo(0, y); });
+      if (y) requestAnimationFrame(function () { if (seq === goSeq) window.scrollTo(0, y); });
       var v = $('v'); if (v) { v.classList.remove('vt'); void v.offsetWidth; v.classList.add('vt'); }
     }
     dedupe(t);
