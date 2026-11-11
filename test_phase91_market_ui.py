@@ -196,7 +196,8 @@ check("app shell does not restore scroll from a stale navigation frame",
       "requestAnimationFrame(function () { if (seq === goSeq) window.scrollTo(0, y); });" in shell_js)
 check("account collapsible sections preserve open state across automatic refreshes",
       "window._laqAccountFolds" in index and "const foldOpen=id=>" in index
-      and all(x in index for x in ["mine-fold-services","mine-fold-pharmacy","mine-fold-archive","mine-fold-market"]))
+      and all(x in index for x in ["mine-fold-services","mine-fold-pharmacy","mine-fold-archive","mine-fold-market","mine-fold-courier"])
+      and "const interacting=()=>" in index and "!interacting()" in index)
 check("account auto-refresh pauses while a marketplace edit form is open",
       "!document.querySelector('.market-edit[open]')" in index)
 check("browser Back uses the guarded navigation wrapper",
