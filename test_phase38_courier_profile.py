@@ -124,7 +124,7 @@ with sync_playwright() as p:
     ok("no JS errors on customer", not pg.errs)
     # تقييم بتعليق من واجهة العميل ثم ظهوره في البروفايل
     o5 = order(); finish(o5)
-    pg.evaluate("go(3)"); pg.wait_for_selector("#rc%d" % o5)
+    pg.evaluate("go(3)"); pg.locator("#mine-fold-archive").evaluate("(e) => { e.open = true; }"); pg.wait_for_selector("#rc%d" % o5)
     ok("rating form has comment box + stars", pg.locator("#s%d" % o5).count() == 1)
     pg.select_option("#s%d" % o5, "3"); pg.fill("#rc%d" % o5, "تأخر شوية لكن محترم"); pg.click("button:has-text('قيّم المندوب')"); pg.wait_for_timeout(800)
     ok("UI rating saved with comment", sql("SELECT stars,comment FROM ratings WHERE order_id=?", o5) == [(3, "تأخر شوية لكن محترم")])
