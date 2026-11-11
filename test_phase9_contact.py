@@ -88,6 +88,7 @@ ok("index souq: click reveals phone with tel and WhatsApp links", SELLER in r[f"
 r = ui("index", "", [{"js": "window.sq='فريدةواجهة';go(1)"}, {"js": f"ct({LU})", "wait": 900, "snap": "v"}])
 ok("index souq: anonymous gets login message, no phone", "سجّل الدخول" in r["v"] and SELLER not in r["v"])
 r = ui("index", tk[CUST], [{"js": "go(3)", "snap": "v"}])
+ok("account page has discreet WhatsApp support link", "تواصل مع الدعم" in r["v"] and "wa.me/201017011170" in r["v"] and 'target="_blank"' in r["v"])
 ok("index my orders: active order shows courier phone link", f'tel:{COUR}' in r["v"])
 r = ui("courier", tk[COUR], [{"snap": "m", "wait": 900}])
 ok("courier page: active order shows customer name + phone link", f'tel:{CUST}' in r["m"] and "u06" in r["m"] and r["errs"] == [])

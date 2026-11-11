@@ -1,6 +1,6 @@
 # إضافة سوق الصيدليات في Chromium حقيقي (مقاس موبايل): الصيدلية أ تنشر إعلانًا بصورة، الإدارة تعتمده، الصيدلية ب تحجزه، أ ترى هاتف ب وتؤكد البيع.
 # يُتخطى بأمان إن لم يتوفر playwright/Chromium.
-import os, sys, json, threading, urllib.request, urllib.error, tempfile, time, base64, datetime
+import os, sys, json, threading, urllib.request, urllib.error, tempfile, time, base64, datetime, atexit
 os.environ["LAQINO_DB"] = tempfile.mktemp(suffix=".db"); os.environ["LAQINO_UPLOADS"] = tempfile.mkdtemp()
 try:
     from playwright.sync_api import sync_playwright
@@ -10,11 +10,26 @@ import server
 from imgutil import png
 from http.server import ThreadingHTTPServer
 server.init("01000000000", "AdminPass123")
-srv = ThreadingHTTPServer(("127.0.0.1", 0), server.H); threading.Thread(target=srv.serve_forever, daemon=True).start(); time.sleep(.3); BASE = "http://127.0.0.1:%d" % srv.server_address[1]
+# Use non-daemon request workers and wait for them during shutdown so Python
+# never exits while a worker is still writing to stderr.
+srv = ThreadingHTTPServer(("127.0.0.1", 0), server.H)
+srv.daemon_threads = False
+srv.block_on_close = True
+srv_thread = threading.Thread(target=srv.serve_forever, name="exchange-test-http")
+srv_thread.start()
+def _stop_test_server():
+    if srv_thread.is_alive():
+        srv.shutdown()
+        srv_thread.join(timeout=10)
+    srv.server_close()
+atexit.register(_stop_test_server)
+time.sleep(.3); BASE = "http://127.0.0.1:%d" % srv.server_address[1]
 def call(m, p, d=None, t=None):
     r = urllib.request.Request(BASE + "/api" + p, json.dumps(d).encode() if d is not None else None, {"Content-Type": "application/json", **({"Authorization": "Bearer " + t} if t else {})}, method=m)
-    try: x = urllib.request.urlopen(r); return x.status, json.loads(x.read())
-    except urllib.error.HTTPError as e: return e.code, json.loads(e.read())
+    try:
+        with urllib.request.urlopen(r) as x: return x.status, json.loads(x.read())
+    except urllib.error.HTTPError as e:
+        with e: return e.code, json.loads(e.read())
 def until(pg, expr, sec=40):  # polling via evaluate: wait_for_function is blocked by the page's CSP (no unsafe-eval)
     for _ in range(int(sec * 10)):
         if pg.evaluate(expr): return True

@@ -2,7 +2,7 @@
 <html lang="ar" dir="rtl">
 <head>
 <meta charset="utf-8">
-<link rel="stylesheet" href="/market-enhancements.css?v=8">
+<link rel="stylesheet" href="/market-enhancements.css?v=9">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <title>سوق لاقينو | الإعلانات والمنتجات المحلية</title>
 <meta name="description" content="تصفح سوق لاقينو للمنتجات والإعلانات المحلية وتواصل مع أصحاب الإعلانات من خلال المنصة.">
@@ -372,13 +372,85 @@ function detail(id) {
       var cur = 0, cnt = h("div", {class: "cnt"});
       var show = function (i) { cur = (i + d.images.length) % d.images.length; main.src = img(d.id, d.images[cur]); Array.prototype.forEach.call(thumbs.children, function (c, k) { c.className = k === cur ? "on" : ""; }); cnt.textContent = d.images.length > 1 ? "الصورة " + (cur + 1) + " من " + d.images.length : ""; };
       if (d.images.length > 1) d.images.forEach(function (f, i) { var t = h("img", {src: img(d.id, f), alt: "", class: i ? "" : "on", onclick: function () { show(i); }}); thumbs.appendChild(t); });
-      var sx = null; main.addEventListener("touchstart", function (e) { sx = e.touches[0].clientX; }, {passive: true});
-      main.addEventListener("touchend", function (e) { if (sx == null || d.images.length < 2) return; var dx = e.changedTouches[0].clientX - sx; sx = null; if (Math.abs(dx) > 40) show(cur + (dx < 0 ? 1 : -1)); }, {passive: true});
-      main.addEventListener("click", function () {
-        var lb = h("div", {class: "lb", role: "dialog", "aria-label": "عرض الصورة"}, [h("img", {src: main.src, alt: ""}), h("button", {type: "button", text: "إغلاق"})]);
-        var close = function () { lb.remove(); document.removeEventListener("keydown", esc); }, esc = function (e) { if (e.key === "Escape") close(); };
-        lb.addEventListener("click", close); document.addEventListener("keydown", esc); document.body.appendChild(lb);
-      });
+      var sx = null, didSwipe = false, swipeReset = 0;
+      main.setAttribute("tabindex", "0"); main.setAttribute("role", "button"); main.setAttribute("aria-label", "افتح معرض صور الإعلان");
+      main.addEventListener("touchstart", function (e) { sx = e.touches[0].clientX; didSwipe = false; }, {passive: true});
+      main.addEventListener("touchend", function (e) {
+        if (sx == null || d.images.length < 2) { sx = null; return; }
+        var dx = e.changedTouches[0].clientX - sx; sx = null;
+        if (Math.abs(dx) > 40) { didSwipe = true; clearTimeout(swipeReset); swipeReset = setTimeout(function () { didSwipe = false; }, 650); show(cur + (dx < 0 ? 1 : -1)); }
+      }, {passive: true});
+      main.addEventListener("click", function () { if (didSwipe) { didSwipe = false; return; } openGallery(); });
+      main.addEventListener("keydown", function (e) { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); openGallery(); } });
+      function openGallery() {
+        var oldOverflow = document.body.style.overflow, zoomed = false, sx = null;
+        var photo = h("img", {class: "lb-photo", src: img(d.id, d.images[cur]), alt: "صورة " + (cur + 1) + " من " + d.images.length});
+        var count = h("div", {class: "lb-count", "aria-live": "polite"});
+        var strip = h("div", {class: "lb-thumbs", "aria-label": "صور الإعلان"});
+        var prev = h("button", {type: "button", class: "lb-prev", text: "السابق", "aria-label": "الصورة السابقة"});
+        var next = h("button", {type: "button", class: "lb-next", text: "التالي", "aria-label": "الصورة التالية"});
+        var zoom = h("button", {type: "button", class: "lb-zoom", text: "تكبير", "aria-label": "تكبير الصورة"});
+        var closeBtn = h("button", {type: "button", class: "lb-close", text: "إغلاق", "aria-label": "إغلاق معرض الصور"});
+        var controls = h("div", {class: "lb-controls"}, [prev, zoom, next]);
+        var lb = h("div", {class: "lb", role: "dialog", "aria-modal": "true", "aria-label": "معرض صور الإعلان"}, [closeBtn, count, photo, controls, strip]);
+        function paintGallery() {
+          photo.src = img(d.id, d.images[cur]);
+          photo.alt = "صورة " + (cur + 1) + " من " + d.images.length;
+          count.textContent = "الصورة " + (cur + 1) + " من " + d.images.length;
+          prev.disabled = next.disabled = d.images.length < 2;
+          Array.prototype.forEach.call(strip.children, function (node, index) {
+            node.classList.toggle("on", index === cur);
+            if (index === cur) node.setAttribute("aria-current", "true");
+            else node.removeAttribute("aria-current");
+          });
+          var active = strip.children[cur];
+          if (active && active.scrollIntoView) active.scrollIntoView({block: "nearest", inline: "center"});
+        }
+        function move(step) { if (d.images.length > 1) { cur = (cur + step + d.images.length) % d.images.length; show(cur); paintGallery(); } }
+        function close() {
+          if (!lb.parentNode) return;
+          lb.remove(); document.body.style.overflow = oldOverflow;
+          document.removeEventListener("keydown", onKey);
+          main.focus && main.focus();
+        }
+        function onKey(e) {
+          if (e.key === "Escape") { e.preventDefault(); close(); }
+          else if (e.key === "ArrowRight") { e.preventDefault(); move(1); }
+          else if (e.key === "ArrowLeft") { e.preventDefault(); move(-1); }
+          else if (e.key === "Tab") {
+            var focusable = lb.querySelectorAll('button:not([disabled]),a[href],input:not([disabled]),select:not([disabled]),textarea:not([disabled]),[tabindex]:not([tabindex="-1"])');
+            if (!focusable.length) { e.preventDefault(); return; }
+            var first = focusable[0], last = focusable[focusable.length - 1];
+            if (!lb.contains(document.activeElement)) { e.preventDefault(); first.focus(); }
+            else if (e.shiftKey && document.activeElement === first) { e.preventDefault(); last.focus(); }
+            else if (!e.shiftKey && document.activeElement === last) { e.preventDefault(); first.focus(); }
+          }
+        }
+        prev.addEventListener("click", function (e) { e.stopPropagation(); move(-1); });
+        next.addEventListener("click", function (e) { e.stopPropagation(); move(1); });
+        zoom.addEventListener("click", function (e) { e.stopPropagation(); zoomed = !zoomed; photo.classList.toggle("zoomed", zoomed); lb.classList.toggle("zoomed", zoomed); zoom.textContent = zoomed ? "تصغير" : "تكبير"; });
+        closeBtn.addEventListener("click", function (e) { e.stopPropagation(); close(); });
+        lb.addEventListener("click", function (e) { if (e.target === lb) close(); });
+        photo.addEventListener("click", function (e) { e.stopPropagation(); });
+        photo.addEventListener("touchstart", function (e) { sx = e.touches[0].clientX; }, {passive: true});
+        photo.addEventListener("touchend", function (e) {
+          if (sx == null || zoomed || d.images.length < 2) return;
+          var dx = e.changedTouches[0].clientX - sx; sx = null;
+          if (Math.abs(dx) > 45) move(dx < 0 ? 1 : -1);
+        }, {passive: true});
+        d.images.forEach(function (file, index) {
+          var thumb = h("button", {type: "button", class: "lb-thumb" + (index === cur ? " on" : ""), "aria-label": "عرض الصورة " + (index + 1)}, [
+            h("img", {src: img(d.id, file), alt: ""})
+          ]);
+          thumb.addEventListener("click", function (e) { e.stopPropagation(); cur = index; show(cur); paintGallery(); });
+          strip.appendChild(thumb);
+        });
+        document.body.style.overflow = "hidden";
+        document.body.appendChild(lb);
+        document.addEventListener("keydown", onKey);
+        paintGallery();
+        closeBtn.focus();
+      }
       box.appendChild(cnt); show(0); box.appendChild(thumbs);
     }
     box.appendChild(h("h2", {text: d.title})); box.appendChild(h("div", {class: "p", text: money(d.price)}));

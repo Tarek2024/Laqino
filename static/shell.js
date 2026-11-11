@@ -53,18 +53,20 @@
   net();
 
   /* ---------- go(): تمرير + انتقال + سجل المتصفح ---------- */
-  var og = window.go, SP = {}, pushedTab = false, pushedSheet = false, skip = 0;
+  var og = window.go, SP = {}, pushedTab = false, pushedSheet = false, skip = 0, goSeq = 0;
   var back = function () { skip++; history.back(); };
   window.go = async function (t) {
+    var seq = ++goSeq;
     var prev = window._lt, sw = prev !== undefined && prev !== t;
     if (sw) SP[prev] = window.pageYOffset || 0;
     paintHead(t);
     if (t === 0 && pushedTab) { pushedTab = false; back(); }
     if (t !== 0 && !pushedTab && sw) { pushedTab = true; safe(function () { history.pushState({ lq: 1 }, ''); }); }
     var r = await og.apply(this, arguments);
+    if (seq !== goSeq) return r;
     if (sw) {
       var y = SP[t] || 0;
-      if (y) requestAnimationFrame(function () { window.scrollTo(0, y); });
+      if (y) requestAnimationFrame(function () { if (seq === goSeq) window.scrollTo(0, y); });
       var v = $('v'); if (v) { v.classList.remove('vt'); void v.offsetWidth; v.classList.add('vt'); }
     }
     dedupe(t);
@@ -101,7 +103,7 @@
   addEventListener('popstate', function () {
     if (skip > 0) { skip--; return; }
     if (pushedSheet) { pushedSheet = false; if (oc) oc(); return; }
-    if (pushedTab) { pushedTab = false; og(0); paintHead(0); }
+    if (pushedTab) { pushedTab = false; window.go(0); }
   });
 
   /* ---------- سحب للتحديث ---------- */

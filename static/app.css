@@ -577,13 +577,13 @@ body.app button.qdel:active{transform:translateY(3px);border-bottom-width:2px}
     min-height:100vh;
     padding-bottom:24px!important;
   }
-  body.app header.bar{order:0;position:sticky;top:0;padding:14px max(28px,calc((100% - 1180px)/2))!important;gap:14px}
+  body.app header.bar{order:0;position:sticky;top:0;padding:calc(14px + env(safe-area-inset-top)) max(28px,calc((100% - 1180px)/2)) 14px!important;gap:14px}
   body.app header.bar .lg{width:48px;height:48px}
   body.app header.bar .wm b{font-size:1.45rem}
   body.app header.bar .wm small{font-size:.78rem}
   body.app header.bar .rg{max-width:none;margin-inline-start:auto;min-height:44px!important;font-size:.95rem}
   body.app>nav{
-    order:1;position:sticky;top:0;bottom:auto;inset-inline:0;
+    order:1;position:sticky;top:calc(76px + env(safe-area-inset-top));bottom:auto;inset-inline:0;
     display:flex;justify-content:center;gap:8px;flex-wrap:nowrap;
     width:100%;max-width:none;margin:0;padding:8px max(28px,calc((100% - 1180px)/2))!important;
     background:#fff;border-top:1px solid #e3e8f3;border-bottom:1px solid #dfe6f2;
@@ -766,3 +766,76 @@ body.app .site-footer>small{display:block;margin-top:14px;color:#c8d4e8}
  body.app .home-trust-steps>div{background:#263449}
  body.app .home-auth>summary{background:#1d2736;color:#f2f5fb;border-color:#53627a}
 }
+
+
+/* Tablet portrait layout: give client sub-pages the available width without changing phone or desktop navigation. */
+@media (min-width: 760px) and (max-width: 899px){
+  body.app main#v:not(:has(.find)){
+    width:100%;
+    max-width:760px!important;
+    margin-inline:auto;
+    padding:20px 24px calc(96px + env(safe-area-inset-bottom))!important;
+  }
+  body.app .home{
+    width:100%;
+    max-width:760px;
+    margin-inline:auto;
+    padding-inline:20px;
+  }
+  body.app .find{
+    padding-inline:max(24px,calc((100% - 760px)/2));
+  }
+  body.app .find .fi,
+  body.app .find .sbar.lg{
+    max-width:760px;
+    margin-inline:auto;
+  }
+}
+
+
+/* هوية أيقونات أقسام حسابي — متوافقة مع ألوان وأيقونات لاقينو */
+body.app .account-fold>summary{
+  display:flex;align-items:center;gap:11px;min-height:62px;
+  padding:10px 14px;list-style:none;cursor:pointer;
+  color:var(--navy);font:700 .96rem var(--fd);
+}
+body.app .account-fold>summary::-webkit-details-marker{display:none}
+body.app .account-fold>summary::after{
+  content:"";width:8px;height:8px;flex:none;margin-inline-start:auto;
+  border-inline-end:2px solid #91a0bd;border-bottom:2px solid #91a0bd;
+  transform:rotate(45deg);transition:transform .18s ease;
+}
+body.app .account-fold[open]>summary::after{transform:rotate(225deg)}
+body.app .account-fold-icon{
+  display:grid;place-items:center;flex:none;width:40px;height:40px;
+  border-radius:13px;background:var(--sky-bg);color:var(--navy);
+  box-shadow:inset 0 0 0 1px #dce6f7;
+}
+body.app .account-fold-icon svg{width:21px;height:21px;stroke:currentColor;fill:none;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round}
+body.app .account-fold-icon.services{background:var(--sand-bg);color:var(--orange-d);box-shadow:inset 0 0 0 1px #f3dfc4}
+body.app .account-fold-icon.pharmacy{background:var(--teal-bg);color:var(--teal);box-shadow:inset 0 0 0 1px #ccebe6}
+body.app .account-fold-icon.archive{background:var(--sky-bg);color:var(--navy2)}
+body.app .account-fold-icon.market{background:#efe8fb;color:#6a3fb5;box-shadow:inset 0 0 0 1px #e3d8f5}
+body.app .account-fold-label{min-width:0;line-height:1.45}
+@media(max-width:360px){body.app .account-fold>summary{gap:9px;padding-inline:11px;font-size:.9rem}body.app .account-fold-icon{width:36px;height:36px;border-radius:12px}}
+
+body.app .account-fold-icon.delivery{background:var(--sky-bg);color:var(--navy);box-shadow:inset 0 0 0 1px #dce6f7}
+body.app #v>.sec .account-fold-icon{width:34px;height:34px;border-radius:11px;vertical-align:middle}
+body.app #v>.sec .account-fold-icon svg{width:19px;height:19px}
+
+/* رابط دعم هادئ داخل حسابي؛ لا يظهر كزر عائم ولا يزاحم طلب الخدمات */
+body.app .account-support-link{
+  display:flex;align-items:center;gap:11px;margin-top:14px;padding:11px 12px;
+  border:1px solid var(--line);border-radius:13px;background:#f9fbfe;
+  color:var(--navy2);text-decoration:none;min-height:58px;
+}
+body.app .account-support-link:active{background:#f0f4fa}
+body.app .account-support-icon{
+  display:grid;place-items:center;flex:none;width:36px;height:36px;
+  border-radius:11px;background:var(--teal-bg);color:var(--teal);
+}
+body.app .account-support-icon svg{width:20px;height:20px;stroke:currentColor;fill:none;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round}
+body.app .account-support-copy{display:flex;flex-direction:column;min-width:0;line-height:1.4}
+body.app .account-support-copy b{font-size:.9rem;font-weight:700}
+body.app .account-support-copy small{font-size:.76rem;color:var(--mute)}
+body.app .account-support-arrow{margin-inline-start:auto;flex:none;color:#91a0bd;font-size:1.5rem;line-height:1}

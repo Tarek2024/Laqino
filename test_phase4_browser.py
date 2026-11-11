@@ -61,7 +61,7 @@ with sync_playwright() as p:
     op.select_option("select[aria-label='طريقة تواصل المشترين']", "chat"); op.click("button:has-text('حفظ')"); op.wait_for_selector("text=تم الحفظ")
     ok("owner saves 'chat only' from the listing page; buyer then loses the phone button", call("GET", f"/listings/{L}")[1]["contact_mode"] == "chat" and page(tb, f"/market.html#/l/{L}").locator("button:has-text('إظهار رقم البائع')").count() == 0)
     # ---- «إعلاناتي» في التطبيق الرئيسي
-    ip = page(ts, "/"); ip.wait_for_selector("nav, .tabs, #app", timeout=8000); ip.evaluate("go(3)"); ip.wait_for_selector("select[aria-label='طريقة التواصل']", timeout=8000)
+    ip = page(ts, "/"); ip.wait_for_selector("nav, .tabs, #app", timeout=8000); ip.evaluate("go(3)"); ip.locator("#mine-fold-market").evaluate("(e) => { e.open = true; }"); ip.wait_for_selector("select[aria-label='طريقة التواصل']", timeout=8000)
     ip.select_option("select[aria-label='طريقة التواصل']", "phone"); ip.click("button:has-text('حفظ طريقة التواصل')"); ip.wait_for_selector("text=تم حفظ طريقة التواصل", timeout=8000)
     ok("index 'my listings': contact mode saved from the account page", call("GET", f"/listings/{L}")[1]["contact_mode"] == "phone" and noscroll(ip))
     # ---- نموذج الإنشاء يحمل الخيار

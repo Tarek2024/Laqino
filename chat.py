@@ -185,7 +185,8 @@ def handle(h, c, u, method, path, q):
         out = []
         for t in c.execute("SELECT t.*,l.title listing_title,l.status listing_status,COALESCE(l.anonymous,0) listing_anonymous,ub.name buyer_name,us.name seller_name FROM chat_threads t "
                            "JOIN listings l ON l.id=t.listing_id JOIN users ub ON ub.id=t.buyer_id JOIN users us ON us.id=t.seller_id "
-                           "WHERE t.buyer_id=? OR t.seller_id=? ORDER BY t.last_message_at DESC,t.id DESC LIMIT 100", (u["id"], u["id"])).fetchall():
+                           "WHERE (t.buyer_id=? OR t.seller_id=?) AND EXISTS (SELECT 1 FROM chat_messages cm WHERE cm.thread_id=t.id) "
+                           "ORDER BY t.last_message_at DESC,t.id DESC LIMIT 100", (u["id"], u["id"])).fetchall():
             buyer = t["buyer_id"] == u["id"]; read = t["buyer_read_id"] if buyer else t["seller_read_id"]
             last = c.execute("SELECT body,created_at,sender_id,file_id FROM chat_messages WHERE thread_id=? ORDER BY id DESC LIMIT 1", (t["id"],)).fetchone()
             unread = c.execute("SELECT COUNT(*) FROM chat_messages WHERE thread_id=? AND id>? AND sender_id!=?", (t["id"], read, u["id"])).fetchone()[0]

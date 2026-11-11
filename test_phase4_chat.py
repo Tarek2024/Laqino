@@ -1,5 +1,5 @@
 # المرحلة 4: محادثة سوق لاقينو (chat.py) + اختيار البائع لطريقة التواصل. قاعدة مؤقتة. اختبار API + فحص نصي للواجهة.
-import os, json, threading, urllib.request, urllib.error, tempfile, time, sqlite3
+import os, json, threading, urllib.request, urllib.error, tempfile, time, sqlite3, concurrent.futures
 os.environ["LAQINO_DB"] = tempfile.mktemp(suffix=".db"); os.environ["LAQINO_UPLOADS"] = tempfile.mkdtemp()
 import server
 import chat
@@ -60,11 +60,62 @@ ok("phone-only listing refuses chat (403)", call("POST", f"/listings/{Lp}/chat",
 s, r = call("POST", f"/listings/{Lc}/chat", None, tk[B1]); T1 = r["thread_id"]
 ok("buyer opens chat (201) and gets same thread again (200)", s == 201 and call("POST", f"/listings/{Lc}/chat", None, tk[B1]) == (200, {"thread_id": T1}))
 T2 = call("POST", f"/listings/{Lc}/chat", None, tk[B2])[1]["thread_id"]; ok("each buyer has an own thread per listing", T2 != T1)
+ok("new threads store the authenticated buyer and real listing owner IDs", sql("select buyer_id,seller_id from chat_threads where id=?", (T1,))[0] == (uid[B1], uid[SELLER]) and sql("select buyer_id,seller_id from chat_threads where id=?", (T2,))[0] == (uid[B2], uid[SELLER]))
+empty_b1 = [x["id"] for x in call("GET", "/chats", None, tk[B1])[1]]
+empty_b2 = [x["id"] for x in call("GET", "/chats", None, tk[B2])[1]]
+empty_seller = [x["id"] for x in call("GET", "/chats", None, tk[SELLER])[1]]
+empty_other = [x["id"] for x in call("GET", "/chats", None, tk[OTHER])[1]]
+# Exercise the new list query concurrently across all participant roles; every request
+# must return normally and the threaded HTTP server must remain responsive.
+with concurrent.futures.ThreadPoolExecutor(max_workers=8) as pool:
+    results = list(pool.map(lambda item: call("GET", "/chats", None, tk[item]), [B1, B2, SELLER, OTHER] * 6))
+ok("concurrent chat-list requests return 200 without server errors", len(results) == 24 and all(status == 200 for status, _ in results))
+ok("server remains responsive after concurrent chat-list requests", call("GET", "/regions")[0] == 200)
+ok("empty conversations stay hidden until the first message", T1 not in empty_b1 and T2 not in empty_b2 and T1 not in empty_seller)
+ok("third account cannot see or open either unrelated conversation", T1 not in empty_other and T2 not in empty_other and call("GET", f"/chats/{T1}", None, tk[OTHER])[0] == 404 and call("GET", f"/chats/{T2}", None, tk[OTHER])[0] == 404)
+ok("hidden empty conversation can still be resumed from its listing", call("POST", f"/listings/{Lc}/chat", None, tk[B1]) == (200, {"thread_id": T1}))
+
+# Browser-level chat journey uses its own fixture so it cannot alter the API
+# thread's unread count or message-order assertions below.
+from playwright.sync_api import sync_playwright
+Lbrowser = listing("محادثة واجهة المستخدم", "chat")
+Tbrowser = call("POST", f"/listings/{Lbrowser}/chat", None, tk[B1])[1]["thread_id"]
+with sync_playwright() as playwright:
+    browser = playwright.chromium.launch()
+    context = browser.new_context(viewport={"width": 390, "height": 844}, service_workers="block")
+    context.add_init_script("localStorage.setItem('t', " + json.dumps(tk[B1]) + ");")
+    page = context.new_page()
+    browser_errors = []
+    page.on("pageerror", lambda error: browser_errors.append(str(error)))
+    page.goto(BASE + f"/market.html#/l/{Lbrowser}", wait_until="domcontentloaded")
+    page.get_by_role("button", name="راسل البائع").wait_for(state="visible", timeout=10000)
+    page.get_by_role("button", name="راسل البائع").click()
+    page.wait_for_function("() => location.hash === '#/chat/" + str(Tbrowser) + "'", timeout=10000)
+    page.locator(".chat-input").wait_for(state="visible", timeout=10000)
+    page.locator(".chat-input").fill("رسالة تجربة من واجهة المستخدم")
+    page.get_by_role("button", name="إرسال").click()
+    page.locator(".msg.mine").filter(has_text="رسالة تجربة من واجهة المستخدم").wait_for(state="visible", timeout=10000)
+    ok("buyer can resume the existing conversation and send a message from the browser",
+       page.locator(".msg.mine").filter(has_text="رسالة تجربة من واجهة المستخدم").count() == 1)
+    page.locator("a.back").click()
+    page.wait_for_function("() => location.hash === '#/chats'", timeout=10000)
+    page.get_by_text("محادثة واجهة المستخدم", exact=False).wait_for(state="visible", timeout=10000)
+    ok("conversation appears in the user's chat list after the first real message",
+       page.get_by_text("محادثة واجهة المستخدم", exact=False).count() >= 1)
+    page.goto(BASE + f"/market.html#/l/{Lbrowser}", wait_until="domcontentloaded")
+    page.get_by_role("button", name="راسل البائع").wait_for(state="visible", timeout=10000)
+    page.get_by_role("button", name="راسل البائع").click()
+    page.wait_for_function("() => location.hash === '#/chat/" + str(Tbrowser) + "'", timeout=10000)
+    ok("reopening chat from the same listing reuses the original thread id",
+       page.locator(".chat-input").is_visible() and page.evaluate("location.hash === '#/chat/" + str(Tbrowser) + "'"))
+    ok("chat browser flow has no JavaScript errors", not browser_errors)
+    browser.close()
 ok("both/default listings accept chat", call("POST", f"/listings/{Lb}/chat", None, tk[B3])[0] == 201 and call("POST", f"/listings/{Ld}/chat", None, tk[B3])[0] == 201)
 
 # ---------- خصوصية الإعلان مجهول الهوية
 Lan = listing("إعلان مجهول الهوية", "chat", anonymous=True)
 Tan = call("POST", f"/listings/{Lan}/chat", None, tk[B2])[1]["thread_id"]
+call("POST", f"/chats/{Tan}/messages", {"text": "استفسار عن الإعلان"}, tk[B2])  # يظهر بعد أول رسالة فعلية
 buyer_threads = call("GET", "/chats", None, tk[B2])[1]
 anon_buyer_row = [x for x in buyer_threads if x["id"] == Tan][0]
 seller_threads = call("GET", "/chats", None, tk[SELLER])[1]
@@ -79,6 +130,7 @@ ok("non-participant cannot read / write (404)", call("GET", f"/chats/{T1}", None
 ok("anon cannot read chats", call("GET", "/chats")[0] == 401 and call("GET", f"/chats/{T1}")[0] == 401)
 ok("empty / whitespace / too-long message -> 400", all(call("POST", f"/chats/{T1}/messages", {"text": t}, tk[B1])[0] == 400 for t in ("", "   ", "ا" * 1001)) and call("POST", f"/chats/{T1}/messages", {})[0] == 401)
 ok("buyer sends message", call("POST", f"/chats/{T1}/messages", {"text": "<b>هل ما زالت متاحة؟</b>"}, tk[B1])[0] == 201)
+ok("first message reveals the conversation only to its two participants", T1 in [x["id"] for x in call("GET", "/chats", None, tk[B1])[1]] and T1 in [x["id"] for x in call("GET", "/chats", None, tk[SELLER])[1]] and T1 not in [x["id"] for x in call("GET", "/chats", None, tk[OTHER])[1]])
 ok("seller reply", call("POST", f"/chats/{T1}/messages", {"text": "نعم متاحة"}, tk[SELLER])[0] == 201)
 r = call("GET", "/chats", None, tk[SELLER])[1]; row = [x for x in r if x["id"] == T1][0]
 ok("seller list: unread=1 from buyer, role seller, other_name set", row["unread"] == 1 and row["role"] == "seller" and row["other_name"] == "u02" and row["last"]["mine"] is True)

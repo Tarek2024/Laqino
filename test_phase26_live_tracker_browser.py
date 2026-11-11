@@ -37,7 +37,7 @@ with sync_playwright() as p:
         ctx = b.new_context(viewport={"width": 390, "height": 844}, locale="ar-EG", service_workers="block", reduced_motion="reduce" if reduced else "no-preference"); pg = ctx.new_page(); pg.errs = []
         pg.on("pageerror", lambda e: pg.errs.append(str(e))); pg.on("console", lambda m: m.type == "error" and not any(x in m.text for x in ignored) and pg.errs.append(m.text))
         pg.add_init_script("localStorage.setItem('t','%s');localStorage.setItem('rg','3');" % cust); return pg
-    def open_orders(pg): pg.goto(BASE + "/"); pg.wait_for_selector("#t3"); pg.click("#t3"); pg.wait_for_selector(".od")
+    def open_orders(pg): pg.goto(BASE + "/"); pg.wait_for_selector("#t3"); pg.click("#t3"); pg.wait_for_selector("#mine-active-orders")
     def until(pg, sel, txt=None, n=90):
         for _ in range(n):
             try:

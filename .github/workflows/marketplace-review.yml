@@ -1,7 +1,7 @@
 name: Marketplace ad management review
 on:
   push:
-    branches: [development, fix/market-ui-phase1-2-20261110, feature/marketplace-ad-management, phase90-fcm-native-fix]
+    branches: [development, fix/market-ui-phase1-2-20261110, feature/marketplace-ad-management, phase90-fcm-native-fix, review/integrated-client-ui-account-orders-20261111]
   pull_request:
     branches: [main]
 jobs:
@@ -15,23 +15,27 @@ jobs:
       - name: Install marketplace regression dependencies
         run: |
           python -m pip install cryptography Pillow playwright
-          python -m playwright install --with-deps chromium
+          python -m playwright install chromium
       - name: Compile changed Python files
-        run: python -m py_compile server.py notif.py fcm.py product_orders.py shop_delivery.py test_phase90_fcm.py test_phase69_shop_delivery.py test_phase87_product_orders.py test_phase_marketplace_ad_management.py test_phase4_chat.py test_registration_account_recovery.py test_phase91_market_ui.py
+        run: python -m py_compile server.py notif.py fcm.py product_orders.py shop_delivery.py test_phase90_fcm.py test_phase69_shop_delivery.py test_phase87_product_orders.py test_phase95_account_orders_archive.py test_phase96_delivery_unchanged.py test_phase_marketplace_ad_management.py chat.py test_phase4_chat.py test_registration_account_recovery.py test_phase91_market_ui.py
       - name: Validate release and service-worker cache version
         run: python check_versions.py
       - name: Run full release readiness checks
         run: python release_check.py
+      - name: Run chat privacy and compatibility regression tests (early gate)
+        run: python test_phase4_chat.py
       - name: Run registration recovery and account activation regression tests
         run: python test_registration_account_recovery.py
       - name: Run Phase 91 focused UI and marketplace share regression tests
         run: python test_phase91_market_ui.py
+      - name: Run Phase 95 account order archive UI regression
+        run: python test_phase95_account_orders_archive.py
+      - name: Run Phase 96 delivery page and lifecycle unchanged regression
+        run: python test_phase96_delivery_unchanged.py
       - name: Run isolated marketplace regression tests
         run: python test_phase_marketplace_ad_management.py
       - name: Run existing marketplace favorites and reports regression tests
         run: python test_phase8b_listing_social.py
-      - name: Run chat privacy and compatibility regression tests
-        run: python test_phase4_chat.py
       - name: Run Phase 90 FCM payload and destination regression tests
         run: python test_phase90_fcm.py
       - name: Run shop-order native push integration regression
@@ -81,7 +85,7 @@ jobs:
       - name: Install full-project test dependencies
         run: |
           python -m pip install cryptography openpyxl Pillow playwright
-          python -m playwright install --with-deps chromium
+          python -m playwright install chromium
       - name: Compile all project Python modules and test scripts
         run: |
           python - <<'PY'
@@ -154,7 +158,7 @@ jobs:
       - name: Install full-project test dependencies
         run: |
           python -m pip install cryptography openpyxl Pillow playwright
-          python -m playwright install --with-deps chromium
+          python -m playwright install chromium
       - name: Compile baseline Python modules and test scripts
         run: |
           python - <<'PY'
@@ -202,7 +206,7 @@ jobs:
       - name: Install shop image browser-test dependencies
         run: |
           python -m pip install cryptography Pillow playwright
-          python -m playwright install --with-deps chromium
+          python -m playwright install chromium
       - name: Compile shop image regression tests
         run: python -m py_compile test_phase68_shop_panel.py test_phase82_shop_images.py test_phase83_shop_identity.py
       - name: Test shop dashboard image lazy loading

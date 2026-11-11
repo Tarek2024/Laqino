@@ -177,7 +177,9 @@ with sync_playwright() as p:
     cu.click("#pcs .pcl:has-text('شامبو') button[aria-label='زوّد']"); ok("quantity + works (4 items now)", "٤ منتج" in cu.inner_text("#pcbar") or until(cu, "document.getElementById('pcbar').innerText.includes('٤ منتج')"))
     cu.click("#pcgo"); ok("empty address is refused inline (nothing sent)", until(cu, "!document.getElementById('pce').hidden") and sql("SELECT COUNT(*) FROM product_orders WHERE customer_id=?", cu2id)[0][0] == 0)
     cu.fill("#pca", "عمارة 9 شقة 2 شارع النصر"); cu.fill("#pcn", "اتصل قبل ما توصل"); cu.click("#pcgo")
-    ok("sent: customer lands on «حسابي» with a 'بانتظار رد الصيدلية' card", until(cu, "document.body.innerText.includes('بانتظار رد الصيدلية')") and cu.locator(".od.po").count() == 1)
+    ok("sent: pharmacy order card is loaded inside the collapsed account section", until(cu, "document.querySelector('#mine-po .od.po')?.textContent.includes('بانتظار رد الصيدلية')") and cu.locator(".od.po").count() == 1)
+    cu.locator("#v details.account-fold > summary").filter(has_text="طلبات منتجات الصيدليات").click()
+    ok("customer can open the pharmacy orders section and see the pending card", "بانتظار رد الصيدلية" in cu.inner_text(".od.po"))
     PIDU = sql("SELECT id,items_total FROM product_orders WHERE customer_id=?", cu2id)[0]; ok("server stored the order with server-side total (2×120 + 2×45.5 = 331)", PIDU[1] == 331)
     ph_pg = page(phm); ph_pg.goto(BASE + "/pharmacy.html"); ph_pg.wait_for_selector("#po .card", timeout=10000)
     CARD = "#po .card:has-text('طلب منتجات #%d')" % PIDU[0]
@@ -201,7 +203,13 @@ with sync_playwright() as p:
         time.sleep(.1)
         _reject_row = sql("SELECT status,reject_reason FROM product_orders WHERE id=?", r2)[0]
     ok("reject from UI (prompt reason) -> customer sees 'الصيدلية اعتذرت' + reason", _reject_row == ("rejected", "المنتج خلص"))
-    cu.evaluate("go(3)"); ok("rejected card visible to the customer with the reason", until(cu, "document.body.innerText.includes('الصيدلية اعتذرت')") and "المنتج خلص" in cu.inner_text(".od.po"))
+    cu.evaluate("go(3)")
+    ok("rejected pharmacy card is loaded in the previous pharmacy-orders section", until(cu, "document.querySelector('#mine-po .od.po')?.textContent.includes('الصيدلية اعتذرت')"))
+    pharmacy_fold = cu.locator("#mine-fold-pharmacy")
+    if not pharmacy_fold.evaluate("(e) => e.open"):
+        pharmacy_fold.locator("summary").click()
+    rejected_card = cu.locator("#mine-po .od.po:has-text('الصيدلية اعتذرت')")
+    ok("rejected card remains visible with its reason when the section is open", rejected_card.count() == 1 and "المنتج خلص" in rejected_card.inner_text())
     # منتج من صيدلية تانية: السلة تسأل قبل الاستبدال (مرة واحدة)
     cu.evaluate("mt='pr';go(4)"); cu.wait_for_selector(".pcd .padd", timeout=8000)
     ok("no JS page errors", errs == []) if errs == [] else (print(errs) or exit(1))
