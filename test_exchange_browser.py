@@ -10,11 +10,11 @@ import server
 from imgutil import png
 from http.server import ThreadingHTTPServer
 server.init("01000000000", "AdminPass123")
-# Use non-daemon request workers and wait for them during shutdown so Python
-# never exits while a worker is still writing to stderr.
+# Browser teardown can cancel in-flight image fetches after all assertions pass.
+# Keep request workers daemonized so a cancelled test request cannot hang process exit.
 srv = ThreadingHTTPServer(("127.0.0.1", 0), server.H)
-srv.daemon_threads = False
-srv.block_on_close = True
+srv.daemon_threads = True
+srv.block_on_close = False
 srv_thread = threading.Thread(target=srv.serve_forever, name="exchange-test-http")
 srv_thread.start()
 def _stop_test_server():
