@@ -1721,10 +1721,10 @@ class H(BaseHTTPRequestHandler):
                     href={"home":"/","market":"/market.html","shops":"/shops.html","pharmacy":"/pharmacy.html","contact":"/contact"}.get(typ,"")
                     if typ=="listing": href="/market.html#/l/%d" % int(val)
                     elif typ=="external": href=val
-                    elif typ=="whatsapp": href="https://wa.me/"+re.sub(r"\\D","",val)
+                    elif typ=="whatsapp": href="https://wa.me/"+re.sub(r"\D","",val)
                     out.append({"id":r["id"],"title":r["title"],"description":r["description"],"image_url":("/api/home-campaigns/%d/image"%r["id"]) if r["image_file_id"] else None,"href":href,"external":typ in ("external","whatsapp")})
                 return self.send(200,out)
-            m=re.fullmatch(r"/api/home-campaigns/(\\d+)/image",path)
+            m=re.fullmatch(r"/api/home-campaigns/(\d+)/image",path)
             if method=="GET" and m:
                 today=time.strftime("%Y-%m-%d",time.gmtime(time.time()+7200))
                 row=c.execute("SELECT f.path,f.mime FROM home_campaigns h JOIN files f ON f.id=h.image_file_id WHERE h.id=? AND h.is_active=1 AND (h.start_date IS NULL OR h.start_date='' OR h.start_date<=?) AND (h.end_date IS NULL OR h.end_date='' OR h.end_date>=?)",(int(m[1]),today,today)).fetchone()
@@ -1738,7 +1738,7 @@ class H(BaseHTTPRequestHandler):
                 if method=="POST":
                     d=self.body(); cid=None
                 else: raise E(405,"طريقة غير مدعومة")
-            m=re.fullmatch(r"/api/admin/home-campaigns/(\\d+)(/delete)?",path)
+            m=re.fullmatch(r"/api/admin/home-campaigns/(\d+)(/delete)?",path)
             if m:
                 self.need(u,"admin"); cid=int(m[1])
                 old=c.execute("SELECT * FROM home_campaigns WHERE id=?",(cid,)).fetchone()
@@ -1746,9 +1746,8 @@ class H(BaseHTTPRequestHandler):
                 if method=="POST" and m[2]:
                     c.execute("DELETE FROM home_campaigns WHERE id=?",(cid,)); audit(c,u["id"],"home_campaign.delete",str(cid),{"title":old["title"]}); c.commit()
                     return self.send(200,{"ok":True})
-                if method=="POST": d=self.body()
-                else: raise E(405,"طريقة غير مدعومة")
-            if (path=="/api/admin/home-campaigns" and method=="POST") or (re.fullmatch(r"/api/admin/home-campaigns/\\d+",path) and method=="POST"):
+                if method!="POST": raise E(405,"طريقة غير مدعومة")
+            if (path=="/api/admin/home-campaigns" and method=="POST") or (re.fullmatch(r"/api/admin/home-campaigns/\d+",path) and method=="POST"):
                 self.need(u,"admin")
                 if path!="/api/admin/home-campaigns": d=self.body()
                 title=str(d.get("title","")).strip(); desc=str(d.get("description","")).strip()
@@ -1763,7 +1762,7 @@ class H(BaseHTTPRequestHandler):
                     parsed=urlparse(val)
                     if parsed.scheme!="https" or not parsed.netloc or parsed.username or parsed.password or len(val)>500: raise E(400,"الرابط الخارجي يجب أن يبدأ بـ https://")
                 elif typ=="whatsapp":
-                    val=re.sub(r"\\D","",val)
+                    val=re.sub(r"\D","",val)
                     if not 8<=len(val)<=15: raise E(400,"رقم واتساب غير صالح")
                 image_id=d.get("image_file_id")
                 if image_id not in (None,""):
@@ -1786,7 +1785,7 @@ class H(BaseHTTPRequestHandler):
                     cur=c.execute("INSERT INTO home_campaigns(title,description,image_file_id,destination_type,destination_value,start_date,end_date,sort_order,is_active,created_at,updated_at) VALUES(?,?,?,?,?,?,?,?,?,?,?)",values+(now,))
                     cid=cur.lastrowid; action="create"
                 else:
-                    cid=int(re.fullmatch(r"/api/admin/home-campaigns/(\\d+)",path)[1])
+                    cid=int(re.fullmatch(r"/api/admin/home-campaigns/(\d+)",path)[1])
                     c.execute("UPDATE home_campaigns SET title=?,description=?,image_file_id=?,destination_type=?,destination_value=?,start_date=?,end_date=?,sort_order=?,is_active=?,updated_at=? WHERE id=?",values+(cid,)); action="update"
                 audit(c,u["id"],"home_campaign."+action,str(cid),{"title":title,"destination_type":typ}); c.commit()
                 return self.send(201 if action=="create" else 200,{"ok":True,"id":cid})
