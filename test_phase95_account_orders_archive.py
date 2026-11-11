@@ -94,10 +94,13 @@ with sync_playwright() as playwright:
     page.on("pageerror", lambda error: errors.append(str(error)))
     page.goto(BASE + "/?account=1", wait_until="domcontentloaded")
     page.wait_for_selector("nav", timeout=10000)
-    page.wait_for_function(
-        "document.querySelectorAll('#v > .card.od').length === 2",
-        timeout=10000,
-    )
+    deadline = time.time() + 10
+    while time.time() < deadline:
+        if page.evaluate("document.querySelectorAll('#v > .card.od').length === 2"):
+            break
+        page.wait_for_timeout(200)
+    else:
+        raise AssertionError("account page did not render the two current delivery orders")
 
     state = page.evaluate("""() => {
       const folds = [...document.querySelectorAll('#v details.account-fold')];
