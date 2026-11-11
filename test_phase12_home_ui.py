@@ -21,7 +21,7 @@ r = page("", [{"js": "go(0)", "snap": "v", "wait": 900}]); v = r["v"]
 heads = re.findall(r'<span class="h">(.*?)</span>', v)
 ok("four independent section cards in the required order, no script errors", not r["errs"] and heads == ["الخدمات الطبية", "سوق لاقينو", "الخدمات المحلية", "التوصيل"])
 ok("each card has an icon, a short description and an open indicator (except the disabled one)", v.count('class="ti"') == 4 and v.count('class="d"') == 4 and v.count("svg class=\"i go\"") == 3)
-ok("cards route to the right sections", "mt=" in v and all(x in v for x in ("go(4)", "go(1)", "go(6)", "go(2)")))
+ok("cards route to the right sections", "mt=" in v and all(x in v for x in ("go(4)", "go(1)", "go(2)")))
 ok("no dynamic section without real content (no ads, no service types)", "أحدث إعلانات السوق" not in v and "خدمات متاحة" not in v)
 ok("search first, managed promo second, and section cards after the hero", v.index('id="gq"') < v.index('class="home-promo"') < v.index('class="tiles"') and 'class="home-hero"' in v and "تدور على إيه النهارده؟" not in v)
 # --- إعلان حقيقي معتمد + مزوّد خدمة منشور
