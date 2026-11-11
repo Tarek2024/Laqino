@@ -834,7 +834,11 @@ CSP = ("default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 
        "font-src 'self' https://fonts.gstatic.com; img-src 'self' data: blob:; connect-src 'self'; object-src 'none'; "
        "base-uri 'self'; form-action 'self'; frame-ancestors 'none'")
 LEGAL_PAGES = {"/privacy": "privacy.html", "/terms": "terms.html", "/delete-account": "delete-account.html", "/contact": "contact.html"}
-def LEGAL_VARS(): return {"CONTACT_NAME": os.environ.get("LAQINO_CONTACT_NAME", "Laqino"), "SUPPORT_EMAIL": os.environ.get("LAQINO_SUPPORT_EMAIL", "Laqino100@gmail.com"), "SUPPORT_WA": WA_NUMBER, "UPDATED": "أكتوبر 2026"}
+def LEGAL_VARS():
+    digits = re.sub(r"\\D", "", WA_NUMBER)
+    national = digits[2:] if digits.startswith("20") and len(digits) == 12 else digits.lstrip("0")
+    display = "+20 " + (national[:2] + " " + national[2:6] + " " + national[6:] if len(national) == 10 else national)
+    return {"CONTACT_NAME": os.environ.get("LAQINO_CONTACT_NAME", "Laqino"), "SUPPORT_EMAIL": os.environ.get("LAQINO_SUPPORT_EMAIL", "Laqino100@gmail.com"), "SUPPORT_WA": WA_NUMBER, "SUPPORT_WA_LINK": "20" + national, "SUPPORT_WA_INTL": display, "UPDATED": "نوفمبر 2026"}
 class H(BaseHTTPRequestHandler):
     server_version, sys_version = "Laqino", ""  # do not advertise the Python/BaseHTTP version in the Server header
     timeout = 30  # seconds: an idle/slow-loris connection is dropped instead of holding a thread forever
