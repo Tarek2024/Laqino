@@ -22,5 +22,5 @@ const sleep=ms=>new Promise(r=>setTimeout(r,ms));
   await sleep(st.wait||600);
   if(st.snap)out[st.snap+(st.as?'':'')]=el(st.snap).innerHTML||el(st.snap).textContent;
  }
- out.alerts=alerts;out.errs=errs;out.diagnostics=ctx.__laqinoHomeDiagnostics||[];out.promo=el('homePromoTrack').innerHTML;console.log(JSON.stringify(out));
+ out.alerts=alerts;out.errs=errs;out.diagnostics=ctx.__laqinoHomeDiagnostics||[];out.promo=el('homePromoTrack').innerHTML;out.tiles=el('homeTiles').innerHTML;out.services=el('homeServices').innerHTML;out.panels=el('homePanels').innerHTML;out.account=el('homeAccount').innerHTML;console.log(JSON.stringify(out));
 })();
