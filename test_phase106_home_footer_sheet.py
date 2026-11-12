@@ -8,6 +8,7 @@ sw = (ROOT / "static/sw.js").read_text(encoding="utf-8")
 checks = {
     "legacy navy footer removed from homepage template": 'class="site-footer"' not in html,
     "welcome and guest account cards open support sheet": 'openHomeQuickSheet()' in html and 'الدعم، الشركاء، وعن لاقينو' in html and 'home-guest-menu-card' in html,
+    "authenticated hydration keeps support and partner menu visible": 'account.innerHTML=`<div class="card home-welcome-card"><div class="me">' in html and '${quickMenu}</div>`' in html,
     "pharmacy eligibility is rechecked when the sheet opens": 'canApplyPharmacy()' in html and "results[7].status==='fulfilled'" in html,
     "pharmacy eligibility is rechecked when the sheet opens": 'canApplyPharmacy()' in html and "results[7].status==='fulfilled'" in html,
     "sheet contains pharmacy and shop partner routes": 'href="/pharmacy.html"' in html and 'href="/shop.html"' in html,
