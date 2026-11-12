@@ -1,4 +1,5 @@
-# المرحلة 11 / A-2 + المرحلة 4: ترتيب التنقل (الرئيسية، الطبي، السوق، خدمات لاقينو، حسابي) وتبويب حسابي. fake-DOM في node، ليس متصفحًا.
+# المرحلة 11 / A-2 + المرحلة 4: التنقل الأفقي بعد استبدال تبويب الخدمات بمدخل المحلات.
+# اختبارات fake-DOM في node، وليست اختبار متصفح حقيقي.
 import os, re, json, threading, urllib.request, urllib.error, tempfile, time, subprocess
 os.environ["LAQINO_DB"] = tempfile.mktemp(suffix=".db"); os.environ["LAQINO_UPLOADS"] = tempfile.mkdtemp()
 import server
@@ -16,11 +17,15 @@ def page(tok, steps):
     return json.loads(o.stdout)
 html = open(os.path.join(D, "static", "index.html"), encoding="utf-8").read()
 nav = re.search(r"<nav>(.*?)</nav>", html, re.S).group(1)
-labels = [re.sub(r"<[^>]+>", "", re.findall(r"<span>[^<]+</span>", b)[-1]) for b in re.findall(r'<button id="t\d".*?</button>', nav, re.S)]
-ok("nav has exactly 5 destinations: home, medical, souq, services, account", labels == ["الرئيسية", "الطبي", "السوق", "خدمات لاقينو", "حسابي"])
-ok("delivery and the sub-sections are not separate nav items", len(labels) == 5 and not any(x in labels for x in ("دليفري", "التوصيل", "الأطباء", "المعامل", "العقارات")))
-ok("no stale 'طلباتي' nav label", "طلباتي" not in labels)
-ok("services nav button is always shown (never hidden)", '<button id="t6" hidden' not in html and '<button id="t6"' in html)
+buttons = re.findall(r'<button id="t\d".*?</button>', nav, re.S)
+labels = [re.sub(r"<[^>]+>", "", re.findall(r"<span>[^<]+</span>", b)[-1]) for b in buttons]
+ok("nav has exactly 5 destinations with the new shops label", labels == ["الرئيسية", "الطبي", "السوق", "محلات", "حسابي"])
+ok("old services label is removed from horizontal navigation", "خدمات لاقينو" not in nav)
+ok("shops tab uses the existing 3D storefront symbol and opens shops page directly", 'id="t6" onclick="location.href=\'/shops.html\'"' in nav and '<use href="#i3-shop"/>' in nav)
+ok("shops destination page exists", os.path.isfile(os.path.join(D, "static", "shops.html")))
+ok("other four navigation destinations and their handlers are unchanged", all(x in nav for x in ('id="t0" onclick="go(0)"', 'id="t4" onclick="go(4)"', 'id="t1" onclick="go(1)"', 'id="t3" onclick="go(3)"')))
+ok("delivery and sub-sections are not separate nav items", len(labels) == 5 and not any(x in labels for x in ("دليفري", "التوصيل", "الأطباء", "المعامل", "العقارات")))
+ok("no stale طلباتي nav label", "طلباتي" not in labels)
 g = page("", [{"js": "go(3)", "snap": "v"}])
 ok("guest account tab asks to sign in, no script errors", not g["errs"] and "سجّل دخولك" in g["v"] and "تسجيل الخروج" not in g["v"])
 call("POST", "/register", {"phone": "01011111111", "name": "سارة", "password": "password1"}); tk = call("POST", "/login", {"phone": "01011111111", "password": "password1"})[1]["token"]
@@ -33,7 +38,5 @@ ok("account tab shows change-password form once", 'id="cpo"' in c["v"] and c["v"
 for i in (1, 2, 4):
     r = page(tk, [{"js": f"go({i})", "snap": "v", "wait": 900}]); ok(f"internal view {i} still renders without errors", not r["errs"] and len(r["v"]) > 50)
 hub = page(tk, [{"js": "go(6)", "snap": "v", "wait": 900}])
-ok("services hub holds delivery + local services, no script errors", not hub["errs"] and "التوصيل" in hub["v"] and "go(2)" in hub["v"] and "الخدمات المحلية" in hub["v"])
-cls = page(tk, [{"js": "go(2)", "wait": 700}, {"js": "document.getElementById('t6').textContent=document.getElementById('t6').className+'|'+document.getElementById('t0').className", "snap": "t6", "wait": 50}])
-ok("delivery view keeps the Services tab highlighted", not cls["errs"] and cls["t6"] == "on|")
+ok("separate homepage services hub remains functional (delivery + local services)", not hub["errs"] and "التوصيل" in hub["v"] and "go(2)" in hub["v"] and "الخدمات المحلية" in hub["v"])
 print("ALL PASSED")
