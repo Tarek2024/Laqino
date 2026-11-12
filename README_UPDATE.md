@@ -1,3 +1,13 @@
+## phase-106 — Homepage footer cleanup and support sheet
+
+- Removed the large navy homepage footer block from the visible layout without deleting its destinations or support actions.
+- Added a compact centered Laqino logo and tagline at the end of the homepage.
+- Added a white, scrollable bottom sheet from the welcome/account card with pharmacy and shop partner links, technical support report, WhatsApp, privacy, terms, and contact links.
+- Expanded latest marketplace ads from three to six cards (two rows at three columns on the existing grid).
+- Kept all partner/legal/support destinations as direct links and preserved the existing diagnostic report confirmation flow.
+- Release: `phase-106`; service-worker cache: `laqino-v153`.
+- Verification: `test_phase106_home_footer_sheet.py` added; full CI must complete for the current commit before calling the update tested.
+
 ## phase-105 — Smart homepage campaign destinations
 
 - Fixed carousel navigation to scroll horizontally within the ad track only; it no longer calls `scrollIntoView()` on slides.

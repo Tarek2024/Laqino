@@ -933,3 +933,38 @@ body.app .home-latest-empty{grid-column:1/-1;padding:16px;border:1px dashed var(
  body.app .home-search{position:relative;z-index:5;margin-top:0}
  body.app .home-promo{margin-top:14px}
 }
+
+
+/* Homepage compact ending and accessible partner/support bottom sheet (phase-106). */
+body.app .home-welcome-card{padding-bottom:13px}
+body.app .home-quick-menu-trigger{display:flex;align-items:center;justify-content:space-between;gap:10px;width:100%;min-height:44px;margin:13px 0 0;padding:9px 13px;border:1px solid #dbe5f2;border-radius:12px;background:#f4f7fc;color:var(--navy2);font:700 .88rem var(--fd);text-align:right}
+body.app .home-quick-menu-trigger span{color:var(--orange-d);font-size:1.15rem}
+body.app .home-end-brand{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:5px;margin:18px auto 10px;padding:12px 8px 8px;text-align:center;color:#71809a}
+body.app .home-end-brand img{width:38px;height:38px;object-fit:contain;border:0;box-shadow:none}
+body.app .home-end-brand p{margin:0;font-size:.78rem;font-weight:600;color:#66748d}
+body.app .home-sheet-backdrop[hidden]{display:none!important}
+body.app .home-sheet-backdrop{position:fixed;inset:0;z-index:1000;display:flex;align-items:flex-end;justify-content:center;background:#08152c80;padding:0}
+body.app .home-sheet{width:min(100%,560px);max-height:min(86dvh,760px);overflow:hidden auto;padding:9px 16px calc(18px + env(safe-area-inset-bottom));border-radius:22px 22px 0 0;background:#fff;color:#17243b;box-shadow:0 -12px 36px #07162d30;overscroll-behavior:contain;animation:homeSheetIn .2s ease-out}
+body.app .home-sheet-grabber{width:42px;height:4px;margin:0 auto 12px;border-radius:99px;background:#d7deea}
+body.app .home-sheet-head{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:12px}
+body.app .home-sheet-head h2{font-size:1.12rem;color:#0f2a5c}
+body.app .home-sheet-close{display:grid;place-items:center;width:36px;height:36px;margin:0;border:0;border-radius:50%;background:#f0f3f8;color:#46536a;font-size:1.45rem}
+body.app .home-sheet-section{margin:0 0 16px}
+body.app .home-sheet-section h3{margin:0 0 8px;font-size:.9rem;color:#52617b}
+body.app .home-sheet-link{display:flex;align-items:center;gap:10px;min-height:58px;margin:7px 0;padding:9px 11px;border:1px solid #e1e7f0;border-radius:13px;background:#fff;color:#1b2b49;text-decoration:none}
+body.app .home-sheet-link.partner{border-color:#d8e4f5;background:#f8faff}
+body.app .home-sheet-link-icon{display:grid;place-items:center;flex:none;width:36px;height:36px;border-radius:11px;background:#e8effb;color:#214a91;font-size:1.2rem;font-weight:800}
+body.app .home-sheet-link>span:nth-child(2){display:flex;flex:1;flex-direction:column;min-width:0;gap:2px}
+body.app .home-sheet-link b{font-size:.84rem;line-height:1.4}
+body.app .home-sheet-link small{font-size:.72rem;color:#74819a}
+body.app .home-sheet-arrow{color:#91a0b7;font-size:1.35rem}
+body.app .home-sheet-actions{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+body.app .home-sheet-report,body.app .home-sheet-whatsapp{display:flex;align-items:center;justify-content:center;min-height:44px;margin:0;padding:8px 10px;border:0;border-radius:11px;color:#fff;text-decoration:none;text-align:center;font:700 .8rem var(--fb)}
+body.app .home-sheet-report{background:#f28c1b}
+body.app .home-sheet-whatsapp{background:#16845a}
+body.app .home-sheet-legal{display:flex;flex-wrap:wrap;gap:8px}
+body.app .home-sheet-legal a{display:inline-flex;align-items:center;min-height:38px;padding:7px 11px;border:1px solid #e1e7f0;border-radius:10px;background:#f8faff;color:#34435d;text-decoration:none;font-size:.78rem}
+body.app .home-sheet-about{margin:2px 0 0;padding-top:12px;border-top:1px solid #edf0f5;color:#7a879d;font-size:.76rem;text-align:center}
+@keyframes homeSheetIn{from{transform:translateY(18px);opacity:.7}to{transform:translateY(0);opacity:1}}
+@media(prefers-reduced-motion:reduce){body.app .home-sheet{animation:none}}
+@media(max-width:360px){body.app .home-sheet-actions{grid-template-columns:1fr}body.app .home-sheet{padding-inline:12px}}
