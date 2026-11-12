@@ -38,12 +38,14 @@ with sync_playwright() as p:
     def page(w, h=844):
         ctx = b.new_context(viewport={"width": w, "height": h}, locale="ar-EG", service_workers="block"); pg = ctx.new_page(); pg.errs = []; pg.ctx = ctx
         pg.on("pageerror", lambda e: pg.errs.append(str(e))); pg.add_init_script("localStorage.setItem('rg','3');"); return pg
-    for w in (320, 360, 390, 430):
-        pg = page(w); pg.goto(BASE + "/"); pg.wait_for_timeout(1200)
-        ok("[%d] home: no horizontal overflow, no JS errors" % w, pg.evaluate("document.documentElement.scrollWidth<=innerWidth+1") and not pg.errs)
+    for w in (320, 360, 390, 430, 768, 1024, 1440):
+        pg = page(w); pg.route("https://fonts.googleapis.com/**", lambda route: route.abort()); pg.route("https://fonts.gstatic.com/**", lambda route: route.abort()); pg.route("**/api/**", lambda route: route.abort()); started = time.monotonic(); pg.goto(BASE + "/", wait_until="domcontentloaded"); pg.wait_for_selector("#gq", timeout=1500); first_paint = time.monotonic() - started; pg.wait_for_timeout(1200)
+        ok("[%d] search-first shell appears within 1.5s with API requests failing (%.2fs)" % (w, first_paint), first_paint < 1.5 and pg.evaluate("!!document.querySelector('.home-search #gq')"))
+        ok("[%d] API failures are recorded diagnostically" % w, pg.evaluate("Array.isArray(window.__laqinoHomeDiagnostics)&&window.__laqinoHomeDiagnostics.some(x=>x.stage.startsWith('api:'))"))
+        ok("[%d] home search, promo, and sections render in order; no overflow or JS errors" % w, pg.evaluate("(()=>{const q=document.querySelector('.home-search #gq'),p=document.querySelector('.home-promo'),t=document.querySelector('.tiles');return !!q&&!!p&&!!t&&q.getBoundingClientRect().top<p.getBoundingClientRect().top&&p.getBoundingClientRect().top<t.getBoundingClientRect().top&&document.documentElement.scrollWidth<=innerWidth+1})()") and not pg.errs)
         ok("[%d] nav: 5 tabs with 3D icons, tap targets >=44px" % w, pg.evaluate("(()=>{const b=[...document.querySelectorAll('body.app>nav button')];return b.length==5&&b.every(x=>x.querySelector('svg.i3 use')&&x.getBoundingClientRect().height>=44)})()"))
-        ok("[%d] home cards use 3D icons" % w, pg.evaluate("document.querySelectorAll('.tiles .sc svg.i3').length>=3"))
-        ok("[%d] mascot visible in hero and not covering the search box" % w, pg.evaluate("(()=>{const m=document.querySelector('.find .mk'),s=document.querySelector('.find .sbar');if(!m||!m.complete||!m.naturalWidth)return false;const a=m.getBoundingClientRect(),c=s.getBoundingClientRect();return a.bottom<=c.top+10})()"))
+        ok("[%d] four home cards keep their original 3D icons" % w, pg.evaluate("document.querySelectorAll('.tiles .sc svg.i3').length==4"))
+        ok("[%d] search precedes promo and mascot stays inside it" % w, pg.evaluate("(()=>{const m=document.querySelector('.home-promo-mascot'),p=document.querySelector('.home-promo'),s=document.querySelector('.home-search');if(!m||!p||!s||!m.complete||!m.naturalWidth)return false;const a=m.getBoundingClientRect(),b=p.getBoundingClientRect(),c=s.getBoundingClientRect();return c.top<b.top&&a.top>=b.top-2&&a.bottom<=b.bottom+8})()"))
         pg.evaluate("go(4)"); pg.wait_for_timeout(800)
         ok("[%d] sub page: compact header with back button, logo hidden" % w, pg.evaluate("(()=>{const b=document.querySelector('header.bar .bk');return document.body.classList.contains('sub')&&getComputedStyle(b).display!='none'&&getComputedStyle(document.querySelector('header.bar .lg')).display=='none'&&document.querySelector('header.bar .wm b').textContent=='الخدمات الطبية'})()"))
         ok("[%d] sub page: no horizontal overflow, no JS errors" % w, pg.evaluate("document.documentElement.scrollWidth<=innerWidth+1") and not pg.errs)

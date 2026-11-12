@@ -1,0 +1,176 @@
+name: Full project regression for homepage update
+
+on:
+  push:
+    branches:
+      - feature/homepage-campaigns-admin-20261111
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  full-project-regression:
+    name: Full project regression on update branch
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+      - name: Install full-project test dependencies
+        run: |
+          python -m pip install cryptography openpyxl Pillow playwright
+          python -m playwright install --with-deps chromium
+      - name: Compile all project Python modules and tests
+        run: |
+          python - <<'PY'
+          import pathlib, py_compile
+          files = sorted(pathlib.Path('.').glob('*.py'))
+          for path in files:
+              py_compile.compile(str(path), doraise=True)
+          print(f"Compiled {len(files)} Python files")
+          PY
+      - name: Run every Python test script in isolation
+        shell: bash
+        run: |
+          set -uo pipefail
+          set +e
+          total=0
+          failed=0
+          : > /tmp/laqino-full-test-failures.txt
+          shopt -s nullglob
+          for f in test_*.py; do
+            total=$((total+1))
+            echo "::group::TEST $f"
+            timeout 180s python "$f"
+            rc=$?
+            echo "::endgroup::"
+            if [ "$rc" -ne 0 ]; then
+              failed=$((failed+1))
+              printf '%s (exit %s)\n' "$f" "$rc" | tee -a /tmp/laqino-full-test-failures.txt
+            fi
+          done
+          echo "TOTAL=$total FAILED=$failed"
+          if [ "$failed" -ne 0 ]; then
+            cat /tmp/laqino-full-test-failures.txt
+            exit 1
+          fi
+      - name: Syntax-check every inline script in static HTML
+        if: always()
+        run: |
+          python - <<'PY'
+          import pathlib, re
+          out = pathlib.Path('/tmp/laqino-inline-js')
+          out.mkdir(exist_ok=True)
+          n = 0
+          for page in pathlib.Path('static').glob('*.html'):
+              source = page.read_text(encoding='utf-8')
+              for script in re.findall(r'<script(?:\s[^>]*)?>([\s\S]*?)</script>', source, re.I):
+                  if not script.strip():
+                      continue
+                  target = out / f'check-{n}.js'
+                  target.write_text(script, encoding='utf-8')
+                  n += 1
+          print(f"Extracted {n} inline scripts")
+          PY
+          for f in /tmp/laqino-inline-js/*.js; do node --check "$f"; done
+
+  baseline-main-regression:
+    name: Baseline full regression on main
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: main
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+      - name: Install full-project test dependencies
+        run: |
+          python -m pip install cryptography openpyxl Pillow playwright
+          python -m playwright install --with-deps chromium
+      - name: Run doctor UI regression independently on baseline
+        continue-on-error: true
+        run: |
+          git fetch --depth=1 origin feature/homepage-campaigns-admin-20261111
+          git show FETCH_HEAD:test_phase10_ui.py > test_phase10_ui.py
+          python test_phase10_ui.py
+      - name: Compile baseline Python modules and tests
+        run: |
+          python - <<'PY'
+          import pathlib, py_compile
+          files = sorted(pathlib.Path('.').glob('*.py'))
+          for path in files:
+              py_compile.compile(str(path), doraise=True)
+          print(f"Compiled {len(files)} Python files on main")
+          PY
+      - name: Run every baseline Python test script in isolation
+        shell: bash
+        run: |
+          set -uo pipefail
+          total=0
+          failed=0
+          : > /tmp/laqino-main-test-failures.txt
+          shopt -s nullglob
+          for f in test_*.py; do
+            total=$((total+1))
+            echo "::group::BASELINE TEST $f"
+            timeout 180s python "$f"
+            rc=$?
+            echo "::endgroup::"
+            if [ "$rc" -ne 0 ]; then
+              failed=$((failed+1))
+              printf '%s (exit %s)\n' "$f" "$rc" | tee -a /tmp/laqino-main-test-failures.txt
+            fi
+          done
+          echo "BASELINE_TOTAL=$total BASELINE_FAILED=$failed"
+          if [ "$failed" -ne 0 ]; then
+            cat /tmp/laqino-main-test-failures.txt
+            exit 1
+          fi
+
+  focused-marketplace-and-shop-regression:
+    name: Marketplace, pharmacy, notification, and shop image regression
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+      - name: Install regression dependencies
+        run: |
+          python -m pip install cryptography openpyxl Pillow playwright
+          python -m playwright install --with-deps chromium
+      - name: Compile targeted regression tests
+        run: |
+          python -m py_compile test_phase_marketplace_ad_management.py test_phase8b_listing_social.py test_phase90_fcm.py test_phase69_shop_delivery.py test_phase87_product_orders.py test_phase68_shop_panel.py test_phase82_shop_images.py test_phase83_shop_identity.py test_phase96_delivery_unchanged.py test_phase4_chat.py test_registration_account_recovery.py test_phase91_market_ui.py test_phase95_account_orders_archive.py
+      - name: Run marketplace and existing service regressions
+        run: |
+          python test_phase_marketplace_ad_management.py
+          python test_phase8b_listing_social.py
+          python test_phase90_fcm.py
+          python test_phase69_shop_delivery.py
+          python test_phase87_product_orders.py
+          python test_phase96_delivery_unchanged.py
+          python test_phase4_chat.py
+          python test_registration_account_recovery.py
+          python test_phase91_market_ui.py
+          python test_phase95_account_orders_archive.py
+      - name: Run shop image identity regressions
+        run: |
+          python test_phase68_shop_panel.py
+          python test_phase82_shop_images.py
+          python test_phase83_shop_identity.py
