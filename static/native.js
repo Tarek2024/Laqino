@@ -188,7 +188,7 @@
         return; // At the app home screen: consume Back, never exit the app.
       }
 
-      if (location.pathname === '/shops.html' && /^#s\\d+$/.test(location.hash) && typeof window.sback === 'function') {
+      if (location.pathname === '/shops.html' && /^#s\d+$/.test(location.hash) && typeof window.sback === 'function') {
         window.sback(); return;
       }
       var ref = document.referrer;
