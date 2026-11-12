@@ -10,12 +10,12 @@ import server
 from imgutil import png
 from http.server import ThreadingHTTPServer
 server.init("01000000000", "AdminPass123")
-# Use non-daemon request workers and wait for them during shutdown so Python
-# never exits while a worker is still writing to stderr.
+# Browser teardown can cancel in-flight image fetches after all assertions pass.
+# Keep request workers daemonized so a cancelled test request cannot hang process exit.
 srv = ThreadingHTTPServer(("127.0.0.1", 0), server.H)
-srv.daemon_threads = False
-srv.block_on_close = True
-srv_thread = threading.Thread(target=srv.serve_forever, name="exchange-test-http")
+srv.daemon_threads = True
+srv.block_on_close = False
+srv_thread = threading.Thread(target=srv.serve_forever, name="exchange-test-http", daemon=True)
 srv_thread.start()
 def _stop_test_server():
     if srv_thread.is_alive():
@@ -47,8 +47,9 @@ exp = (datetime.date.today() + datetime.timedelta(days=300)).strftime("%Y-%m")
 errs, bad = [], []
 with sync_playwright() as pw:
     br = pw.chromium.launch()
+    contexts = []
     def page_for(token, url, admin=False):
-        ctx = br.new_context(viewport={"width": 390, "height": 844}, service_workers="block"); pg = ctx.new_page()
+        ctx = br.new_context(viewport={"width": 390, "height": 844}, service_workers="block"); contexts.append(ctx); pg = ctx.new_page()
         pg.on("pageerror", lambda e: errs.append(str(e))); pg.on("dialog", lambda d: d.accept("سبب تجريبي"))
         pg.on("response", lambda r: bad.append((r.status, r.url.replace(BASE, ""))) if r.status >= 400 else None)
         pg.on("console", lambda m: errs.append(m.text) if m.type == "error" and "ERR_TUNNEL" not in m.text and "ERR_NAME_NOT_RESOLVED" not in m.text and "fonts" not in m.text and "status of 4" not in m.text else None)
@@ -76,6 +77,12 @@ with sync_playwright() as pw:
     ok("B sees seller's phone after reserving", "01088880001" in b.inner_text("#exw"))
     a.reload(); a.wait_for_selector("#exw >> text=المشتري", timeout=60000); ok("A sees buyer's phone after reservation", "01088880002" in a.inner_text("#exw"))
     a.click("#exw button:has-text('تم البيع')"); a.wait_for_selector("#exw >> text=تم البيع"); ok("A confirmed the sale", True)
+    # Close each context first so long-poll/image requests cannot stall Browser.close().
+    for browser_context in contexts:
+        try:
+            browser_context.close()
+        except Exception as close_error:
+            errs.append("context close: " + str(close_error))
     br.close()
 ok("no JS page errors", not errs)
 ok("no unexpected HTTP 4xx/5xx", not bad)

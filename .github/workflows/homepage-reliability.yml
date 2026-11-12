@@ -1,0 +1,68 @@
+name: Homepage Reliability Gate
+
+on:
+  push:
+    branches: [feature/homepage-campaigns-admin-20261111]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  backend_campaigns:
+    name: "1/4 Backend, database, and campaign APIs"
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: python -m pip install cryptography==44.0.0
+      - run: python -m py_compile server.py market.py notif.py account.py
+      - run: python test_home_campaigns.py
+      - run: python test_phase18_home_sections.py
+      - run: python release_check.py
+
+  compatibility_regression:
+    name: "2/4 Existing services and delivery regression"
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+      - run: python -m pip install cryptography==44.0.0
+      - run: python test_phase96_delivery_unchanged.py
+      - run: python test_homepage_contract.py
+      - run: python test_phase12_home_ui.py
+
+  responsive_browser:
+    name: "3/4 Responsive browser checks"
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: python -m pip install cryptography==44.0.0 playwright==1.52.0
+      - run: python -m playwright install --with-deps chromium
+      - run: python test_phase21_app_shell.py
+
+  full_user_experience:
+    name: "4/4 Full user journey and homepage failure recovery"
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+      - run: python -m pip install cryptography==44.0.0
+      - run: python test_homepage_resilience.py
+      - run: python test_home_campaigns_admin_ui.py
+      - run: python test_phase9_release_smoke.py

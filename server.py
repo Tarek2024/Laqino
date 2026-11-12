@@ -1,4 +1,6 @@
 import html as html_lib
+from datetime import datetime
+from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 import base64, sqlite3, json, os, secrets, hashlib, hmac, sys, time, mimetypes, re, threading, ipaddress
 import notif, account
 from http.server import ThreadingHTTPServer, BaseHTTPRequestHandler
@@ -7,6 +9,15 @@ import market
 import gsearch, products, product_orders, provider_delivery, shops, shop_delivery, shop_delivery_stats, rx, chat, svc, overview, fcm, exchange, lsocial, bulk_import
 DB = os.environ.get("LAQINO_DB", "laqino.db")
 UP = os.environ.get("LAQINO_UPLOADS", "uploads")
+
+def home_campaign_today():
+    """Return today's date in Cairo, honoring daylight-saving changes."""
+    try:
+        return datetime.now(ZoneInfo("Africa/Cairo")).date()
+    except (ZoneInfoNotFoundError, OSError):
+        # Last-resort fallback uses the host's configured local timezone, never a fixed UTC offset.
+        return datetime.now().astimezone().date()
+
 ROOT = os.path.realpath(os.path.join(os.path.dirname(os.path.abspath(__file__)), "static"))
 MIME = {".webmanifest": "application/manifest+json", ".js": "text/javascript", ".png": "image/png", ".webp": "image/webp"}
 SCHEMA = """
@@ -234,6 +245,12 @@ def init(admin_phone=None, admin_pw=None):
     if bk: print("auto-backup:", bk)
     if os.environ.get("LAQINO_WA_VERIFY", "0") != "1": print("WARNING: LAQINO_WA_VERIFY!=1 — التسجيل بدون تحقق من الهاتف (للإنتاج فعّله)", file=sys.stderr)
     c = db(); c.executescript(SCHEMA)
+    c.execute("""CREATE TABLE IF NOT EXISTS home_campaigns(
+        id INTEGER PRIMARY KEY,title TEXT NOT NULL,description TEXT NOT NULL DEFAULT '',
+        image_file_id INTEGER REFERENCES files(id),destination_type TEXT NOT NULL,destination_value TEXT NOT NULL DEFAULT '',
+        start_date TEXT,end_date TEXT,sort_order INTEGER NOT NULL DEFAULT 1,
+        is_active INTEGER NOT NULL DEFAULT 0 CHECK(is_active IN(0,1)),created_at INTEGER NOT NULL,updated_at INTEGER NOT NULL)""")
+    c.execute("CREATE INDEX IF NOT EXISTS ix_home_campaigns_active ON home_campaigns(is_active,sort_order,start_date,end_date)")
     for ddl in ('ALTER TABLE delivery_orders ADD COLUMN commission REAL NOT NULL DEFAULT 0', 'ALTER TABLE couriers ADD COLUMN last_seen INTEGER NOT NULL DEFAULT 0', 'ALTER TABLE couriers ADD COLUMN review_reason TEXT', 'ALTER TABLE couriers ADD COLUMN avatar_file_id INTEGER REFERENCES files(id)',
                 'ALTER TABLE delivery_orders ADD COLUMN search_started_at INTEGER NOT NULL DEFAULT 0', 'ALTER TABLE delivery_orders ADD COLUMN delivery_code TEXT', 'ALTER TABLE delivery_orders ADD COLUMN request_key TEXT',
                 'ALTER TABLE doctors ADD COLUMN photo_file_id INTEGER REFERENCES files(id)', 'ALTER TABLE labs ADD COLUMN photo_file_id INTEGER REFERENCES files(id)',
@@ -1705,6 +1722,86 @@ class H(BaseHTTPRequestHandler):
                 if not isinstance(d.get("products"), bool): raise E(400, "قيمة غير صالحة")
                 c.execute("INSERT INTO settings VALUES(?,?) ON CONFLICT(key) DO UPDATE SET value=excluded.value", ("products_enabled", "1" if d["products"] else "0"))
                 audit(c, u["id"], "settings.products_enabled", None, {"products": d["products"]}); c.commit(); return self.send(200, {"products": d["products"]})
+
+            if path == "/api/home-campaigns" and method == "GET":
+                today = home_campaign_today().isoformat()
+                rows = c.execute("SELECT * FROM home_campaigns WHERE is_active=1 AND (start_date IS NULL OR start_date='' OR start_date<=?) AND (end_date IS NULL OR end_date='' OR end_date>=?) ORDER BY sort_order,id DESC LIMIT 8",(today,today)).fetchall()
+                out=[]
+                for r in rows:
+                    typ,val=r["destination_type"],r["destination_value"]
+                    href={"home":"/","medical":"/?section=medical","market":"/market.html","services":"/?section=services","delivery":"/?section=delivery","shops":"/shops.html","pharmacy":"/pharmacy.html","contact":"/contact"}.get(typ,"")
+                    if typ=="listing": href="/market.html#/l/%d" % int(val)
+                    elif typ=="external": href=val
+                    elif typ=="whatsapp": href="https://wa.me/"+re.sub(r"\D","",val)
+                    out.append({"id":r["id"],"title":r["title"],"description":r["description"],"image_url":("/api/home-campaigns/%d/image"%r["id"]) if r["image_file_id"] else None,"href":href,"external":typ in ("external","whatsapp")})
+                return self.send(200,out)
+            m=re.fullmatch(r"/api/home-campaigns/(\d+)/image",path)
+            if method=="GET" and m:
+                today = home_campaign_today().isoformat()
+                row=c.execute("SELECT f.path,f.mime FROM home_campaigns h JOIN files f ON f.id=h.image_file_id WHERE h.id=? AND h.is_active=1 AND (h.start_date IS NULL OR h.start_date='' OR h.start_date<=?) AND (h.end_date IS NULL OR h.end_date='' OR h.end_date>=?)",(int(m[1]),today,today)).fetchone()
+                if not row: raise E(404,"الصورة غير موجودة")
+                return self.send(200,None,row["mime"],open(os.path.join(UP,row["path"]),"rb").read(),{"Cache-Control":"public, max-age=300"})
+            if path == "/api/admin/home-campaigns":
+                self.need(u,"admin")
+                if method=="GET":
+                    rows=c.execute("SELECT * FROM home_campaigns ORDER BY sort_order,id DESC").fetchall()
+                    return self.send(200,[{**dict(r),"image_url":("/api/files/%d"%r["image_file_id"]) if r["image_file_id"] else None} for r in rows])
+                if method=="POST":
+                    d=self.body(); cid=None
+                else: raise E(405,"طريقة غير مدعومة")
+            m=re.fullmatch(r"/api/admin/home-campaigns/(\d+)(/delete)?",path)
+            if m:
+                self.need(u,"admin"); cid=int(m[1])
+                old=c.execute("SELECT * FROM home_campaigns WHERE id=?",(cid,)).fetchone()
+                if not old: raise E(404,"الإعلان غير موجود")
+                if method=="POST" and m[2]:
+                    c.execute("DELETE FROM home_campaigns WHERE id=?",(cid,)); audit(c,u["id"],"home_campaign.delete",str(cid),{"title":old["title"]}); c.commit()
+                    return self.send(200,{"ok":True})
+                if method!="POST": raise E(405,"طريقة غير مدعومة")
+            if (path=="/api/admin/home-campaigns" and method=="POST") or (re.fullmatch(r"/api/admin/home-campaigns/\d+",path) and method=="POST"):
+                self.need(u,"admin")
+                if path!="/api/admin/home-campaigns": d=self.body()
+                title=str(d.get("title","")).strip(); desc=str(d.get("description","")).strip()
+                typ=str(d.get("destination_type","")); val=str(d.get("destination_value","")).strip()
+                if not 2<=len(title)<=80 or len(desc)>180: raise E(400,"العنوان مطلوب (2–80 حرفًا) والوصف حتى 180 حرفًا")
+                if typ not in ("home","medical","market","services","delivery","shops","pharmacy","contact","listing","external","whatsapp"): raise E(400,"وجهة الإعلان غير صالحة")
+                if typ in ("home","medical","market","services","delivery","shops","pharmacy","contact"): val=""
+                elif typ=="listing":
+                    if not val.isdigit() or int(val)<1: raise E(400,"رقم إعلان السوق غير صالح")
+                    val=str(int(val))
+                    listing=c.execute("SELECT id,category_id,status FROM listings WHERE id=?",(int(val),)).fetchone()
+                    if not listing or listing["status"]!="approved" or not market.is_visible_category(c,listing["category_id"]): raise E(400,"الإعلان غير منشور أو غير متاح في السوق")
+                elif typ=="external":
+                    parsed=urlparse(val)
+                    if parsed.scheme!="https" or not parsed.netloc or parsed.username or parsed.password or len(val)>500: raise E(400,"الرابط الخارجي يجب أن يبدأ بـ https://")
+                elif typ=="whatsapp":
+                    val=re.sub(r"\D","",val)
+                    if not 8<=len(val)<=15: raise E(400,"رقم واتساب غير صالح")
+                image_id=d.get("image_file_id")
+                if image_id not in (None,""):
+                    try: image_id=int(image_id)
+                    except (TypeError,ValueError): raise E(400,"الصورة غير صالحة")
+                    if not c.execute("SELECT id FROM files WHERE id=? AND owner_id=?",(image_id,u["id"])).fetchone(): raise E(400,"ارفع صورة الإعلان من حساب الإدارة أولًا")
+                else: image_id=None
+                start=str(d.get("start_date") or "").strip() or None; end=str(d.get("end_date") or "").strip() or None
+                for dv in (start,end):
+                    if dv:
+                        try: time.strptime(dv,"%Y-%m-%d")
+                        except ValueError: raise E(400,"صيغة التاريخ غير صحيحة")
+                if start and end and start>end: raise E(400,"تاريخ النهاية يجب أن يكون بعد البداية")
+                try: order=int(d.get("sort_order",1))
+                except (TypeError,ValueError): raise E(400,"الترتيب غير صالح")
+                if not 1<=order<=100: raise E(400,"الترتيب من 1 إلى 100")
+                active=1 if d.get("is_active") is True else 0; now=int(time.time())
+                values=(title,desc,image_id,typ,val,start,end,order,active,now)
+                if path=="/api/admin/home-campaigns":
+                    cur=c.execute("INSERT INTO home_campaigns(title,description,image_file_id,destination_type,destination_value,start_date,end_date,sort_order,is_active,created_at,updated_at) VALUES(?,?,?,?,?,?,?,?,?,?,?)",values+(now,))
+                    cid=cur.lastrowid; action="create"
+                else:
+                    cid=int(re.fullmatch(r"/api/admin/home-campaigns/(\d+)",path)[1])
+                    c.execute("UPDATE home_campaigns SET title=?,description=?,image_file_id=?,destination_type=?,destination_value=?,start_date=?,end_date=?,sort_order=?,is_active=?,updated_at=? WHERE id=?",values+(cid,)); action="update"
+                audit(c,u["id"],"home_campaign."+action,str(cid),{"title":title,"destination_type":typ}); c.commit()
+                return self.send(201 if action=="create" else 200,{"ok":True,"id":cid})
             if path == "/api/home-sections":
                 defaults = [
                     {"key":"med","name":"الخدمات الطبية","description":"أدوية وصيدليات وأطباء ومعامل","visible":True,"order":1},
@@ -2427,6 +2524,7 @@ class H(BaseHTTPRequestHandler):
                     if c.execute("SELECT 1 FROM listing_images WHERE file_id=?", (f["id"],)).fetchone(): raise E(409, "هذه الصورة مرتبطة بإعلان؛ عدّل الإعلان لإزالتها")
                     if c.execute("SELECT 1 FROM product_images WHERE file_id=?", (f["id"],)).fetchone(): raise E(409, "هذه الصورة مرتبطة بعرض منتج؛ عدّل العرض لإزالتها")
                     if c.execute("SELECT 1 FROM shop_item_images WHERE file_id=?", (f["id"],)).fetchone(): raise E(409, "هذه الصورة مرتبطة بصنف في محلك؛ عدّل الصنف لإزالتها")
+                    if c.execute("SELECT 1 FROM home_campaigns WHERE image_file_id=?", (f["id"],)).fetchone(): raise E(409, "هذه الصورة مستخدمة في إعلان رئيسي؛ عدّل الإعلان أولًا")
                     if c.execute("SELECT 1 FROM shops WHERE logo_file_id=? OR cover_file_id=?", (f["id"], f["id"])).fetchone(): raise E(409, "هذه الصورة لوجو أو غلاف محلك؛ غيّرها من تبويب المحل")
                     if c.execute("SELECT 1 FROM chat_messages WHERE file_id=?", (f["id"],)).fetchone(): raise E(409, "هذه الصورة جزء من محادثة")
                     if c.execute("SELECT 1 FROM service_request_images WHERE file_id=?", (f["id"],)).fetchone(): raise E(409, "هذه الصورة مرفقة بطلب خدمة؛ احذفها من الطلب")
