@@ -1,8 +1,16 @@
-# آخر تحديث موثق — phase-103: حملات الصفحة الرئيسية المُدارة وموثوقية العرض
+## phase-104 — Homepage interaction and content refresh
 
-> الإصدار الحالي: `phase-103` — كاش الخدمة: `laqino-v150`. المرجع الرقمي هو `VERSION`، ويطابق `static/sw.js`.
+- Fixed carousel navigation to scroll horizontally within the ad track only; it no longer calls `scrollIntoView()` on slides.
+- Added slider dots, clearer ad CTA and larger listing thumbnails.
+- Replaced the static homepage trust panel with live latest marketplace listings.
+- Added a distinct storefront symbol for local shops and removed heavy icon drop-shadows.
+- Kept the existing five-tab navigation pending a route-safe redesign for orders, create-ad and messages.
 
-## ما يتضمنه تحديث phase-103
+# آخر تحديث موثق — phase-104: حملات الصفحة الرئيسية المُدارة وموثوقية العرض
+
+> الإصدار الحالي: `phase-104` — كاش الخدمة: `laqino-v151`. المرجع الرقمي هو `VERSION`، ويطابق `static/sw.js`.
+
+## ما يتضمنه تحديث phase-104
 
 - إدارة حملات الصفحة الرئيسية من لوحة الإدارة مع جدولة وترتيب ووجهات داخلية وخارجية وصور محمية.
 - عرض البحث والغلاف الأساسي فورًا، ثم تحميل الحملات والأقسام الاختيارية لاحقًا دون تعطيل فتح الرئيسية.
