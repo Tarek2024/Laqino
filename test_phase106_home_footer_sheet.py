@@ -9,6 +9,7 @@ checks = {
     "legacy navy footer removed from homepage template": 'class="site-footer"' not in html,
     "welcome and guest account cards open support sheet": 'openHomeQuickSheet()' in html and 'الدعم، الشركاء، وعن لاقينو' in html and 'home-guest-menu-card' in html,
     "pharmacy eligibility is rechecked when the sheet opens": 'canApplyPharmacy()' in html and "results[7].status==='fulfilled'" in html,
+    "pharmacy eligibility is rechecked when the sheet opens": 'canApplyPharmacy()' in html and "results[7].status==='fulfilled'" in html,
     "sheet contains pharmacy and shop partner routes": 'href="/pharmacy.html"' in html and 'href="/shop.html"' in html,
     "sheet preserves diagnostics and WhatsApp support": 'sendHomeDiagnostics()' in html and 'https://wa.me/201017011170' in html,
     "legal routes remain available": all(x in html for x in ('href="/privacy"', 'href="/terms"', 'href="/contact"')),
