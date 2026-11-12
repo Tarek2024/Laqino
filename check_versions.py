@@ -27,6 +27,8 @@ ARCHIVE_PREFIXES = (
 ARCHIVE_DIRS = ("docs/steps/", "docs/phases/", "docs/implementation/", "docs/archive/")
 OPERATIONAL_DOCS = {
     "CHANGELOG.md", "DEPLOY.md", "PLAN_PHARMACY_DELIVERY.md", "docs/SHOPS_PLAN.md",
+    "docs/HOMEPAGE_ASYNC_TESTS.md", "docs/HOMEPAGE_DEBUG_NOTES.md",
+    "docs/HOMEPAGE_RELIABILITY.md", "docs/HOMEPAGE_TEST_RUNBOOK.md",
 }
 
 def classify_doc(relative):
