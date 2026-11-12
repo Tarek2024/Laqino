@@ -15,7 +15,7 @@ server.init("01000000000", "AdminPass123")
 srv = ThreadingHTTPServer(("127.0.0.1", 0), server.H)
 srv.daemon_threads = True
 srv.block_on_close = False
-srv_thread = threading.Thread(target=srv.serve_forever, name="exchange-test-http")
+srv_thread = threading.Thread(target=srv.serve_forever, name="exchange-test-http", daemon=True)
 srv_thread.start()
 def _stop_test_server():
     if srv_thread.is_alive():
