@@ -1,3 +1,10 @@
+## phase-108 — In-app back navigation
+
+- Added a Capacitor Android hardware-back listener so Back closes open sheets, returns from nested shop details, and navigates back to Laqino instead of exiting at the app home screen.
+- Added visible return links and native back handling to privacy, terms, contact, and delete-account pages; partner panel pages already retain their in-page return links.
+- Release: `phase-108`; service-worker cache: `laqino-v155`.
+- Verification: CI is running for the current PR head; no deployment or Android AAB build is implied.
+
 ## phase-106 — Homepage footer cleanup and support sheet
 
 - Removed the large navy homepage footer block from the visible layout without deleting its destinations or support actions.
