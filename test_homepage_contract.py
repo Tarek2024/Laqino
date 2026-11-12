@@ -22,5 +22,10 @@ check("initial-render emergency fallback and diagnostic logger exist", "home-ini
 check("managed campaigns are distinct from user marketplace feed", "home-campaigns'" in home and "managedSlides||marketSlides||fallbackPromo" in home)
 check("homepage request timeouts abort the underlying fetch", "const timeout=(request,ms)" in home and "signal?{signal}" in html and "signal=>api('/home-campaigns'" in home)
 check("diagnostic report requires explicit user confirmation before opening WhatsApp", "window.sendHomeDiagnostics" in html and "confirm(" in html and "homeDiagnosticsAction" in html)
+check("homepage carousel never uses vertical scrollIntoView", "scrollIntoView(" not in html and "track.scrollTo({left:slides[n].offsetLeft" in html)
+check("homepage carousel exposes slider dots for multiple ads", "home-promo-dots" in html and "home-promo-dot" in html)
+check("local shops use a distinct storefront icon", '<symbol id="i3-shop"' in html and "card('shops',I3('shop')" in html)
+check("static trust panel is replaced with live latest marketplace ads", 'class="home-latest"' in html and "homeLatestAds" in html and "home-trust-steps" not in html)
+
 check("service worker cache and VERSION agree", version.get("cache") in sw)
 print("ALL HOMEPAGE CONTRACT CHECKS PASSED")
