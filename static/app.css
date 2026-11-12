@@ -926,3 +926,10 @@ body.app .home-latest-card b{display:-webkit-box;min-height:2.7em;overflow:hidde
 body.app .home-latest-card small{font-size:.76rem;font-weight:700;color:var(--teal)}
 body.app .home-latest-empty{grid-column:1/-1;padding:16px;border:1px dashed var(--line);border-radius:14px;color:var(--mute);text-align:center}
 @media(max-width:360px){body.app .home-promo-slide{padding-inline-start:88px}body.app .home-promo-thumb{width:72px;height:72px}body.app .home-latest-grid{gap:6px}body.app .home-latest-card{padding:6px}}
+
+/* Header/search overlap: visually connect the navy masthead to the search field. */
+@media(max-width:759px){
+ body.app .home-hero{margin-top:0;padding-top:0}
+ body.app .home-search{position:relative;z-index:5;margin-top:-16px}
+ body.app .home-promo{margin-top:14px}
+}
