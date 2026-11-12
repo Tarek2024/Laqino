@@ -10,6 +10,21 @@ import gsearch, products, product_orders, provider_delivery, shops, shop_deliver
 DB = os.environ.get("LAQINO_DB", "laqino.db")
 UP = os.environ.get("LAQINO_UPLOADS", "uploads")
 
+HOME_CAMPAIGN_SCREENS = {
+    "medical.home": {"label": "الخدمات الطبية — الرئيسية", "href": "/?screen=medical.home"},
+    "medical.prescription": {"label": "إرسال روشتة", "href": "/?screen=medical.prescription"},
+    "medical.ask": {"label": "اسأل عن دواء", "href": "/?screen=medical.ask"},
+    "medical.doctors": {"label": "الأطباء", "href": "/?screen=medical.doctors"},
+    "medical.labs": {"label": "المعامل", "href": "/?screen=medical.labs"},
+    "medical.products": {"label": "منتجات الصيدليات", "href": "/?screen=medical.products"},
+    "market.home": {"label": "سوق لاقينو", "href": "/?screen=market.home"},
+    "market.add": {"label": "إضافة إعلان للسوق", "href": "/?market-add=1"},
+    "services": {"label": "الخدمات المحلية", "href": "/?screen=services"},
+    "delivery": {"label": "إنشاء طلب توصيل", "href": "/?screen=delivery"},
+    "account": {"label": "حسابي وطلباتي", "href": "/?screen=account"},
+}
+
+
 def home_campaign_today():
     """Return today's date in Cairo, honoring daylight-saving changes."""
     try:
@@ -1730,6 +1745,7 @@ class H(BaseHTTPRequestHandler):
                 for r in rows:
                     typ,val=r["destination_type"],r["destination_value"]
                     href={"home":"/","medical":"/?section=medical","market":"/market.html","services":"/?section=services","delivery":"/?section=delivery","shops":"/shops.html","pharmacy":"/pharmacy.html","contact":"/contact"}.get(typ,"")
+                    if typ=="screen": href=HOME_CAMPAIGN_SCREENS.get(val,{}).get("href","")
                     if typ=="listing": href="/market.html#/l/%d" % int(val)
                     elif typ=="external": href=val
                     elif typ=="whatsapp": href="https://wa.me/"+re.sub(r"\D","",val)
@@ -1741,6 +1757,9 @@ class H(BaseHTTPRequestHandler):
                 row=c.execute("SELECT f.path,f.mime FROM home_campaigns h JOIN files f ON f.id=h.image_file_id WHERE h.id=? AND h.is_active=1 AND (h.start_date IS NULL OR h.start_date='' OR h.start_date<=?) AND (h.end_date IS NULL OR h.end_date='' OR h.end_date>=?)",(int(m[1]),today,today)).fetchone()
                 if not row: raise E(404,"الصورة غير موجودة")
                 return self.send(200,None,row["mime"],open(os.path.join(UP,row["path"]),"rb").read(),{"Cache-Control":"public, max-age=300"})
+            if path == "/api/admin/home-campaign-targets" and method == "GET":
+                self.need(u,"admin")
+                return self.send(200,[{"key":key,"label":item["label"]} for key,item in HOME_CAMPAIGN_SCREENS.items()])
             if path == "/api/admin/home-campaigns":
                 self.need(u,"admin")
                 if method=="GET":
@@ -1764,8 +1783,10 @@ class H(BaseHTTPRequestHandler):
                 title=str(d.get("title","")).strip(); desc=str(d.get("description","")).strip()
                 typ=str(d.get("destination_type","")); val=str(d.get("destination_value","")).strip()
                 if not 2<=len(title)<=80 or len(desc)>180: raise E(400,"العنوان مطلوب (2–80 حرفًا) والوصف حتى 180 حرفًا")
-                if typ not in ("home","medical","market","services","delivery","shops","pharmacy","contact","listing","external","whatsapp"): raise E(400,"وجهة الإعلان غير صالحة")
+                if typ not in ("home","medical","market","services","delivery","shops","pharmacy","contact","listing","external","whatsapp","screen"): raise E(400,"وجهة الإعلان غير صالحة")
                 if typ in ("home","medical","market","services","delivery","shops","pharmacy","contact"): val=""
+                elif typ=="screen":
+                    if val not in HOME_CAMPAIGN_SCREENS: raise E(400,"الشاشة المطلوبة غير متاحة")
                 elif typ=="listing":
                     if not val.isdigit() or int(val)<1: raise E(400,"رقم إعلان السوق غير صالح")
                     val=str(int(val))
