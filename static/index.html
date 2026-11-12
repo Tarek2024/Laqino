@@ -273,7 +273,7 @@ if(results[7]&&results[7].status==='fulfilled')AP=results[7].value;
 else AP=AP||{courier:null,pharmacy:null};
 if(results[8]&&results[8].status==='fulfilled')SH=results[8].value.items||[];
 const account=document.getElementById('homeAccount');
-if(account)account.innerHTML=`<div class="card"><div class="me"><span class="av">${esc((ME&&ME.name||'؟').trim().charAt(0))}</span><div class="nm"><b>أهلًا ${esc(ME?.name||'بيك')}</b><small>سعداء إنك معانا</small></div><button class="ghost" onclick="go(3)">حسابي</button></div></div>`;
+if(account)account.innerHTML=`<div class="card home-welcome-card"><div class="me"><span class="av">${esc((ME&&ME.name||'؟').trim().charAt(0))}</span><div class="nm"><b>أهلًا ${esc(ME?.name||'بيك')}</b><small>سعداء إنك معانا</small></div><button class="ghost" onclick="go(3)">حسابي</button></div>${quickMenu}</div>`;
 const panels=document.getElementById('homePanels');if(panels)panels.innerHTML=pnls();
 }
 const shOn=!!(shopTypes&&shopTypes.enabled&&Array.isArray(shopTypes.items)&&shopTypes.items.length);
