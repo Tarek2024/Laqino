@@ -930,6 +930,6 @@ body.app .home-latest-empty{grid-column:1/-1;padding:16px;border:1px dashed var(
 /* Header/search overlap: visually connect the navy masthead to the search field. */
 @media(max-width:759px){
  body.app .home-hero{margin-top:0;padding-top:0}
- body.app .home-search{position:relative;z-index:5;margin-top:-16px}
+ body.app .home-search{position:relative;z-index:5;margin-top:0}
  body.app .home-promo{margin-top:14px}
 }
