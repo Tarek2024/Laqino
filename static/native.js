@@ -164,7 +164,58 @@
       })).catch(function () {});
     } catch (e) {}
 
-    function tick() {
+    /* Android hardware back: keep navigation inside Laqino instead of closing the WebView. */
+  var backListenerReady = false;
+  function appBack() {
+    try {
+      var quick = document.getElementById('homeQuickSheet');
+      if (quick && !quick.hidden) { if (window.closeHomeQuickSheet) window.closeHomeQuickSheet(); return; }
+      var region = document.getElementById('sh');
+      if (region && !region.hidden) { if (window.closeRg) window.closeRg(); return; }
+      var lightbox = document.getElementById('lb');
+      if (lightbox && window.lbclose) { window.lbclose(); return; }
+
+      if (document.body && document.body.classList.contains('app')) {
+        var state = history.state || {};
+        if (state.lq === 2 && window.closeRg) { window.closeRg(); return; }
+        if (window._doctorProfileId || window._labProfileId || window._medicalNavActive || state.lq === 1) {
+          if (history.length > 1) { history.back(); return; }
+        }
+        if (typeof window._lt === 'number' && window._lt !== 0 && typeof window.go === 'function') {
+          window.go(0); return;
+        }
+        if (location.pathname !== '/') { location.assign('/'); return; }
+        return; // At the app home screen: consume Back, never exit the app.
+      }
+
+      if (location.pathname === '/shops.html' && /^#s\\d+$/.test(location.hash) && typeof window.sback === 'function') {
+        window.sback(); return;
+      }
+      var ref = document.referrer;
+      if (ref) {
+        try { if (new URL(ref).origin === location.origin && history.length > 1) { history.back(); return; } } catch (_) {}
+      }
+      if (location.pathname !== '/') location.assign('/');
+    } catch (_) {
+      try { location.assign('/'); } catch (__) {}
+    }
+  }
+  function setupBackButton() {
+    if (backListenerReady) return;
+    var A = C.Plugins && C.Plugins.App;
+    if (!A && typeof C.registerPlugin === 'function') {
+      try { A = C.registerPlugin('App'); } catch (_) {}
+    }
+    if (typeof C.isPluginAvailable === 'function' && !C.isPluginAvailable('App')) return;
+    if (!A || typeof A.addListener !== 'function') return;
+    try {
+      var listener = A.addListener('backButton', appBack);
+      if (listener && typeof listener.catch === 'function') listener.catch(function () {});
+      backListenerReady = true;
+    } catch (_) {}
+  }
+
+  function tick() {
       ensurePermissionAndRegistration();
       sync();
     }
