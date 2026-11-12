@@ -100,7 +100,10 @@ jobs:
           python -m playwright install --with-deps chromium
       - name: Run doctor UI regression independently on baseline
         continue-on-error: true
-        run: python test_phase10_ui.py
+        run: |
+          git fetch --depth=1 origin feature/homepage-campaigns-admin-20261111
+          git show FETCH_HEAD:test_phase10_ui.py > test_phase10_ui.py
+          python test_phase10_ui.py
       - name: Compile baseline Python modules and tests
         run: |
           python - <<'PY'
