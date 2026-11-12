@@ -1,4 +1,4 @@
-## phase-104 — Homepage interaction and content refresh
+## phase-105 — Smart homepage campaign destinations
 
 - Fixed carousel navigation to scroll horizontally within the ad track only; it no longer calls `scrollIntoView()` on slides.
 - Added slider dots, clearer ad CTA and larger listing thumbnails.
@@ -6,13 +6,14 @@
 - Added a distinct storefront symbol for local shops and removed heavy icon drop-shadows.
 - Kept the existing five-tab navigation pending a route-safe redesign for orders, create-ad and messages.
 
-# آخر تحديث موثق — phase-104: حملات الصفحة الرئيسية المُدارة وموثوقية العرض
+# آخر تحديث موثق — phase-105: الوجهات الذكية لإعلانات الرئيسية
 
-> الإصدار الحالي: `phase-104` — كاش الخدمة: `laqino-v151`. المرجع الرقمي هو `VERSION`، ويطابق `static/sw.js`.
+> الإصدار الحالي: `phase-105` — كاش الخدمة: `laqino-v152`. المرجع الرقمي هو `VERSION`، ويطابق `static/sw.js`.
 
-## ما يتضمنه تحديث phase-104
+## ما يتضمنه تحديث phase-105
 
 - إدارة حملات الصفحة الرئيسية من لوحة الإدارة مع جدولة وترتيب ووجهات داخلية وخارجية وصور محمية.
+- وجهات ذكية تفتح شاشة إرسال الروشتة، اسأل عن دواء، الأطباء، المعامل، المنتجات، السوق، إضافة إعلان، الخدمات المحلية، التوصيل، وحسابي.
 - عرض البحث والغلاف الأساسي فورًا، ثم تحميل الحملات والأقسام الاختيارية لاحقًا دون تعطيل فتح الرئيسية.
 - إضافة مهلات وبدائل آمنة وتشخيص للأخطاء، مع الحفاظ على أيقونات الأقسام الأربعة وروابطها ودورة الدليفري وGPS.
 - **التحقق:** حالة الاختبارات مرتبطة بتشغيل CI للـcommit الحالي؛ لا يُعلن النجاح قبل اكتماله.
