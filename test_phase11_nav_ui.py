@@ -17,7 +17,7 @@ def page(tok, steps):
     return json.loads(o.stdout)
 html = open(os.path.join(D, "static", "index.html"), encoding="utf-8").read()
 nav = re.search(r"<nav>(.*?)</nav>", html, re.S).group(1)
-buttons = re.findall(r'<button id="t\\d".*?</button>', nav, re.S)
+buttons = re.findall(r'<button id="t\d".*?</button>', nav, re.S)
 labels = [re.sub(r"<[^>]+>", "", re.findall(r"<span>[^<]+</span>", b)[-1]) for b in buttons]
 ok("nav has exactly 5 destinations with the new shops label", labels == ["الرئيسية", "الطبي", "السوق", "محلات", "حسابي"])
 ok("old services label is removed from horizontal navigation", "خدمات لاقينو" not in nav)
