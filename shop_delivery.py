@@ -117,6 +117,8 @@ def handle(h, c, u, method, path, q):
             for r in c.execute("SELECT i.item_id,i.file_id FROM shop_item_images i JOIN shop_items x ON x.id=i.item_id WHERE x.shop_id=? ORDER BY i.rowid", (sid,)): imgs.setdefault(r["item_id"], []).append(r["file_id"])
             cats = [dict(r) for r in c.execute("SELECT id,name_ar,sort FROM shop_categories WHERE shop_id=? AND is_active=1 ORDER BY sort,id", (sid,))]
             its = [{"id": r["id"], "name_ar": r["name_ar"], "description": r["description"] or "", "price": r["price"], "category_id": r["category_id"], "image_ids": imgs.get(r["id"], [])} for r in c.execute("SELECT id,name_ar,description,price,category_id FROM shop_items WHERE shop_id=? AND status='active' AND is_available=1 ORDER BY sort,id", (sid,))]
+            opts = shops._item_options(c, sid, [x["id"] for x in its]) if its else {}
+            for item in its: item["options"] = opts.get(item["id"], [])
             return ok({"enabled": True, "order_enabled": settings(c)[0], "shop": {"id": s["id"], "name_ar": s["name_ar"], "type_name": s["type_name"], "region_id": s["region_id"], "is_open": bool(s["is_open"])}, "categories": cats, "items": its})
         if not u: return err(401, "سجّل الدخول أولًا")
         on, _, _ = settings(c)
