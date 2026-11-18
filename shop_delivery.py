@@ -118,7 +118,16 @@ def handle(h, c, u, method, path, q):
             cats = [dict(r) for r in c.execute("SELECT id,name_ar,sort FROM shop_categories WHERE shop_id=? AND is_active=1 ORDER BY sort,id", (sid,))]
             its = [{"id": r["id"], "name_ar": r["name_ar"], "description": r["description"] or "", "price": r["price"], "category_id": r["category_id"], "image_ids": imgs.get(r["id"], [])} for r in c.execute("SELECT id,name_ar,description,price,category_id FROM shop_items WHERE shop_id=? AND status='active' AND is_available=1 ORDER BY sort,id", (sid,))]
             opts = shops._item_options(c, sid, [x["id"] for x in its]) if its else {}
-            for item in its: item["options"] = opts.get(item["id"], [])
+            popularity = {}
+            for rec in c.execute("SELECT l.items_json FROM shop_delivery_links l JOIN delivery_orders o ON o.id=l.order_id WHERE l.shop_id=? AND l.kind=? AND o.status!='cancelled'", (sid, ORDER)):
+                try:
+                    for line in json.loads(rec["items_json"] or "[]"):
+                        popularity[line["id"]] = popularity.get(line["id"], 0) + int(line.get("qty", 0))
+                except (TypeError, ValueError, KeyError):
+                    continue
+            for item in its:
+                item["options"] = opts.get(item["id"], [])
+                item["orders_count"] = popularity.get(item["id"], 0)
             return ok({"enabled": True, "order_enabled": settings(c)[0], "shop": {"id": s["id"], "name_ar": s["name_ar"], "type_name": s["type_name"], "region_id": s["region_id"], "is_open": bool(s["is_open"])}, "categories": cats, "items": its})
         if not u: return err(401, "سجّل الدخول أولًا")
         on, _, _ = settings(c)
