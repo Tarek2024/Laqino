@@ -148,8 +148,8 @@ def handle(h, c, u, method, path, q):
             if category_id:
                 filters.append("category_id=?"); args.append(category_id)
             if search:
-                like = "%" + search.replace("\\\\", "\\\\\\\\").replace("%", "\\\\%").replace("_", "\\\\_") + "%"
-                filters.append("(name_ar LIKE ? ESCAPE '\\\\\\\\' OR COALESCE(description,'') LIKE ? ESCAPE '\\\\\\\\')")
+                like = "%" + search.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_") + "%"
+                filters.append("(name_ar LIKE ? ESCAPE '\\' OR COALESCE(description,'') LIKE ? ESCAPE '\\')")
                 args.extend((like, like))
             where = " AND ".join(filters)
             total_items = c.execute("SELECT COUNT(*) FROM shop_items WHERE " + where, args).fetchone()[0]
