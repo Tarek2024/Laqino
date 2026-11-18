@@ -110,3 +110,17 @@ admin_html=open(os.path.join(os.path.dirname(os.path.abspath(__file__)),"static"
 ok("admin Excel preview shows grouped option totals and per-product option counts",
    "r.option_groups||0" in admin_html and "r.option_values||0" in admin_html and "x.option_groups||0" in admin_html)
 print("GROUPED IMPORT TESTS PASS")
+
+mixed_option_rows=[
+ ["اسم الصنف","السعر الأساسي","الوصف","متاح","اسم المجموعة","نوع المجموعة","الاختيار","فرق السعر","إلزامي؟"],
+ ["صنف مختلط","50","وصف","نعم","الحجم","حجم","صغير","0","نعم"],
+ ["صنف مختلط","50","وصف","نعم","","","","",""],
+]
+status,mixed_preview=call("POST",prefix+"/preview",{"shop_id":shop,"data":xlsx(mixed_option_rows)},admin)
+ok("preview rejects mixing a plain product row with configurable option rows",
+   status==200 and mixed_preview["summary"]["new"]==0 and mixed_preview["summary"]["error"]==1 and
+   any("لا تخلط" in x["message"] for x in mixed_preview["items"]))
+ok("mixed product rows are not partially imported",
+   call("POST",prefix+"/commit",{"shop_id":shop,"data":xlsx(mixed_option_rows)},admin)[0]==409 and
+   sql("SELECT COUNT(*) FROM shop_items WHERE shop_id=? AND name_ar='صنف مختلط'",shop)[0][0]==0)
+print("GROUPED IMPORT SAFETY TESTS PASS")
