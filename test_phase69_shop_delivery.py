@@ -233,6 +233,10 @@ cheese_id = public_item["options"][1]["values"][0]["id"]
 small_id = public_item["options"][0]["values"][0]["id"]
 ok("public menu exposes the options needed by the customer cart",
    len(public_item["options"]) == 2 and large_id and cheese_id)
+sstr, rstr = call("POST", "/shops/%d/order" % S1,
+                   {"items": [{"item_id": i1, "qty": 1, "option_ids": [str(large_id), str(cheese_id)]}],
+                    "dropoff_text": "عمارة 5 شقة 2"}, cust2)
+ok("numeric-string option IDs are normalized safely", sstr == 201 and rstr["items_total"] == 114.0)
 ok("menu popularity count comes from non-cancelled order snapshots", public_item["orders_count"] >= 1)
 before_options_orders = sql("SELECT COUNT(*) FROM delivery_orders")[0][0]
 invalid_missing = call("POST", "/shops/%d/order" % S1,
