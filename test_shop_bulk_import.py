@@ -57,7 +57,7 @@ call("POST",f"/admin/shops/{shop}/review",{"status":"approved"},admin)
 prefix="/admin/shops/items-import"
 rows=[["اسم الصنف","السعر","الوصف","متاح"]]+[["صنف تجريبي %03d"%i, str(i+1)+".50", "وصف "+str(i), "نعم" if i%2 else "لا"] for i in range(100)]
 data=xlsx(rows)
-ok("staff/customer cannot import", call("POST",prefix+"/preview",{"shop_id":shop,"data":data},customer)[0]==403)
+ok("customer cannot import", call("POST",prefix+"/preview",{"shop_id":shop,"data":data},customer)[0]==403)
 ok("template endpoint returns xlsx", call("GET",prefix+"/template",None,admin)[0]==200 and call("GET",prefix+"/template",None,admin)[1]["name"].endswith(".xlsx"))
 status, preview=call("POST",prefix+"/preview",{"shop_id":shop,"data":data},admin)
 ok("100 Arabic rows preview as new without writing", status==200 and preview["summary"]["new"]==100 and sql("SELECT COUNT(*) FROM shop_items WHERE shop_id=?",shop)[0][0]==0)
