@@ -171,3 +171,17 @@ shops_ui = open(os.path.join(base.HERE, "static", "shops.html"), encoding="utf-8
 ok("single-category menu shows swipe hint", "const swipeHint=cats.length>0?" in shops_ui)
 
 print("SHOP CATEGORY TESTS ALL PASS")
+
+# Regression guards for horizontal touch navigation in the customer shop menu.
+shops_ui = open(os.path.join(base.HERE, "static", "shops.html"), encoding="utf-8").read()
+ok("category strip keeps native horizontal touch scrolling",
+   ".menu-cats{display:flex" in shops_ui and "touch-action:pan-x" in shops_ui
+   and "#menu-products{touch-action:pan-y" not in shops_ui)
+ok("vertical page scrolling is scoped to the item list, not the whole menu",
+   ".menu-grid{touch-action:pan-y}" in shops_ui)
+ok("menu swipe requires a dominant horizontal gesture and matching pointer",
+   "e.pointerId!==start.id" in shops_ui and "Math.abs(dx)<Math.abs(dy)*1.25" in shops_ui)
+ok("menu swipe ignores category chips and interactive controls",
+   "menuSwipeBlocked" in shops_ui and ".menu-cats" in shops_ui and "button,a,input,select,textarea" in shops_ui)
+ok("active category is centered only when it leaves the visible chip strip",
+   "if(btn.left<box.left||btn.right>box.right)" in shops_ui)
