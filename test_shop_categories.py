@@ -1,4 +1,5 @@
 # Regression tests for per-shop menu categories and safe Excel category inference.
+import os
 import sqlite3
 import urllib.parse
 import test_shop_bulk_import as base
