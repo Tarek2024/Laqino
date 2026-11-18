@@ -162,7 +162,8 @@ def plan(c, shop_id, raw):
         raise ImportError_(413, "عدد الصفوف كبير (الحد 1000 صف لكل ملف)")
     current = c.execute("SELECT COUNT(*) FROM shop_items WHERE shop_id=? AND status='active'", (shop_id,)).fetchone()[0]
     existing = {shops._norm(r["name_ar"]) for r in c.execute("SELECT name_ar FROM shop_items WHERE shop_id=? AND status='active'", (shop_id,))}
-    existing_categories = c.execute("SELECT name_ar FROM shop_categories WHERE shop_id=? AND is_active=1", (shop_id,)).fetchall()\n    seen, items = set(), []
+    existing_categories = c.execute("SELECT name_ar FROM shop_categories WHERE shop_id=? AND is_active=1", (shop_id,)).fetchall()
+    seen, items = set(), []
     for ri in range(hi + 1, len(rows)):
         row = rows[ri]
         if not any(str(x or "").strip() for x in row):
