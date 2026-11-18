@@ -183,6 +183,7 @@ def plan(c, shop_id, raw):
         norm = None
         try:
             name = shops._text(item["name"], "اسم الصنف", 2, 80)
+            norm = shops._norm(name)
             price = _price(get("price"))
             desc_raw = get("description")
             desc = None if not desc_raw else shops._text(desc_raw, "الوصف", 1, 500)
@@ -222,7 +223,6 @@ def plan(c, shop_id, raw):
                 delta = round(delta, 2)
             else:
                 kind, required, delta = None, False, 0.0
-            norm = shops._norm(name)
             if norm not in products:
                 products[norm] = {"row": item["row"], "rows": [item["row"]], "name": name, "price": price,
                     "description": desc, "is_available": available, "category_name": category_name,
