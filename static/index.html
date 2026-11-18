@@ -242,7 +242,7 @@ const shell=`<section class="home-hero" aria-label="البحث وإعلانات 
 <div class="home-promo"><div class="home-promo-glow" aria-hidden="true"></div><img class="home-promo-mascot" src="/assets/mascot-cut.webp" alt="" width="88" height="116" decoding="async" fetchpriority="low"><div class="home-promo-window"><div class="home-promo-track" id="homePromoTrack">${fallbackPromo}</div></div></div>
 </section>
 <div class="home">${R?'':`<div class="need-rg"><span class="pn">${IC.pin}</span><div>اختار منطقتك الأول عشان تشوف اللي متاح عندك.</div><button onclick="openRg()">اختار</button></div>`}
-<div class="tiles" id="homeTiles">${initialTiles}</div><div id="homePanels">${pnls()}</div><div id="homeServices"></div>
+<div class="tiles" id="homeTiles" aria-busy="true">${initialTiles}</div><div id="homePanels">${pnls()}</div><div id="homeServices"></div>
 <section class="home-latest" aria-label="أحدث إعلانات السوق"><div class="home-latest-head"><div><span>منطقتك</span><h2>أحدث الإعلانات</h2></div><button type="button" onclick="go(1)" aria-label="عرض كل إعلانات السوق">كل الإعلانات ←</button></div><div class="home-latest-grid" id="homeLatestAds"><p class="home-latest-empty">أحدث الإعلانات هتظهر هنا.</p></div></section>
 <div style="height:12px"></div><div id="homeAccount">${acct}</div>
 <div class="home-end-brand" role="contentinfo"><img src="/assets/logo.jpg" alt="شعار لاقينو" width="38" height="38" loading="lazy"><p>لاقينو • منكم وليكم - ابعت والباقي علينا</p></div>
