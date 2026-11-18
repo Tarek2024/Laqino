@@ -205,6 +205,24 @@ try:
         it = [x for x in call("GET", "/owner/shops/%d/items" % S, None, own)[1]["items"] if x["name_ar"] == "كباب"][0]
         isz = sql("SELECT size FROM files WHERE id=?", it["image_ids"][0])[0][0]
         ok("item picture was resized in the browser before upload (big png → small jpeg)", 0 < isz < bigsz // 3)
+        ctx.close()
+        # 5d) large menu: the browser renders one bounded batch, can fetch more, and searches beyond loaded rows.
+        c = sqlite3.connect(DB); now = int(time.time())
+        for n in range(205):
+            c.execute("INSERT INTO shop_items(shop_id,name_ar,description,price,is_available,sort,is_featured,status,created_at,updated_at,category_id) VALUES(?,?,?,?,1,?,0,'active',?,?,?)",
+                      (S, "عنصر أداء %03d" % n, "اختبار تحميل تدريجي", 5, 20000 + n, now, now, MENU_CAT))
+        c.commit(); c.close()
+        ctx = br.new_context(viewport={"width": 390, "height": 800}); pg = ctx.new_page(); pg.on("pageerror", lambda e: errs.append(str(e)))
+        pg.goto(BASE + "/shops.html#s%d" % S); pg.wait_for_function("document.querySelectorAll('.gi').length === 40", timeout=10000)
+        ok("large shop menu initially renders only one 40-item batch", pg.locator(".gi").count() == 40 and pg.locator("#menu-more").count() == 1)
+        with pg.expect_response(lambda r: "/menu?" in r.url and "offset=40" in r.url, timeout=8000):
+            pg.click("#menu-more")
+        pg.wait_for_function("document.querySelectorAll('.gi').length === 80", timeout=8000)
+        ok("load-more appends the next batch without replacing existing rows", pg.locator(".gi").count() == 80)
+        with pg.expect_response(lambda r: "/menu?" in r.url and "q=" in r.url, timeout=8000):
+            pg.fill("#menu-search", "عنصر أداء 199")
+        pg.wait_for_function("document.querySelectorAll('.gi').length === 1 && document.querySelector('.gi').innerText.includes('عنصر أداء 199')", timeout=8000)
+        ok("search finds an item beyond the first 80 loaded rows", pg.locator(".gi").count() == 1 and "عنصر أداء 199" in pg.inner_text(".gi"))
         ctx.close(); br.close()
     if errs: print("BROWSER_PAGE_ERRORS:", json.dumps(errs, ensure_ascii=False))
     ok("no JS page errors", not errs)
