@@ -6,7 +6,7 @@ import notif, account
 from http.server import ThreadingHTTPServer, BaseHTTPRequestHandler
 from urllib.parse import urlparse, parse_qs, quote
 import market
-import gsearch, products, product_orders, provider_delivery, shops, shop_delivery, shop_delivery_stats, rx, chat, svc, overview, fcm, exchange, lsocial, bulk_import
+import gsearch, products, product_orders, provider_delivery, shops, shop_delivery, shop_delivery_stats, rx, chat, svc, overview, fcm, exchange, lsocial, bulk_import, shop_bulk_import
 DB = os.environ.get("LAQINO_DB", "laqino.db")
 UP = os.environ.get("LAQINO_UPLOADS", "uploads")
 
@@ -992,6 +992,7 @@ class H(BaseHTTPRequestHandler):
             if product_orders.handle(self, c, u, method, path, q): return  # م87: قبل products.handle لأنه يردّ 404 على أي مسار تحت /api/medical/pharmacies/
             if products.handle(self, c, u, method, path, q): return
             if provider_delivery.handle(self, c, u, method, path, q): return
+            if shop_bulk_import.handle(self, c, u, method, path, q): return
             if shops.handle(self, c, u, method, path, q): return
             if shop_delivery.handle(self, c, u, method, path, q): return
             if shop_delivery_stats.handle(self, c, u, method, path, q): return  # م79: إحصائيات دليفري المحلات (GET فقط)

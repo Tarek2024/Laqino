@@ -57,7 +57,7 @@ call("POST",f"/admin/shops/{shop}/review",{"status":"approved"},admin)
 prefix="/admin/shops/items-import"
 rows=[["اسم الصنف","السعر","الوصف","متاح"]]+[["صنف تجريبي %03d"%i, str(i+1)+".50", "وصف "+str(i), "نعم" if i%2 else "لا"] for i in range(100)]
 data=xlsx(rows)
-ok("staff/customer cannot import", call("POST",prefix+"/preview",{"shop_id":shop,"data":data},customer)[0]==403)
+ok("customer cannot import", call("POST",prefix+"/preview",{"shop_id":shop,"data":data},customer)[0]==403)
 ok("template endpoint returns xlsx", call("GET",prefix+"/template",None,admin)[0]==200 and call("GET",prefix+"/template",None,admin)[1]["name"].endswith(".xlsx"))
 status, preview=call("POST",prefix+"/preview",{"shop_id":shop,"data":data},admin)
 ok("100 Arabic rows preview as new without writing", status==200 and preview["summary"]["new"]==100 and sql("SELECT COUNT(*) FROM shop_items WHERE shop_id=?",shop)[0][0]==0)
@@ -66,7 +66,7 @@ ok("commit inserts all 100 items", status==200 and done["done"]["inserted"]==100
 items=call("GET",f"/owner/shops/{shop}/items",None,owner)[1]["items"]
 first=items[0]
 ok("imported items use the owner's normal edit endpoint", call("POST",f"/owner/shops/{shop}/items/{first['id']}/edit",{"name_ar":"صنف تم تعديله","price":77},owner)[0]==200 and call("GET",f"/owner/shops/{shop}/items",None,owner)[1]["items"][0]["name_ar"]=="صنف تم تعديله")
-ok("old imported rows remain and are not overwritten by another import", call("POST",prefix+"/commit",{"shop_id":shop,"data":xlsx([["اسم الصنف","السعر"],["صنف تجريبي 000","999"]])},admin)[0]==409 and sql("SELECT COUNT(*) FROM shop_items WHERE shop_id=? AND status='active'",shop)[0][0]==100)
+ok("old imported rows remain and are not overwritten by another import", call("POST",prefix+"/commit",{"shop_id":shop,"data":xlsx([["اسم الصنف","السعر"],["صنف تجريبي 001","999"]])},admin)[0]==409 and sql("SELECT COUNT(*) FROM shop_items WHERE shop_id=? AND status='active'",shop)[0][0]==100)
 mixed=xlsx([["اسم الصنف","السعر","الوصف","متاح"],["صنف جديد","15.75","وصف","نعم"],["صنف جديد","20","","نعم"],["سعر خاطئ","abc","","نعم"]])
 status, p=call("POST",prefix+"/preview",{"shop_id":shop,"data":mixed},admin)
 ok("preview reports within-file duplicates and invalid prices", status==200 and p["summary"]=={"new":1,"duplicate":1,"error":1})
