@@ -33,7 +33,7 @@ CREATE TABLE IF NOT EXISTS shop_items(id INTEGER PRIMARY KEY, shop_id INTEGER NO
 CREATE INDEX IF NOT EXISTS ix_shop_items ON shop_items(shop_id,status,sort,id);
 CREATE TABLE IF NOT EXISTS shop_categories(id INTEGER PRIMARY KEY, shop_id INTEGER NOT NULL REFERENCES shops(id) ON DELETE CASCADE, name_ar TEXT NOT NULL, sort INTEGER NOT NULL DEFAULT 0, is_active INTEGER NOT NULL DEFAULT 1 CHECK(is_active IN(0,1)), created_at INTEGER NOT NULL, updated_at INTEGER NOT NULL);
 CREATE INDEX IF NOT EXISTS ix_shop_categories ON shop_categories(shop_id,is_active,sort,id);
-CREATE UNIQUE INDEX IF NOT EXISTS ux_shop_categories_name ON shop_categories(shop_id,name_ar COLLATE NOCASE);
+CREATE UNIQUE INDEX IF NOT EXISTS ux_shop_categories_name ON shop_categories(shop_id,name_ar COLLATE NOCASE) WHERE is_active=1;
 CREATE TABLE IF NOT EXISTS shop_item_images(id INTEGER PRIMARY KEY, item_id INTEGER NOT NULL REFERENCES shop_items(id) ON DELETE CASCADE,
  file_id INTEGER NOT NULL UNIQUE REFERENCES files(id), position INTEGER NOT NULL DEFAULT 0, created_at INTEGER NOT NULL);
 CREATE INDEX IF NOT EXISTS ix_shop_item_images ON shop_item_images(item_id,position);
