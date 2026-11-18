@@ -17,7 +17,7 @@ jobs:
           python -m pip install cryptography Pillow playwright
           python -m playwright install chromium
       - name: Compile changed Python files
-        run: python -m py_compile server.py notif.py fcm.py product_orders.py shop_delivery.py test_phase90_fcm.py test_phase69_shop_delivery.py test_phase87_product_orders.py test_shop_bulk_import.py test_phase95_account_orders_archive.py test_phase96_delivery_unchanged.py test_phase_marketplace_ad_management.py chat.py test_phase4_chat.py test_registration_account_recovery.py test_phase91_market_ui.py
+        run: python -m py_compile server.py notif.py fcm.py product_orders.py shops.py shop_delivery.py shop_bulk_import.py test_shop_categories.py test_phase90_fcm.py test_phase69_shop_delivery.py test_phase87_product_orders.py test_shop_bulk_import.py test_phase95_account_orders_archive.py test_phase96_delivery_unchanged.py test_phase_marketplace_ad_management.py chat.py test_phase4_chat.py test_registration_account_recovery.py test_phase91_market_ui.py
       - name: Validate release and service-worker cache version
         run: python check_versions.py
       - name: Run full release readiness checks
@@ -217,3 +217,5 @@ jobs:
         run: python test_phase83_shop_identity.py
       - name: Test admin Excel bulk import for shop items
         run: python test_shop_bulk_import.py
+      - name: Test per-shop categories and safe Excel category inference
+        run: python test_shop_categories.py
