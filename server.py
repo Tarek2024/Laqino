@@ -1836,6 +1836,12 @@ class H(BaseHTTPRequestHandler):
                     saved = json.loads(row[0]) if row else None
                 except (ValueError, TypeError):
                     saved = None
+                # لا تُرجع الإعدادات الافتراضية القديمة للزائر؛ هذا كان يتجاوز تحكم الإدارة
+                # ويحوّل غياب الإعداد/فساده إلى أقسام ثابتة تبدو كأنها إعداد حقيقي.
+                if not isinstance(saved, list) or not saved:
+                    if not u or u["role"] != "admin":
+                        return self.send(503, {"error": "home_sections_not_configured"})
+                    saved = defaults
                 by_key = {x.get('key'): x for x in saved if isinstance(x, dict)} if isinstance(saved, list) else {}
                 sections = [{**d, **{k: by_key.get(d['key'], {}).get(k, d[k]) for k in ('name','description','visible','order')}} for d in defaults]
                 # Older settings included a standalone products card. Ignore that legacy key
