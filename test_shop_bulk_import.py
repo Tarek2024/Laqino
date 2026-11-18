@@ -98,7 +98,7 @@ ok("grouped Excel commit creates exactly one product",
    status==200 and gdone["done"]["inserted"]==1 and sql("SELECT COUNT(*) FROM shop_items WHERE shop_id=? AND name_ar='بيتزا تجميع' AND status='active'",shop)[0][0]==1)
 pid=sql("SELECT id FROM shop_items WHERE shop_id=? AND name_ar='بيتزا تجميع'",shop)[0][0]
 ok("grouped Excel options are stored in the same shop_item_options table",
-   sql("SELECT COUNT(DISTINCT group_name),COUNT(*) FROM shop_item_options WHERE shop_id=? AND item_id=? AND is_active=1",(shop,pid))[0]==(2,5))
+   sql("SELECT COUNT(DISTINCT group_name),COUNT(*) FROM shop_item_options WHERE shop_id=? AND item_id=? AND is_active=1",shop,pid)[0]==(2,5))
 owner_items=call("GET",f"/owner/shops/{shop}/items",None,owner)[1]["items"]
 pizza=next(x for x in owner_items if x["id"]==pid)
 ok("owner menu endpoint returns imported option groups for normal editing",
