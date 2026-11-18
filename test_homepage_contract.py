@@ -25,6 +25,7 @@ check("diagnostic report requires explicit user confirmation before opening What
 check("homepage carousel never uses vertical scrollIntoView", "scrollIntoView(" not in html and "track.scrollTo({left:slides[n].offsetLeft" in html)
 check("homepage carousel exposes slider dots for multiple ads", "home-promo-dots" in html and "home-promo-dot" in html)
 check("local shops use a distinct storefront icon", '<symbol id="i3-shop"' in html and "card('shops',I3('shop')" in html)
+check("products are not a standalone homepage card and remain within medical services", "card('products'" not in html and "FT.products?msc('prod'" in html)
 check("static trust panel is replaced with live latest marketplace ads", 'class="home-latest"' in html and "homeLatestAds" in html and "home-trust-steps" not in html)
 
 check("service worker cache and VERSION agree", version.get("cache") in sw)
