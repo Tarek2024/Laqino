@@ -94,4 +94,10 @@ ok("shop.html never injects raw server fields (all through esc)", not re.search(
 ok("shop dashboard defers image downloads until near viewport", "new IntersectionObserver" in s and "rootMargin:'240px 0px'" in s and "observeShopImages()" in s)
 ok("shop dashboard deduplicates downloads and reuses object URLs", "SHOP_IMG_PENDING" in s and "SHOP_IMG_URLS" in s and "URL.createObjectURL" in s)
 ok("localStorage keys used are limited to t, rg, shsel", set(re.findall(r"localStorage\.(?:getItem|setItem)\('(\w+)'", s)) == {"t", "rg", "shsel"})
+# 6) لوحة التاجر المحسّنة: بحث الأصناف، معاينة الطلبات، وفلاتر الطلبات
+ok("merchant dashboard has a dedicated responsive visual refresh", "Merchant dashboard refresh" in s and "shop-hero" in s and "dash-grid" in s and "@media(min-width:650px)" in s)
+ok("merchant item search and category/availability filters are present", 'id="item-search"' in s and 'id="item-category"' in s and 'id="item-availability"' in s and "function bindMerchantFilters()" in s and "data-item-search" in s)
+ok("empty search results have an accessible visible state", 'id="items-filter-empty"' in s and "مفيش أصناف مطابقة" in s)
+ok("home dashboard has a live preview of active customer orders", 'id="home-order-preview"' in s and "OPENST.includes(x.status)" in s and "preview.innerHTML" in s)
+ok("orders page has lifecycle filters and normalized order statuses", 'id="order-filters"' in s and 'data-order-filter="new"' in s and 'data-order-filter="ready"' in s and "orderStatusKey" in s)
 print("ALL PASS")
