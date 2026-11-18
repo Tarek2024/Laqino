@@ -53,7 +53,7 @@ jobs:
         run: |
           python - <<'PY'
           import pathlib, re
-          files = [pathlib.Path('static/index.html'), pathlib.Path('static/market.html')]
+          files = [pathlib.Path('static/index.html'), pathlib.Path('static/market.html'), pathlib.Path('static/admin.html')]
           out = pathlib.Path('/tmp/laqino-inline-js')
           out.mkdir(exist_ok=True)
           n = 0
