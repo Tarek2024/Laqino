@@ -106,4 +106,7 @@ ok("owner menu endpoint returns imported option groups for normal editing",
 template_rows=bulk_import.read_xlsx(shop_bulk_import.template_xlsx())[0][1]
 ok("downloaded template documents base price, group kind, option and price delta columns",
    "السعر الأساسي" in template_rows[0] and "اسم المجموعة" in template_rows[0] and "فرق السعر" in template_rows[0])
+admin_html=open(os.path.join(os.path.dirname(os.path.abspath(__file__)),"static","admin.html"),encoding="utf-8").read()
+ok("admin Excel preview shows grouped option totals and per-product option counts",
+   "r.option_groups||0" in admin_html and "r.option_values||0" in admin_html and "x.option_groups||0" in admin_html)
 print("GROUPED IMPORT TESTS PASS")
