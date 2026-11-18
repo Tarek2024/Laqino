@@ -1,3 +1,8 @@
+## مرجع الإصدار الحالي — phase-109
+
+- الإصدار المعتمد في `VERSION`: `phase-109`؛ كاش الخدمة في `static/sw.js`: `laqino-v156`.
+- هذا تحديث مرجعي للتوثيق فقط؛ لا يغيّر التطبيق أو الكاش أو وظائفه.
+
 ## phase-108 — In-app back navigation
 
 - Added a Capacitor Android hardware-back listener so Back closes open sheets, returns from nested shop details, and navigates back to Laqino instead of exiting at the app home screen.
