@@ -212,6 +212,48 @@ saved = sql("SELECT region_id,fee FROM region_fees"); sql("DELETE FROM region_fe
 ok("no region fee for the shop's region: order refused (400) and nothing created", ordr(**GOOD)[0] == 400)
 for rid_, fee_ in saved: call("POST", "/admin/region-fees", {"region_id": rid_, "fee": fee_}, at)
 
+# ---- 9b) أحجام وإضافات الصنف: تُسعّر وتُحفظ كنسخة ثابتة داخل الطلب
+groups = [
+    {"name_ar": "الحجم", "kind": "variant", "required": True,
+     "values": [{"name_ar": "صغير", "price_delta": 0}, {"name_ar": "كبير", "price_delta": 10}]},
+    {"name_ar": "إضافات", "kind": "addon", "required": False,
+     "values": [{"name_ar": "جبنة", "price_delta": 5}, {"name_ar": "صوص", "price_delta": 2}]},
+]
+opt_path = "/owner/shops/%d/items/%d/options" % (S1, i1)
+ok("owner saves item variants and add-ons", call("POST", opt_path, {"groups": groups}, own)[0] == 200)
+saved_options = call("GET", opt_path, None, own)[1]["groups"]
+ok("owner can read back the exact option groups", len(saved_options) == 2 and saved_options[0]["required"] and saved_options[1]["kind"] == "addon")
+ok("customer cannot manage item options", call("POST", opt_path, {"groups": []}, cust)[0] == 404)
+ok("invalid option groups are rejected without replacing saved options",
+   call("POST", opt_path, {"groups": [{"name_ar": "الحجم", "kind": "variant", "values": []}]}, own)[0] == 400 and len(call("GET", opt_path, None, own)[1]["groups"]) == 2)
+public_menu = call("GET", "/shops/%d/menu" % S1)[1]
+public_item = [x for x in public_menu["items"] if x["id"] == i1][0]
+large_id = public_item["options"][0]["values"][1]["id"]
+cheese_id = public_item["options"][1]["values"][0]["id"]
+small_id = public_item["options"][0]["values"][0]["id"]
+ok("public menu exposes the options needed by the customer cart",
+   len(public_item["options"]) == 2 and large_id and cheese_id)
+before_options_orders = sql("SELECT COUNT(*) FROM delivery_orders")[0][0]
+invalid_missing = call("POST", "/shops/%d/order" % S1,
+                       {"items": [{"item_id": i1, "qty": 1, "option_ids": [cheese_id]}],
+                        "dropoff_text": "عمارة 5 شقة 2"}, cust2)
+invalid_two = call("POST", "/shops/%d/order" % S1,
+                   {"items": [{"item_id": i1, "qty": 1, "option_ids": [small_id, large_id]}],
+                    "dropoff_text": "عمارة 5 شقة 2"}, cust2)
+invalid_foreign = call("POST", "/shops/%d/order" % S1,
+                       {"items": [{"item_id": i2, "qty": 1, "option_ids": [large_id]}],
+                        "dropoff_text": "عمارة 5 شقة 2"}, cust2)
+ok("required variant, one-value-per-variant and item ownership are validated",
+   invalid_missing[0] == 400 and invalid_two[0] == 400 and invalid_foreign[0] == 400 and sql("SELECT COUNT(*) FROM delivery_orders")[0][0] == before_options_orders)
+sopt, ropt = call("POST", "/shops/%d/order" % S1,
+                  {"items": [{"item_id": i1, "qty": 1, "option_ids": [large_id, cheese_id]}],
+                   "dropoff_text": "عمارة 5 شقة 2"}, cust2)
+saved_line = json.loads(sql("SELECT items_json FROM shop_delivery_links WHERE order_id=?", ropt.get("id"))[0][0])[0] if sopt == 201 else {}
+ok("order total includes variant and add-on price deltas",
+   sopt == 201 and ropt["items_total"] == 114.0 and saved_line["base_price"] == 99.0 and saved_line["price"] == 114.0)
+ok("order snapshot stores the selected option names and prices",
+   [x["name"] for x in saved_line["options"]] == ["كبير", "جبنة"] and [x["price_delta"] for x in saved_line["options"]] == [10.0, 5.0])
+
 # ---- 10) تنظيف: الإشعارات لا تتأثر بحذف/إعادة تثبيت
 import shop_delivery, shops
 cn = server.db(); shops.install(cn); shop_delivery.install(cn)
