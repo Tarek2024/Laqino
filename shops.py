@@ -195,12 +195,20 @@ def _no_image_count(c, shop_id):
     return c.execute("SELECT COUNT(*) FROM shop_items x WHERE x.shop_id=? AND x.status='active' AND NOT EXISTS(SELECT 1 FROM shop_item_images i WHERE i.item_id=x.id)", (shop_id,)).fetchone()[0]
 
 
+def _category_id(c, shop_id, raw):
+    if raw in (None, "", 0, "0"): return None
+    cid = _int(raw)
+    if cid is None or cid < 1 or not c.execute("SELECT 1 FROM shop_categories WHERE id=? AND shop_id=? AND is_active=1", (cid, shop_id)).fetchone():
+        raise ValueError("القسم المحدد غير صالح لهذا المحل")
+    return cid
+
+
 def _items(c, shop_id, item_id=None):
     q = "SELECT * FROM shop_items WHERE shop_id=? AND status='active'" + (" AND id=?" if item_id else "") + " ORDER BY sort,id"
     rows = c.execute(q, (shop_id, item_id) if item_id else (shop_id,)).fetchall(); imgs = {}
     if rows:
         for r in c.execute("SELECT item_id,file_id FROM shop_item_images WHERE item_id IN (%s) ORDER BY item_id,position,id" % ",".join("?" * len(rows)), [x["id"] for x in rows]): imgs.setdefault(r[0], []).append(r[1])
-    return [{"id": r["id"], "name_ar": r["name_ar"], "description": r["description"] or "", "price": r["price"], "is_available": bool(r["is_available"]), "sort": r["sort"], "image_ids": imgs.get(r["id"], []), "created_at": r["created_at"]} for r in rows]
+    return [{"id": r["id"], "name_ar": r["name_ar"], "description": r["description"] or "", "price": r["price"], "is_available": bool(r["is_available"]), "sort": r["sort"], "category_id": r["category_id"], "image_ids": imgs.get(r["id"], []), "created_at": r["created_at"]} for r in rows]
 
 
 def _set_images(c, item_id, ids, now):
@@ -451,11 +459,12 @@ def handle(h, c, u, method, path, q):
                 ds = d.get("description"); ds = "" if ds in (None, "") else _text(ds, "الوصف", 1, 500)
                 av = d.get("is_available", True)
                 if not isinstance(av, bool): raise ValueError("حالة التوفر: true أو false")
+                category_id = _category_id(c, shop["id"], d.get("category_id"))
                 imgs = _image_ids(c, u["id"], d.get("image_ids", []))
                 if req_img and not imgs: raise ValueError("صورة الصنف مطلوبة لهذا النوع من المحلات")
             except ValueError as e: return err(400, str(e))
-            cur = c.execute("INSERT INTO shop_items(shop_id,name_ar,description,price,is_available,sort,created_at,updated_at) VALUES(?,?,?,?,?,?,?,?)",
-                            (shop["id"], nm, ds or None, pr, int(av), c.execute("SELECT COALESCE(MAX(sort),0)+1 FROM shop_items WHERE shop_id=?", (shop["id"],)).fetchone()[0], now, now))
+            cur = c.execute("INSERT INTO shop_items(shop_id,name_ar,description,price,is_available,sort,category_id,created_at,updated_at) VALUES(?,?,?,?,?,?,?,?,?)",
+                            (shop["id"], nm, ds or None, pr, int(av), c.execute("SELECT COALESCE(MAX(sort),0)+1 FROM shop_items WHERE shop_id=?", (shop["id"],)).fetchone()[0], category_id, now, now))
             if c.execute("SELECT COUNT(*) FROM shop_items WHERE shop_id=? AND status='active'", (shop["id"],)).fetchone()[0] > MAX_ITEMS: c.rollback(); return err(429, "وصلت للحد الأقصى من الأصناف (%d)" % MAX_ITEMS)
             try: _set_images(c, cur.lastrowid, imgs, now)
             except sqlite3.IntegrityError: c.rollback(); return err(400, "صورة غير صالحة")
@@ -477,9 +486,10 @@ def handle(h, c, u, method, path, q):
                 if not isinstance(d["is_available"], bool): raise ValueError("حالة التوفر: true أو false")
                 av = d["is_available"]
             imgs = _image_ids(c, u["id"], d["image_ids"], iid) if "image_ids" in d else None
+            category_id = _category_id(c, shop["id"], d["category_id"]) if "category_id" in d else it["category_id"]
             if req_img and not (imgs if imgs is not None else _items(c, shop["id"], iid)[0]["image_ids"]): raise ValueError("صورة الصنف مطلوبة لهذا النوع من المحلات")
         except ValueError as e: return err(400, str(e))
-        c.execute("UPDATE shop_items SET name_ar=?,description=?,price=?,is_available=?,updated_at=? WHERE id=?", (nm, ds, pr, int(av), now, iid))
+        c.execute("UPDATE shop_items SET name_ar=?,description=?,price=?,is_available=?,category_id=?,updated_at=? WHERE id=?", (nm, ds, pr, int(av), category_id, now, iid))
         if imgs is not None:
             try: _set_images(c, iid, imgs, now)
             except sqlite3.IntegrityError: c.rollback(); return err(400, "صورة غير صالحة")
