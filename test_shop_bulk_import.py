@@ -66,7 +66,7 @@ ok("commit inserts all 100 items", status==200 and done["done"]["inserted"]==100
 items=call("GET",f"/owner/shops/{shop}/items",None,owner)[1]["items"]
 first=items[0]
 ok("imported items use the owner's normal edit endpoint", call("POST",f"/owner/shops/{shop}/items/{first['id']}/edit",{"name_ar":"صنف تم تعديله","price":77},owner)[0]==200 and call("GET",f"/owner/shops/{shop}/items",None,owner)[1]["items"][0]["name_ar"]=="صنف تم تعديله")
-ok("old imported rows remain and are not overwritten by another import", call("POST",prefix+"/commit",{"shop_id":shop,"data":xlsx([["اسم الصنف","السعر"],["صنف تجريبي 000","999"]])},admin)[0]==409 and sql("SELECT COUNT(*) FROM shop_items WHERE shop_id=? AND status='active'",shop)[0][0]==100)
+ok("old imported rows remain and are not overwritten by another import", call("POST",prefix+"/commit",{"shop_id":shop,"data":xlsx([["اسم الصنف","السعر"],["صنف تجريبي 001","999"]])},admin)[0]==409 and sql("SELECT COUNT(*) FROM shop_items WHERE shop_id=? AND status='active'",shop)[0][0]==100)
 mixed=xlsx([["اسم الصنف","السعر","الوصف","متاح"],["صنف جديد","15.75","وصف","نعم"],["صنف جديد","20","","نعم"],["سعر خاطئ","abc","","نعم"]])
 status, p=call("POST",prefix+"/preview",{"shop_id":shop,"data":mixed},admin)
 ok("preview reports within-file duplicates and invalid prices", status==200 and p["summary"]=={"new":1,"duplicate":1,"error":1})
