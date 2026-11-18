@@ -98,9 +98,9 @@ def install(c):
     item_cols = {r[1] for r in c.execute("PRAGMA table_info(shop_items)")}
     if "category_id" not in item_cols:
         c.execute("ALTER TABLE shop_items ADD COLUMN category_id INTEGER REFERENCES shop_categories(id)")
-    c.execute("CREATE INDEX IF NOT EXISTS ix_shop_items_category_browse ON shop_items(shop_id,category_id,status,is_available,is_featured,sort,id)")
     if "is_featured" not in item_cols:
         c.execute("ALTER TABLE shop_items ADD COLUMN is_featured INTEGER NOT NULL DEFAULT 0 CHECK(is_featured IN(0,1))")
+    c.execute("CREATE INDEX IF NOT EXISTS ix_shop_items_category_browse ON shop_items(shop_id,category_id,status,is_available,is_featured,sort,id)")
     if not c.execute("SELECT 1 FROM shop_types LIMIT 1").fetchone() and not c.execute("SELECT 1 FROM settings WHERE key='shop_types_seeded'").fetchone():
         now = int(time.time())
         for sl, nm, ic, srt in SEED: c.execute("INSERT OR IGNORE INTO shop_types(slug,name_ar,icon,sort,is_active,require_image,created_at) VALUES(?,?,?,?,1,0,?)", (sl, nm, ic, srt, now))
