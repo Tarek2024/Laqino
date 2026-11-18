@@ -52,12 +52,13 @@ async function list(){
   +(l.items.length?l.items.map((s,i)=>shopCard(s,i)).join(''):'<div class="card"><small>لا توجد محلات مطابقة حاليًا.</small></div>')+shopApplyCard();
  if(act){const e=$('sqi');e.focus();e.setSelectionRange(e.value.length,e.value.length)}}
  catch(e){m.innerHTML=`<div class="card"><p class="e">${esc(e&&e.message?e.message:e)}</p></div>`}}
-let MENU_CAT=0,MENU_Q='',MENU_OFFSET=0,MENU_HAS_MORE=false,MENU_LOADING=false,MENU_TIMER=0,MENU_PAGE=40,MENU_ITEM_CACHE={};
+let MENU_CAT=0,MENU_Q='',MENU_OFFSET=0,MENU_HAS_MORE=false,MENU_LOADING=false,MENU_TIMER=0,MENU_PAGE=40,MENU_ITEM_CACHE={},MENU_REQUEST_ID=0;
 const findMenuItem=id=>MENU_ITEM_CACHE[+id]||((window.MENU||{}).items||[]).find(x=>+x.id===+id);
 window.mcat=id=>{MENU_CAT=+id;loadMenuItems(true)};
 window.mq=value=>{MENU_Q=value;clearTimeout(MENU_TIMER);MENU_TIMER=setTimeout(()=>loadMenuItems(true),300)};
 async function loadMenuItems(reset=false){
- if(MENU_LOADING||!SID||!window.MENU)return;
+ if(!SID||!window.MENU||(!reset&&MENU_LOADING))return;
+ const requestId=++MENU_REQUEST_ID;
  MENU_LOADING=true;
  const active=document.activeElement&&document.activeElement.id==='menu-search',pos=active?document.activeElement.selectionStart:0;
  const offset=reset?0:MENU_OFFSET,params=new URLSearchParams({limit:String(MENU_PAGE),offset:String(offset)});
@@ -65,6 +66,7 @@ async function loadMenuItems(reset=false){
  if(MENU_Q.trim())params.set('q',MENU_Q.trim());
  try{
   const d=await api('/shops/'+SID+'/menu?'+params.toString());
+  if(requestId!==MENU_REQUEST_ID)return;
   const incoming=d.items||[];
   incoming.forEach(x=>MENU_ITEM_CACHE[+x.id]=x);
   if(reset)window.MENU.items=incoming;
@@ -73,7 +75,7 @@ async function loadMenuItems(reset=false){
   drawMenu();
   if(active){const next=$('menu-search');if(next){next.focus();next.setSelectionRange(pos,pos)}}
  }catch(e){const target=$('menu-products');if(target){let err=$('menu-load-error');if(!err){err=document.createElement('p');err.id='menu-load-error';err.className='e';target.appendChild(err)}err.textContent=e.message||'تعذّر تحميل الأصناف'}}
- finally{MENU_LOADING=false;const more=$('menu-more');if(more){more.disabled=MENU_LOADING;more.textContent=MENU_LOADING?'جاري التحميل…':'عرض المزيد من الأصناف'}}
+ finally{if(requestId===MENU_REQUEST_ID){MENU_LOADING=false;const more=$('menu-more');if(more){more.disabled=false;more.textContent='عرض المزيد من الأصناف'}}}
 }
 window.loadMoreMenu=()=>loadMenuItems(false);
 function drawMenu(){const d=window.MENU;if(!d)return;const can=!!window.MENU_CAN,cats=d.categories||[],all=d.items||[],q=MENU_Q.trim().toLocaleLowerCase();const featured=!MENU_CAT&&!q?all.filter(x=>x.is_featured).slice(0,20):[];const rows=all.filter(x=>(!MENU_CAT||+x.category_id===MENU_CAT)&&(!q||String(x.name_ar+' '+(x.description||'')).toLocaleLowerCase().includes(q))&&(MENU_CAT||q||!x.is_featured));const popular=!MENU_CAT&&!q?all.filter(x=>x.orders_count>0&&!x.is_featured).sort((a,b)=>b.orders_count-a.orders_count).slice(0,4):[];const tools='<div class="menu-tools"><input id="menu-search" value="'+esc(MENU_Q)+'" oninput="mq(this.value)" placeholder="ابحث عن صنف..." aria-label="بحث في الأصناف"><div class="menu-cats"><button class="'+(!MENU_CAT?'on':'')+'" onclick="mcat(0)">الكل</button>'+cats.map(c=>'<button class="'+(MENU_CAT==c.id?'on':'')+'" onclick="mcat('+c.id+')">'+esc(c.name_ar)+'</button>').join('')+'</div></div>';const list=rows.length?'<div class="grid" style="display:block"><div class="menu-grid">'+rows.map((x,i)=>itemRow(x,can,i)).join('')+'</div></div>':(featured.length?'':'<div class="card"><small>لا توجد أصناف مطابقة في القسم أو البحث.</small></div>');const top=featured.length?'<div class="popular-wrap"><b>اختيارات المحل</b><div class="menu-grid">'+featured.map((x,i)=>itemRow(x,can,i)).join('')+'</div></div>':'';const pop=popular.length?'<div class="popular-wrap"><b>الأكثر طلبًا</b><div class="popular-row">'+popular.map(x=>'<button onclick="focusItem('+x.id+')"><b>'+esc(x.name_ar)+'</b><small>'+esc(money(x.price))+' ج · '+x.orders_count+' طلب</small></button>').join('')+'</div></div>':'';const more=MENU_HAS_MORE?'<button id="menu-more" class="full" type="button" onclick="loadMoreMenu()" '+(MENU_LOADING?'disabled':'')+'>عرض المزيد من الأصناف</button>':'';
@@ -101,6 +103,7 @@ window.optClose=()=>{const d=$('opt-modal');if(d)d.remove()};
 window.optAdd=id=>{const x=findMenuItem(id),d=$('opt-modal');if(!x||!d)return;const ids=[],selected=[];for(let gi=0;gi<x.options.length;gi++){const g=x.options[gi],chosen=[...d.querySelectorAll('input[data-group="'+gi+'"]:checked')];if(g.required&&!chosen.length){alert('اختار '+g.name_ar+' الأول');return}if(g.kind==='variant'&&chosen.length>1){alert('اختار قيمة واحدة من '+g.name_ar);return}for(const el of chosen){const v=g.values.find(z=>+z.id===+el.value);if(v){ids.push(+v.id);selected.push({id:+v.id,group_name:g.name_ar,kind:g.kind,name:v.name_ar,price_delta:+v.price_delta})}}}const unit=money(+x.price+selected.reduce((a,v)=>a+v.price_delta,0));if(unit<=0){alert('السعر بعد الاختيارات غير صالح');return}const key=ids.length?String(id)+'|'+ids.slice().sort((a,b)=>a-b).join(','):String(id);CART[key]={item_id:+id,name:x.name_ar,p:unit,q:Math.min(50,((CART[key]||{}).q||0)+1),option_ids:ids,options:selected};optClose();cartRefresh(id)};
 window.cq=(id,d)=>{const x=findMenuItem(id);if(!x)return;if(d>0&&x.options&&x.options.length)return chooseItem(id);const keys=Object.keys(CART).filter(k=>+CART[k].item_id===+id);if(d>0){const key=String(id),q=Math.min(50,((CART[key]||{q:0}).q)+1);CART[key]={item_id:+id,name:x.name_ar,p:x.price,q,option_ids:[],options:[]}}else if(keys.length){const key=keys[keys.length-1];CART[key].q=Math.max(0,CART[key].q-1);if(!CART[key].q)delete CART[key]}cartRefresh(id)};
 async function menu(){
+ MENU_REQUEST_ID++;MENU_LOADING=false;MENU_ITEM_CACHE={};
  try{const [d,pf]=await Promise.all([api('/shops/'+SID+'/menu?limit='+MENU_PAGE+'&offset=0'),api('/shops/'+SID+'/profile').catch(()=>null)]);
  window.MENU=d;MENU_ITEM_CACHE={};(d.items||[]).forEach(x=>MENU_ITEM_CACHE[+x.id]=x);MENU_OFFSET=(d.items||[]).length;MENU_HAS_MORE=!!d.has_more;MENU_CAT=0;MENU_Q='';
  window.MENU_CAN=d.order_enabled&&d.shop&&d.shop.is_open&&!!T;if(!d.enabled||!d.shop){m.innerHTML='<div class="card"><p class="e">المحل غير متاح.</p></div>';return}
