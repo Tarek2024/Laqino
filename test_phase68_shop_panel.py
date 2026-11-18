@@ -54,6 +54,8 @@ ok("UI add item creates the row for the selected shop", len(row) == 1 and row[0]
 ok("item name is escaped in the list", "كشري &lt;b&gt;كبير&lt;/b&gt;" in r["m"] and "<b>كبير</b>" not in r["m"])
 ok("add success message shown", "تمت إضافة الصنف" in r["m"])
 iid = sql("SELECT id FROM shop_items")[0][0]; SH = sql("SELECT shop_id FROM shop_items")[0][0]
+r = ui(o1, [{"js": "document.getElementById('op%d').value='الحجم!: صغير | 0, كبير | 10\\n+إضافات: جبنة | 5';opsave(%d)" % (iid, iid), "wait": 1000, **SNAP}])
+ok("merchant UI saves sizes and add-ons", sql("SELECT COUNT(*) FROM shop_item_options WHERE item_id=?", iid)[0][0] == 3 and "تم حفظ الأحجام والإضافات" in r["m"])
 r = ui(o1, [{"js": NOF + "document.getElementById('in').value='ا';document.getElementById('ip').value='5';iadd()", "wait": 900, **SNAP}])
 ok("invalid item shows the server error and adds nothing", sql("SELECT COUNT(*) FROM shop_items")[0][0] == 1 and "اسم الصنف" in r["m"])
 ui(o1, [{"js": "iav(%d,0)" % iid, "wait": 800}])
