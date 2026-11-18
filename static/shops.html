@@ -71,7 +71,7 @@ async function loadMenuItems(reset=false){
   const incoming=d.items||[];
   incoming.forEach(x=>MENU_ITEM_CACHE[+x.id]=x);
   window.MENU.items=reset?incoming:(window.MENU.items||[]).concat(incoming);
-  MENU_TOTAL=+d.total_items||0;MENU_OFFSET=offset+incoming.length;MENU_HAS_MORE=!!d.has_more;
+  MENU_TOTAL=+d.total_items||0;MENU_OFFSET=offset+incoming.length;MENU_HAS_MORE=!!d.has_more||MENU_OFFSET<MENU_TOTAL;
   drawMenu();
 
  }catch(e){if(requestId===MENU_REQUEST_ID){const results=$('menu-results');if(results)results.classList.remove('is-loading');let err=$('menu-load-error');if(!err&&results){err=document.createElement('p');err.id='menu-load-error';err.className='e';results.prepend(err)}if(err)err.textContent=e.message||'تعذّر تحميل الأصناف'}}
@@ -114,7 +114,7 @@ window.cq=(id,d)=>{const x=findMenuItem(id);if(!x)return;if(d>0&&x.options&&x.op
 async function menu(){
  clearTimeout(MENU_TIMER);MENU_Q='';MENU_CAT=0;MENU_PAGE_INDEX=0;MENU_TOTAL=0;MENU_REQUEST_ID++;MENU_LOADING=false;MENU_ITEM_CACHE={};
  try{const [d,pf]=await Promise.all([api('/shops/'+SID+'/menu?limit='+MENU_PAGE+'&offset=0'),api('/shops/'+SID+'/profile').catch(()=>null)]);
- window.MENU=d;MENU_ITEM_CACHE={};(d.items||[]).forEach(x=>MENU_ITEM_CACHE[+x.id]=x);MENU_TOTAL=+d.total_items||0;MENU_OFFSET=(d.items||[]).length;MENU_HAS_MORE=!!d.has_more;MENU_CAT=0;MENU_Q='';
+ window.MENU=d;MENU_ITEM_CACHE={};(d.items||[]).forEach(x=>MENU_ITEM_CACHE[+x.id]=x);MENU_TOTAL=+d.total_items||0;MENU_OFFSET=(d.items||[]).length;MENU_HAS_MORE=!!d.has_more||MENU_OFFSET<MENU_TOTAL;MENU_CAT=0;MENU_Q='';
  window.MENU_CAN=d.order_enabled&&d.shop&&d.shop.is_open&&!!T;if(!d.enabled||!d.shop){m.innerHTML='<div class="card"><p class="e">المحل غير متاح.</p></div>';return}
  const s=d.shop,can=d.order_enabled&&s.is_open&&!!T,pi=pf||{},ic=tyIcon(SHT[SID]||s.type_id)||pi.type_icon||'🛍️';SHT[SID]=SHT[SID]||s.type_id;
  m.innerHTML=`<button class="line" onclick="sback()">‹ كل المحلات</button><div class="hero"><div class="cv big">${cvTag(SID,pi.cover_file_id,ic,true)}</div><div class="lgw big">${lgTag(SID,pi.logo_file_id,ic,true)}</div></div><div class="ht"><h2>${esc(s.name_ar)}</h2><small>${esc(s.type_name)}${pi.region_name?' · '+esc(pi.region_name):''}${pi.address?' — '+esc(pi.address):''}</small><p>${badge(s.is_open)}${s.is_open?'':' <small>الأصناف للتصفح فقط</small>'}</p></div>`
