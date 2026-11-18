@@ -60,7 +60,7 @@ data=xlsx(rows)
 ok("staff/customer cannot import", call("POST",prefix+"/preview",{"shop_id":shop,"data":data},customer)[0]==403)
 ok("template endpoint returns xlsx", call("GET",prefix+"/template",None,admin)[0]==200 and call("GET",prefix+"/template",None,admin)[1]["name"].endswith(".xlsx"))
 status, preview=call("POST",prefix+"/preview",{"shop_id":shop,"data":data},admin)
-ok("100 Arabic rows preview as new without writing", status==200 and preview["summary"]["new"]==100 and sql("SELECT COUNT(*) FROM shop_items WHERE shop_id=?",(shop,))[0][0]==0)
+ok("100 Arabic rows preview as new without writing", status==200 and preview["summary"]["new"]==100 and sql("SELECT COUNT(*) FROM shop_items WHERE shop_id=?",(shop)[0][0]==0)
 status, done=call("POST",prefix+"/commit",{"shop_id":shop,"data":data},admin)
 ok("commit inserts all 100 items", status==200 and done["done"]["inserted"]==100 and sql("SELECT COUNT(*) FROM shop_items WHERE shop_id=? AND status='active'",shop)[0][0]==100)
 items=call("GET",f"/owner/shops/{shop}/items",None,owner)[1]["items"]
@@ -72,6 +72,7 @@ status, p=call("POST",prefix+"/preview",{"shop_id":shop,"data":mixed},admin)
 ok("preview reports within-file duplicates and invalid prices", status==200 and p["summary"]=={"new":1,"duplicate":1,"error":1})
 ok("existing records are not deleted or modified by a new import", call("POST",prefix+"/commit",{"shop_id":shop,"data":mixed},admin)[0]==200 and sql("SELECT COUNT(*) FROM shop_items WHERE shop_id=? AND status='active'",shop)[0][0]==101)
 # Type 2 has require_image enabled in this isolated database; imports must not bypass that rule.
+sql("UPDATE shop_types SET require_image=1 WHERE id=2")
 shop2=call("POST","/shops/apply",{"type_id":2,"name_ar":"سوبر ماركت الصور","address":"شارع النصر","phone":"01012345678","region_id":region},owner)[1]["id"]
 call("POST",f"/admin/shops/{shop2}/review",{"status":"approved"},admin)
 status,p=call("POST",prefix+"/preview",{"shop_id":shop2,"data":xlsx([["اسم الصنف","السعر"],["زيت","50"]])},admin)
