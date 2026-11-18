@@ -124,12 +124,14 @@ ok("archiving a category preserves and unassigns its items",
    status == 200 and sql("SELECT COUNT(*) FROM shop_items WHERE id IN (?,?) AND category_id IS NULL",
                          item["id"], auto_id)[0][0] == 2)
 # Public menu pagination: large menus must be complete but never arrive as one huge response.
+perf_cat_status, perf_cat_row = call("POST", prefix, {"name_ar": "قسم الأداء"}, owner)
+perf_cat = perf_cat_row.get("id")
 now = 1900000000
 c = sqlite3.connect(base.DB)
 existing = c.execute("SELECT COUNT(*) FROM shop_items WHERE shop_id=? AND status='active' AND is_available=1", (shop,)).fetchone()[0]
 for n in range(205):
     c.execute("INSERT INTO shop_items(shop_id,name_ar,description,price,is_available,sort,is_featured,status,created_at,updated_at,category_id) VALUES(?,?,?,?,1,?,0,'active',?,?,?)",
-              (shop, "عنصر أداء %03d" % n, "عنصر لاختبار تحميل المنيو", 5 + n, 10000 + n, now, now, cid))
+              (shop, "عنصر أداء %03d" % n, "عنصر لاختبار تحميل المنيو", 5 + n, 10000 + n, now, now, perf_cat))
 c.commit()
 c.close()
 total_public = sql("SELECT COUNT(*) FROM shop_items WHERE shop_id=? AND status='active' AND is_available=1", shop)[0][0]
@@ -155,8 +157,8 @@ ok("all pages expose every available item exactly once",
    page_status == 200 and len(all_ids) == total_public and len(set(all_ids)) == total_public)
 cat_status, cat_page = call("GET", "/shops/%d/menu?limit=40&category_id=%d" % (shop, cid))
 ok("server-side category filter returns only items from that shop category",
-   cat_status == 200 and cat_page["total_items"] == 205
-   and all(x["category_id"] == cid for x in cat_page["items"]))
+   perf_cat_status == 201 and cat_status == 200 and cat_page["total_items"] == 205
+   and all(x["category_id"] == perf_cat for x in cat_page["items"]))
 search_status, search_page = call("GET", "/shops/%d/menu?q=%s" % (shop, urllib.parse.quote("عنصر أداء 007")))
 ok("server-side menu search returns matching item names",
    search_status == 200 and len(search_page["items"]) == 1 and search_page["items"][0]["name_ar"] == "عنصر أداء 007")
