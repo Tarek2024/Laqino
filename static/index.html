@@ -224,22 +224,18 @@ const hd='<div class="ph"><h2>خدمات لاقينو</h2></div>'+hub+srbox(ty,r
 if(er)return hd+`<div class="card empty"><h3>تعذّر تحميل الخدمات</h3><p>${esc(er)}</p><button onclick="go(6)">حاول تاني</button></div>`;
 if(!ty.length)return hd+empty(IC.tool,'مفيش خدمات متاحة دلوقتي','هنضيف مقدّمي الخدمة قريبًا.');
 return hd+(ls.length?ls.map(x=>`<div class="card ad"><div class="top"><h3>${esc(x.name_ar)}</h3></div><div class="meta"><span class="tg">${esc(x.type)}</span>${stv(x.rating_avg,x.rating_count)}<span>${esc(x.region_name)}</span></div>${x.description?`<p class="ds">${esc(x.description)}</p>`:''}${x.address?`<p class="ds">العنوان: ${esc(x.address)}</p>`:''}<div class="acts"><button class="s full" onclick="svct(${x.id})">${IC.phone}عرض رقم التواصل</button>${x.rating_count?`<button class="ghost full" onclick="svrs(${x.id})">التقييمات (${esc(x.rating_count)})</button>`:''}</div><div id="sc${x.id}"></div><div id="sr${x.id}"></div></div>`).join(''):empty(IC.tool,'مفيش مقدّمي خدمة مطابقين','جرّب نوعًا تانيًا أو كلمة تانية'+(R?'، أو شوف منطقة تانية.':'.'),SV.q||SV.t?'<button class="line" onclick="SV={q:\'\',t:0};go(6)">مسح البحث</button>':''))}
-const HOME_SECTION_DEFAULTS=[
-{key:'med',name:'الخدمات الطبية',description:'أدوية وصيدليات وأطباء ومعامل',order:1,visible:true},
-{key:'souq',name:'سوق لاقينو',description:'بيع واشتري جنب بيتك',order:2,visible:true},
-{key:'svc',name:'الخدمات المحلية',description:'مقدّمو خدمات في منطقتك',order:3,visible:true},
-{key:'dlv',name:'التوصيل',description:'ابعت أي حاجة والمندوب يوصلها',order:4,visible:true}];
-async function homeSectionCards(card,svOn,provided){let cfg=Array.isArray(provided)&&provided.length?provided:HOME_SECTION_DEFAULTS;if(!provided){try{const x=await api('/home-sections');if(Array.isArray(x)&&x.length)cfg=x}catch(e){}}const defs={med:()=>card('med',I3('med'),'الخدمات الطبية','أدوية وصيدليات وأطباء ومعامل',"window._medicalNavActive=true;window._doctorProfileId=null;window._labProfileId=null;mt=\'rx\';mview=null;rxm=\'home\';history.pushState({laqinoMedicalView:\'rx\'},\'\',\'#medical\');go(4)"),souq:()=>card('souq',I3('souq'),'سوق لاقينو','بيع واشتري جنب بيتك','go(1)'),svc:()=>card('svc',I3('svc'),'الخدمات المحلية','مقدّمو خدمات في منطقتك',"SV={q:'',t:0};go(6)",!svOn),dlv:()=>card('dlv',I3('moto'),'التوصيل','ابعت أي حاجة والمندوب يوصلها','go(2)')};return cfg.filter(x=>x.visible!==false&&defs[x.key]).sort((a,b)=>Number(a.order)-Number(b.order)).map(x=>{const html=defs[x.key]();return html.replace(/<span class="h">.*?<\/span>/,`<span class="h">${esc(x.name)}</span>`).replace(/<span class="d">.*?<\/span>/,`<span class="d">${esc(x.description)}</span>`)}).join('')}
+const HOME_SECTION_CACHE_KEY='laqino_home_sections_last_valid_v1';
+const HOME_FEATURE_CACHE_PREFIX='laqino_home_feature_last_valid_v1:';
+function readHomeCache(key,validate){try{const raw=localStorage.getItem(key);if(!raw)return null;const value=JSON.parse(raw);return validate(value)?value:null}catch(_){return null}}
+function writeHomeCache(key,value){try{localStorage.setItem(key,JSON.stringify(value))}catch(_){}}
+function validHomeSections(value){return Array.isArray(value)&&value.length<=12&&value.every(x=>x&&typeof x==='object'&&typeof x.key==='string'&&typeof x.name==='string'&&typeof x.description==='string'&&typeof x.visible==='boolean'&&Number.isFinite(Number(x.order)))}
+function homeSectionCards(card,svOn,provided){const cfg=Array.isArray(provided)?provided:[];const defs={med:()=>card('med',I3('med'),'الخدمات الطبية','أدوية وصيدليات وأطباء ومعامل',"window._medicalNavActive=true;window._doctorProfileId=null;window._labProfileId=null;mt='rx';mview=null;rxm='home';history.pushState({laqinoMedicalView:'rx'},'','#medical');go(4)"),souq:()=>card('souq',I3('souq'),'سوق لاقينو','بيع واشتري جنب بيتك','go(1)'),svc:()=>card('svc',I3('svc'),'الخدمات المحلية','مقدّمو خدمات في منطقتك',"SV={q:'',t:0};go(6)",!svOn),dlv:()=>card('dlv',I3('moto'),'التوصيل','ابعت أي حاجة والمندوب يوصلها','go(2)')};return cfg.filter(x=>x.visible===true&&defs[x.key]).sort((a,b)=>Number(a.order)-Number(b.order)).map(x=>{const out=defs[x.key]();return out.replace(/<span class="h">.*?<\\/span>/,'<span class="h">'+esc(x.name)+'</span>').replace(/<span class="d">.*?<\\/span>/,'<span class="d">'+esc(x.description)+'</span>')}).join('')}
+function homeStateMessage(title,state){if(state==='loading')return '<div class="home-config-state loading" role="status">بنحمّل '+esc(title)+'…</div>';if(state==='error')return '<div class="home-config-state error" role="alert"><b>تعذّر تحميل '+esc(title)+'</b><small>مفيش إعدادات سابقة محفوظة. حدّث الصفحة للمحاولة مرة تانية.</small></div>';return ''}
 async function home(){
 const card=(k,ic,h,d,fn,soon)=>`<button class="sc ${k}${soon?' soon':''}"${soon?' disabled aria-disabled="true"':` onclick="${fn}"`}><span class="ti">${ic}</span><span class="h">${h}</span><span class="d">${d}</span>${soon?'<span class="soonp">قريبًا</span>':IC.chev}</button>`;
 const quickMenu=`<button class="home-quick-menu-trigger" type="button" aria-haspopup="dialog" aria-controls="homeQuickSheet" onclick="openHomeQuickSheet()">الدعم، الشركاء، وعن لاقينو <span aria-hidden="true">←</span></button>`;
 const acct=T?`<div class="card home-welcome-card"><div class="me"><span class="av">؟</span><div class="nm"><b>أهلًا بيك</b><small>سعداء إنك معانا</small></div><button class="ghost" onclick="go(3)">حسابي</button></div>${quickMenu}</div>`:`${authBox()}<div class="card home-welcome-card home-guest-menu-card">${quickMenu}</div>`;
-const initialTiles=[
-card('med',I3('med'),'الخدمات الطبية','أدوية وصيدليات وأطباء ومعامل',"window._medicalNavActive=true;window._doctorProfileId=null;window._labProfileId=null;mt='rx';mview=null;rxm='home';history.pushState({laqinoMedicalView:'rx'},'','#medical');go(4)"),
-card('souq',I3('souq'),'سوق لاقينو','بيع واشتري جنب بيتك','go(1)'),
-card('svc',I3('svc'),'الخدمات المحلية','مقدّمو خدمات في منطقتك',"SV={q:'',t:0};go(6)",true),
-card('dlv',I3('moto'),'التوصيل','ابعت أي حاجة والمندوب يوصلها','go(2)')
-].join('');
+const initialTiles='<div class="home-config-state loading" role="status" aria-live="polite">بنحمّل إعدادات الرئيسية…</div>';
 const fallbackPromo=`<div class="home-promo-slide home-promo-welcome"><span class="home-promo-kicker">منكم وليكم</span><strong>لاقينو يقربك من اللي محتاجه</strong><span class="home-promo-cta">ابحث عن منتج أو خدمة في منطقتك</span></div>`;
 const shell=`<section class="home-hero" aria-label="البحث وإعلانات لاقينو">
 <div class="home-search">${gsbar('lg')}</div>
@@ -253,49 +249,77 @@ const shell=`<section class="home-hero" aria-label="البحث وإعلانات 
 <div class="home-sheet-backdrop" id="homeQuickSheet" hidden onclick="if(event.target===this)closeHomeQuickSheet()"><section class="home-sheet" role="dialog" aria-modal="true" aria-labelledby="homeSheetTitle"><div class="home-sheet-grabber" aria-hidden="true"></div><div class="home-sheet-head"><h2 id="homeSheetTitle">الدعم والشركاء</h2><button class="home-sheet-close" type="button" aria-label="إغلاق" onclick="closeHomeQuickSheet()">×</button></div><div class="home-sheet-body"><section class="home-sheet-section"><h3>الشركاء</h3><a class="home-sheet-link partner" href="/pharmacy.html"><span class="home-sheet-link-icon">✚</span><span><b>صيدلية؟ لوحة الصيدلية وطلب الانضمام</b><small>انضم إلى شبكة لاقينو للصيدليات</small></span><span class="home-sheet-arrow">‹</span></a><a class="home-sheet-link partner" href="/shop.html"><span class="home-sheet-link-icon">▤</span><span><b>عندك محل؟ لوحة المحل وطلب الانضمام</b><small>عرّف الناس على محلك من خلال لاقينو</small></span><span class="home-sheet-arrow">‹</span></a></section><section class="home-sheet-section"><h3>الدعم الفني</h3><div class="home-sheet-actions"><button id="homeDiagnosticsAction" class="home-sheet-report" type="button" onclick="sendHomeDiagnostics()">إرسال تقرير عطل للدعم</button><a class="home-sheet-whatsapp" href="https://wa.me/201017011170" target="_blank" rel="noopener noreferrer">واتساب لاقينو</a></div></section><section class="home-sheet-section"><h3>الروابط القانونية</h3><div class="home-sheet-legal"><a href="/privacy">سياسة الخصوصية</a><a href="/terms">الشروط والأحكام</a><a href="/contact">تواصل معنا</a></div></section><p class="home-sheet-about">لاقينو حلقة وصل بتقرّب لك اللي محتاجه — منكم وليكم.</p></div></section></div></div>`;
 const loadId=window.__homeLoadId=(window.__homeLoadId||0)+1;
 const timeout=(request,ms)=>{const controller=typeof AbortController!=='undefined'?new AbortController():null;let timer;let task;try{task=typeof request==='function'?request(controller?controller.signal:undefined):request}catch(e){return Promise.reject(e)}const limit=new Promise((_,reject)=>{timer=setTimeout(()=>{try{controller?.abort()}catch(_){}reject(new Error('timeout'))},ms)});return Promise.race([Promise.resolve(task),limit]).finally(()=>clearTimeout(timer))};
-Promise.allSettled([
-timeout(signal=>api('/service-types',undefined,signal),2200),
-timeout(signal=>api('/listings?limit=6'+(R?'&region_id='+R:''),undefined,signal),2200),
+const readCachedFeature=key=>readHomeCache(HOME_FEATURE_CACHE_PREFIX+key,v=>typeof v==='boolean');
+const saveFeature=(key,value)=>writeHomeCache(HOME_FEATURE_CACHE_PREFIX+key,value);
+const requests=[
 timeout(signal=>api('/home-sections',undefined,signal),1800),
-timeout(signal=>api('/shop-types',undefined,signal),2200),
-timeout(signal=>api('/services'+(R?'?region_id='+R:''),undefined,signal),2200),
+timeout(signal=>api('/shop-types',undefined,signal),1800),
+timeout(signal=>api('/features',undefined,signal),1800),
 timeout(signal=>api('/home-campaigns',undefined,signal),1800),
 ...(T?[timeout(signal=>ME?Promise.resolve(ME):api('/me',undefined,signal),1800),timeout(signal=>AP?Promise.resolve(AP):api('/my/applications',undefined,signal),1200),timeout(signal=>api('/owner/shops',undefined,signal),1200)]:[])
-]).then(async results=>{
+];
+Promise.allSettled(requests).then(async results=>{
 if(loadId!==window.__homeLoadId||window._lt!==0||!document.getElementById('homeTiles'))return;
-const labels=['service-types','market-listings','home-sections','shop-types','local-services','managed-campaigns','current-user','my-applications','owned-shops'];
-results.forEach((result,i)=>{if(result.status==='rejected')window.__laqinoHomeLog('api:'+labels[i],result.reason,{fallback:'initial-home-content-retained'})});
-const value=(i,fallback)=>results[i]&&results[i].status==='fulfilled'?results[i].value:fallback;
-const types=value(0,[]),ads=value(1,[]),cfg=value(2,HOME_SECTION_DEFAULTS),shopTypes=value(3,null),providers=value(4,[]),campaigns=value(5,[]);
+const labels=['home-sections','shop-types','features','managed-campaigns','current-user','my-applications','owned-shops'];
+results.forEach((result,i)=>{if(result.status==='rejected')window.__laqinoHomeLog('api:'+labels[i],result.reason,{fallback:'last-known-good-or-explicit-error'})});
+const sectionsResult=results[0],shopsResult=results[1],featuresResult=results[2],campaignResult=results[3];
+let homeCfg=null,sectionsState='error';
+if(sectionsResult.status==='fulfilled'&&validHomeSections(sectionsResult.value)){homeCfg=sectionsResult.value;sectionsState='ready';writeHomeCache(HOME_SECTION_CACHE_KEY,homeCfg)}
+else{const cached=readHomeCache(HOME_SECTION_CACHE_KEY,validHomeSections);if(cached){homeCfg=cached;sectionsState='ready'} }
+let shopsEnabled=null,shopsState='error';
+if(shopsResult.status==='fulfilled'&&shopsResult.value&&typeof shopsResult.value.enabled==='boolean'){shopsEnabled=shopsResult.value.enabled;shopsState='ready';saveFeature('shops',shopsEnabled)}
+else{const cached=readCachedFeature('shops');if(cached!==null){shopsEnabled=cached;shopsState='ready'}}
+let productsEnabled=null,productsState='error';
+if(featuresResult.status==='fulfilled'&&featuresResult.value&&typeof featuresResult.value.products==='boolean'){productsEnabled=featuresResult.value.products;productsState='ready';saveFeature('products',productsEnabled)}
+else{const cached=readCachedFeature('products');if(cached!==null){productsEnabled=cached;productsState='ready'}}
 if(T){
-if(results[6]&&results[6].status==='fulfilled')ME=results[6].value;
-if(results[7]&&results[7].status==='fulfilled')AP=results[7].value;
+if(results[4]&&results[4].status==='fulfilled')ME=results[4].value;
+if(results[5]&&results[5].status==='fulfilled')AP=results[5].value;
 else AP=AP||{courier:null,pharmacy:null};
-if(results[8]&&results[8].status==='fulfilled')SH=results[8].value.items||[];
+if(results[6]&&results[6].status==='fulfilled')SH=results[6].value.items||[];
 const account=document.getElementById('homeAccount');
 if(account)account.innerHTML=`<div class="card home-welcome-card"><div class="me"><span class="av">${esc((ME&&ME.name||'؟').trim().charAt(0))}</span><div class="nm"><b>أهلًا ${esc(ME?.name||'بيك')}</b><small>سعداء إنك معانا</small></div><button class="ghost" onclick="go(3)">حسابي</button></div>${quickMenu}</div>`;
 const panels=document.getElementById('homePanels');if(panels)panels.innerHTML=pnls();
 }
-const shOn=!!(shopTypes&&shopTypes.enabled&&Array.isArray(shopTypes.items)&&shopTypes.items.length);
-const svOn=Array.isArray(providers)&&providers.length>0;
-const homeCfg=Array.isArray(cfg)&&cfg.length?cfg:HOME_SECTION_DEFAULTS;
-const managedSlides=Array.isArray(campaigns)?campaigns.slice(0,8).map(a=>`<a class="home-promo-slide" href="${esc(a.href||'/')}" ${a.external?'target="_blank" rel="noopener noreferrer"':''} aria-label="فتح إعلان ${esc(a.title)}">${a.image_url?`<img class="home-promo-thumb" src="${esc(a.image_url)}" alt="" loading="lazy" decoding="async">`:''}<span class="home-promo-kicker">من لاقينو</span><strong>${esc(a.title)}</strong>${a.description?`<span class="home-promo-description">${esc(a.description)}</span>`:''}<span class="home-promo-cta">اعرف أكتر <span aria-hidden="true">←</span></span></a>`).join(''):'';
-const marketSlides=Array.isArray(ads)?ads.slice(0,3).map(a=>`<a class="home-promo-slide" href="/market.html#/l/${Number(a.id)|0}" aria-label="فتح إعلان ${esc(a.title)}">${a.images&&a.images.length?`<img class="home-promo-thumb" src="/api/listings/${Number(a.id)|0}/images/${Number(a.images[0])|0}" alt="" loading="lazy" decoding="async">`:''}<span class="home-promo-kicker">إعلان من السوق</span><strong>${esc(a.title)}</strong>${a.price!=null?`<span class="home-promo-price">${esc(Number(a.price).toLocaleString('ar-EG'))} ج</span>`:''}<span class="home-promo-cta">شوف الإعلان <span aria-hidden="true">←</span></span></a>`).join(''):'';
-const track=document.getElementById('homePromoTrack');
-if(track){track.innerHTML=managedSlides||marketSlides||fallbackPromo;startHomePromo()}
-const latest=document.getElementById('homeLatestAds');if(latest){const recent=Array.isArray(ads)?ads.slice(0,6):[];latest.innerHTML=recent.length?recent.map(a=>`<a class="home-latest-card" href="/market.html#/l/${Number(a.id)|0}">${a.images&&a.images.length?`<img src="/api/listings/${Number(a.id)|0}/images/${Number(a.images[0])|0}" alt="" loading="lazy" decoding="async">`:'<span class="home-latest-placeholder">لاقينو</span>'}<b>${esc(a.title)}</b>${a.price!=null?`<small>${esc(Number(a.price).toLocaleString('ar-EG'))} ج</small>`:''}</a>`).join(''):'<p class="home-latest-empty">مفيش إعلانات جديدة في الوقت الحالي.</p>'}
 const tiles=document.getElementById('homeTiles');
-if(tiles){tiles.innerHTML=await homeSectionCards(card,svOn,homeCfg)+(shOn?card('shops',I3('shop'),'محلات في منطقتك','مطاعم وسوبر ماركت وحلويات وملابس',"location.href='/shops.html'"):'')}
-const services=document.getElementById('homeServices');
-if(services){services.innerHTML=svOn?`<div class="sec">${IC.tool}خدمات متاحة</div><div class="chips">${(Array.isArray(types)?types:[]).slice(0,8).map(x=>`<button onclick="svt(${x.id})">${esc(x.name_ar)}</button>`).join('')}</div>`:''}
+if(tiles){
+let tileHtml='';
+if(sectionsState==='ready')tileHtml+=homeSectionCards(card,false,homeCfg);
+else tileHtml+=homeStateMessage('إعدادات الأقسام',sectionsState);
+if(shopsState==='ready'&&shopsEnabled)tileHtml+=card('shops',I3('shop'),'محلات في منطقتك','مطاعم وسوبر ماركت وحلويات وملابس',"location.href='/shops.html'");
+else if(shopsState==='error')tileHtml+=homeStateMessage('إعدادات المحلات',shopsState);
+if(productsState==='ready'&&productsEnabled)tileHtml+=card('products',I3('prod'),'المنتجات','منتجات الصيدليات والعروض',"window._medicalNavActive=true;mt='pr';mview=null;go(4)");
+else if(productsState==='error')tileHtml+=homeStateMessage('إعدادات المنتجات',productsState);
+tiles.innerHTML=tileHtml;
+tiles.setAttribute('aria-busy','false');
+}
+const campaigns=campaignResult.status==='fulfilled'&&Array.isArray(campaignResult.value)?campaignResult.value:[];
+const managedSlides=campaigns.slice(0,8).map(a=>`<a class="home-promo-slide" href="${esc(a.href||'/')}" ${a.external?'target="_blank" rel="noopener noreferrer"':''} aria-label="فتح إعلان ${esc(a.title)}">${a.image_url?`<img class="home-promo-thumb" src="${esc(a.image_url)}" alt="" loading="lazy" decoding="async">`:''}<span class="home-promo-kicker">من لاقينو</span><strong>${esc(a.title)}</strong>${a.description?`<span class="home-promo-description">${esc(a.description)}</span>`:''}<span class="home-promo-cta">اعرف أكتر <span aria-hidden="true">←</span></span></a>`).join('');
+const track=document.getElementById('homePromoTrack');if(track){track.innerHTML=managedSlides||fallbackPromo;startHomePromo()}
 const footer=document.querySelector('.site-footer-links');
-if(footer&&shOn&&!SH.length&&!footer.querySelector('a[href="/shop.html"]'))footer.insertAdjacentHTML('beforeend','<a href="/shop.html">عندك محل؟ لوحة المحل وطلب الانضمام</a>');
-if(footer&&T&&results[7]&&results[7].status==='fulfilled'){
+if(footer&&shopsState==='ready'&&shopsEnabled&&!SH.length&&!footer.querySelector('a[href="/shop.html"]'))footer.insertAdjacentHTML('beforeend','<a href="/shop.html">عندك محل؟ لوحة المحل وطلب الانضمام</a>');
+if(footer&&T&&results[5]&&results[5].status==='fulfilled'){
 const pharmacyLink=footer.querySelector('a[href="/pharmacy.html"]');
 if(!canApplyPharmacy()&&pharmacyLink)pharmacyLink.remove();
 else if(canApplyPharmacy()&&!pharmacyLink)footer.insertAdjacentHTML('beforeend','<a href="/pharmacy.html">صيدلية؟ لوحة الصيدلية وطلب الانضمام</a>');
 }
-}).catch(e=>window.__laqinoHomeLog('home-hydration-render',e,{fallback:'rendered-shell-retained'}));
+// Non-essential homepage data is fetched only after the admin-controlled sections have rendered.
+const hydrateExtras=async()=>{
+const extras=await Promise.allSettled([
+timeout(signal=>api('/listings?limit=6'+(R?'&region_id='+R:''),undefined,signal),2200),
+timeout(signal=>api('/services'+(R?'?region_id='+R:''),undefined,signal),2200)
+]);
+if(loadId!==window.__homeLoadId||window._lt!==0)return;
+extras.forEach((x,i)=>{if(x.status==='rejected')window.__laqinoHomeLog('api:'+['market-listings','local-services'][i],x.reason,{fallback:'optional-home-content-omitted'})});
+const ads=extras[0].status==='fulfilled'&&Array.isArray(extras[0].value)?extras[0].value:[];
+const providers=extras[1].status==='fulfilled'&&Array.isArray(extras[1].value)?extras[1].value:[];
+const latest=document.getElementById('homeLatestAds');
+if(latest){const recent=ads.slice(0,6);latest.innerHTML=recent.length?recent.map(a=>`<a class="home-latest-card" href="/market.html#/l/${Number(a.id)|0}">${a.images&&a.images.length?`<img src="/api/listings/${Number(a.id)|0}/images/${Number(a.images[0])|0}" alt="" loading="lazy" decoding="async">`:'<span class="home-latest-placeholder">لاقينو</span>'}<b>${esc(a.title)}</b>${a.price!=null?`<small>${esc(Number(a.price).toLocaleString('ar-EG'))} ج</small>`:''}</a>`).join(''):'<p class="home-latest-empty">مفيش إعلانات جديدة في الوقت الحالي.</p>'}
+const services=document.getElementById('homeServices');if(services){services.innerHTML=providers.length?`<div class="sec">${IC.tool}خدمات متاحة</div><div class="chips">${providers.slice(0,8).map(x=>`<button onclick="svt(${x.id})">${esc(x.name_ar)}</button>`).join('')}</div>`:''}
+};
+if(typeof requestIdleCallback==='function')requestIdleCallback(()=>hydrateExtras().catch(e=>window.__laqinoHomeLog('home-extras',e,{fallback:'optional-home-content-omitted'})),{timeout:1200});
+else setTimeout(()=>hydrateExtras().catch(e=>window.__laqinoHomeLog('home-extras',e,{fallback:'optional-home-content-omitted'})),250);
+}).catch(e=>window.__laqinoHomeLog('home-hydration-render',e,{fallback:'loading-or-last-known-good-retained'}));
 return shell;
 }
 let FG=0,CP=0,DA=0,VF=null,VT=0;const authBox=()=>VF?vfBox():FG?`<div class="card"><b>استعادة كلمة المرور</b><p class="n">الأسهل: اكتب رقمك وكلمة المرور الجديدة واضغط «استعادة عبر واتساب»، وابعت الكود من نفس الرقم. أو تواصل مع الإدارة وستعطيك كودًا من 8 أرقام صالحًا 30 دقيقة.</p><input id="fph" placeholder="رقم الهاتف" aria-label="رقم الهاتف" inputmode="tel" autocomplete="tel"><input id="fco" placeholder="كود الاستعادة (8 أرقام)" aria-label="كود الاستعادة" inputmode="numeric" maxlength="8"><input id="fpw" type="password" placeholder="كلمة المرور الجديدة (8 أحرف على الأقل)" aria-label="كلمة المرور الجديدة" autocomplete="new-password"><button class="full" onclick="rstw()">استعادة عبر واتساب</button><div class="row"><button class="s" onclick="rst()">تغيير بكود الإدارة</button><button class="line" onclick="FG=0;go(tab)">رجوع</button></div>${note()}</div>`:`<details class="home-auth"><summary>عندك حساب بالفعل؟ سجّل الدخول</summary><div class="card"><b>تسجيل الدخول</b><p class="n">ادخل لحسابك عشان تطلب وتتابع طلباتك.</p><input id="ph" placeholder="رقم الهاتف 01xxxxxxxxx" aria-label="رقم الهاتف" inputmode="tel" autocomplete="tel"><input id="pw" type="password" placeholder="كلمة المرور" aria-label="كلمة المرور" autocomplete="current-password"><button class="full" onclick="auth('login')">دخول</button><p class="n" style="margin:12px 0 0">لسه معندكش حساب؟ <a href="/register.html${accountNext()?'?next='+encodeURIComponent(accountNext()):''}">إنشاء حساب جديد</a></p><p class="n" style="margin:8px 0 0"><a href="#" onclick="FG=1;msg='';go(tab);return false">نسيت كلمة المرور؟</a></p>${note()}</div></details>`;
