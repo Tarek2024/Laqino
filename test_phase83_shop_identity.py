@@ -135,8 +135,17 @@ try:
             pg.locator(".menu-cats button").filter(has_text="أطباق").click()
         pg.wait_for_function("document.querySelectorAll('.gi').length === 1 && document.querySelector('.gi').innerText.includes('كشري')", timeout=8000)
         ok("category strip requests and renders only the selected section", pg.locator(".gi").count() == 1 and "كشري" in pg.inner_text(".gi"))
+        ok("menu shows a swipe hint when multiple categories exist", pg.locator(".menu-swipe-hint").count() == 1)
         with pg.expect_response(lambda r: "/menu?" in r.url and "category_id=" not in r.url, timeout=8000):
             pg.locator(".menu-cats button").filter(has_text="الكل").click()
+        with pg.expect_response(lambda r: "/menu?" in r.url and "category_id=" in r.url, timeout=8000):
+            pg.evaluate("""(()=>{const e=document.querySelector('#menu-products');e.dispatchEvent(new PointerEvent('pointerdown',{bubbles:true,clientX:300,clientY:350,pointerId:71,pointerType:'touch'}));e.dispatchEvent(new PointerEvent('pointerup',{bubbles:true,clientX:180,clientY:352,pointerId:71,pointerType:'touch'}))})()""")
+        pg.wait_for_function("document.querySelector('.menu-cats button.on')?.textContent.includes('أطباق')", timeout=8000)
+        ok("left swipe from the menu content switches to the next category", pg.locator(".menu-cats button.on").inner_text() == "أطباق")
+        with pg.expect_response(lambda r: "/menu?" in r.url and "category_id=" not in r.url, timeout=8000):
+            pg.evaluate("""(()=>{const e=document.querySelector('#menu-products');e.dispatchEvent(new PointerEvent('pointerdown',{bubbles:true,clientX:180,clientY:350,pointerId:72,pointerType:'touch'}));e.dispatchEvent(new PointerEvent('pointerup',{bubbles:true,clientX:300,clientY:352,pointerId:72,pointerType:'touch'}))})()""")
+        pg.wait_for_function("document.querySelector('.menu-cats button.on')?.textContent.includes('الكل')", timeout=8000)
+        ok("right swipe returns to all categories", pg.locator(".menu-cats button.on").inner_text() == "الكل")
         with pg.expect_response(lambda r: "/menu?" in r.url and "q=" in r.url, timeout=8000):
             pg.fill("#menu-search", "كشري")
         pg.wait_for_function("document.querySelectorAll('.gi').length === 1 && document.querySelector('.gi').innerText.includes('كشري')", timeout=8000)
