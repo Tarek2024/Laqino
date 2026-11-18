@@ -105,4 +105,6 @@ ok("merchant dashboard exposes direct action-center shortcuts", 'class="action-c
 ok("action shortcuts target the real orders, item, category, add-item and delivery sections", "window.shopAction=" in s and "category-panel" in s and 'id="dia"' in s and "dlbw" in s)
 ok("home dashboard renders recent active orders for immediate action", 'id="home-order-preview"' in s and "preview.innerHTML" in s)
 ok("merchant can reorder categories/items and feature products on the customer menu", "menu-order" in s and "mountMenuOrderingControls" in s and "menuFeature" in s and "ترتيب المنيو" in s)
+ok("owner option editor exposes visual groups and option rows without removing the legacy save endpoint", "id=\"opui" in s and "opAddGroup" in s and "opAddValue" in s and "window.opsave=run" in s)
+ok("owner option editor preserves group kind, required state and price-delta editing", "opGroupKind" in s and "opGroupRequired" in s and "opValueField" in s)
 print("ALL PASS")
