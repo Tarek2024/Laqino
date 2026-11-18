@@ -217,7 +217,7 @@ check("market UI defines dark-mode colors for cards and controls",
 check("local-services home tile keeps its fixed position and is disabled when no published providers exist",
       "async function homeSectionCards(card,svOn,provided)" in index
       and "svc:()=>card('svc'" in index
-      and "cfg.filter(x=>x.visible!==false&&defs[x.key])" in index
+      and "cfg.filter(x=>x.visible===true&&defs[x.key])" in index
       and "soon?' disabled aria-disabled=\"true\"'" in index
       and "soon?'<span class=\"soonp\">قريبًا</span>'" in index
       and "svOn=Array.isArray(providers)&&providers.length>0" in index)
