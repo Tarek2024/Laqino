@@ -44,7 +44,7 @@ def xlsx(rows):
     with zipfile.ZipFile(b,"w",zipfile.ZIP_DEFLATED) as z:
         z.writestr("[Content_Types].xml",ct); z.writestr("_rels/.rels",root); z.writestr("xl/workbook.xml",wb)
         z.writestr("xl/_rels/workbook.xml.rels",rels)
-        z.writestr("xl/worksheets/sheet1.xml",bulk_import._sheet_xml(rows,[24,14,30,12]))
+        z.writestr("xl/worksheets/sheet1.xml",bulk_import._sheet_xml(rows,[24,14,30,12,22,20,16,18,14,12]))
     return base64.b64encode(b.getvalue()).decode()
 
 admin=call("POST","/login",{"phone":"01000000000","password":"AdminPass123"})[1]["token"]
@@ -79,3 +79,31 @@ status,p=call("POST",prefix+"/preview",{"shop_id":shop2,"data":xlsx([["اسم ا
 ok("require_image shop rejects image-less Excel rows",status==200 and p["require_image"] is True and p["summary"]["error"]==1)
 ok("audit records bulk import",sql("SELECT COUNT(*) FROM audit_log WHERE action='shopitem.bulk_import'")[0][0]>=2)
 print("ALL PASS")
+
+
+# Grouped products: repeated rows become one item with option groups, not duplicate products.
+grouped_rows=[
+ ["اسم الصنف","السعر الأساسي","الوصف","متاح","القسم","اسم المجموعة","نوع المجموعة","الاختيار","فرق السعر","إلزامي؟"],
+ ["بيتزا تجميع","100","بيتزا عائلية","نعم","بيتزا","الحجم","حجم","صغير","0","نعم"],
+ ["بيتزا تجميع","100","بيتزا عائلية","نعم","بيتزا","الحجم","حجم","وسط","20","نعم"],
+ ["بيتزا تجميع","100","بيتزا عائلية","نعم","بيتزا","الحجم","حجم","كبير","40","نعم"],
+ ["بيتزا تجميع","100","بيتزا عائلية","نعم","بيتزا","إضافات","إضافة","جبنة","15","لا"],
+ ["بيتزا تجميع","100","بيتزا عائلية","نعم","بيتزا","إضافات","إضافة","زيتون","8","لا"],
+]
+status,gpreview=call("POST",prefix+"/preview",{"shop_id":shop,"data":xlsx(grouped_rows)},admin)
+ok("grouped Excel preview counts one product, two groups and five values",
+   status==200 and gpreview["summary"]["new"]==1 and gpreview["option_groups"]==2 and gpreview["option_values"]==5)
+status,gdone=call("POST",prefix+"/commit",{"shop_id":shop,"data":xlsx(grouped_rows)},admin)
+ok("grouped Excel commit creates exactly one product",
+   status==200 and gdone["done"]["inserted"]==1 and sql("SELECT COUNT(*) FROM shop_items WHERE shop_id=? AND name_ar='بيتزا تجميع' AND status='active'",shop)[0][0]==1)
+pid=sql("SELECT id FROM shop_items WHERE shop_id=? AND name_ar='بيتزا تجميع'",shop)[0][0]
+ok("grouped Excel options are stored in the same shop_item_options table",
+   sql("SELECT COUNT(DISTINCT group_name),COUNT(*) FROM shop_item_options WHERE shop_id=? AND item_id=? AND is_active=1",(shop,pid))[0]==(2,5))
+owner_items=call("GET",f"/owner/shops/{shop}/items",None,owner)[1]["items"]
+pizza=next(x for x in owner_items if x["id"]==pid)
+ok("owner menu endpoint returns imported option groups for normal editing",
+   len(pizza["options"])==2 and sum(len(g["values"]) for g in pizza["options"])==5)
+template_rows=bulk_import.read_xlsx(shop_bulk_import.template_xlsx())[0][1]
+ok("downloaded template documents base price, group kind, option and price delta columns",
+   "السعر الأساسي" in template_rows[0] and "اسم المجموعة" in template_rows[0] and "فرق السعر" in template_rows[0])
+print("GROUPED IMPORT TESTS PASS")
