@@ -60,7 +60,7 @@ data=xlsx(rows)
 ok("staff/customer cannot import", call("POST",prefix+"/preview",{"shop_id":shop,"data":data},customer)[0]==403)
 ok("template endpoint returns xlsx", call("GET",prefix+"/template",None,admin)[0]==200 and call("GET",prefix+"/template",None,admin)[1]["name"].endswith(".xlsx"))
 status, preview=call("POST",prefix+"/preview",{"shop_id":shop,"data":data},admin)
-ok("100 Arabic rows preview as new without writing", status==200 and preview["summary"]["new"]==100 and sql("SELECT COUNT(*) FROM shop_items WHERE shop_id=?",(shop)[0][0]==0)
+ok("100 Arabic rows preview as new without writing", status==200 and preview["summary"]["new"]==100 and sql("SELECT COUNT(*) FROM shop_items WHERE shop_id=?",shop)[0][0]==0)
 status, done=call("POST",prefix+"/commit",{"shop_id":shop,"data":data},admin)
 ok("commit inserts all 100 items", status==200 and done["done"]["inserted"]==100 and sql("SELECT COUNT(*) FROM shop_items WHERE shop_id=? AND status='active'",shop)[0][0]==100)
 items=call("GET",f"/owner/shops/{shop}/items",None,owner)[1]["items"]
