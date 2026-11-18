@@ -14,6 +14,11 @@ SYN = {
     "description": {"الوصف", "التفاصيل", "وصف الصنف", "description", "details"},
     "available": {"متاح", "متوفر", "حالة التوفر", "التوفر", "available", "availability", "in stock"},
     "category": {"القسم", "القسم (اختياري)", "القسم الاختياري", "التصنيف", "قسم الصنف", "category", "section"},
+    "group_name": {"اسم المجموعة", "مجموعة الاختيارات", "مجموعة", "option group", "group"},
+    "group_kind": {"نوع المجموعة", "نوع الاختيارات", "نوع الخيار", "group type", "kind"},
+    "option_name": {"الاختيار", "اسم الاختيار", "القيمة", "option", "option name", "value"},
+    "price_delta": {"فرق السعر", "فرق السعر بالجنيه", "زيادة السعر", "price delta", "delta"},
+    "required": {"إلزامي", "إلزامي؟", "مطلوب", "اختيار إجباري", "required"},
 }
 YES = {"نعم", "ايوه", "ايوا", "متاح", "متوفر", "موجود", "yes", "y", "true", "1"}
 NO = {"لا", "غير متاح", "غير متوفر", "نفد", "نفذ", "no", "n", "false", "0"}
@@ -162,21 +167,19 @@ def plan(c, shop_id, raw):
             selected = (sheet_name, rows, hi, cols)
             break
     if selected is None:
-        raise ImportError_(400, "لم أجد صف عناوين يحتوي على «اسم الصنف» و«السعر». حمّل النموذج واستخدمه.")
+        raise ImportError_(400, "لم أجد صف عناوين يحتوي على اسم الصنف والسعر الأساسي. حمّل النموذج واستخدمه.")
     sheet_name, rows, hi, cols = selected
     if len(rows) - hi - 1 > MAX_ROWS:
         raise ImportError_(413, "عدد الصفوف كبير (الحد 1000 صف لكل ملف)")
     current = c.execute("SELECT COUNT(*) FROM shop_items WHERE shop_id=? AND status='active'", (shop_id,)).fetchone()[0]
     existing = {shops._norm(r["name_ar"]) for r in c.execute("SELECT name_ar FROM shop_items WHERE shop_id=? AND status='active'", (shop_id,))}
-    existing_categories = c.execute("SELECT name_ar FROM shop_categories WHERE shop_id=? AND is_active=1", (shop_id,)).fetchall()
-    seen, items = set(), []
+    products, row_errors = {}, []
     for ri in range(hi + 1, len(rows)):
         row = rows[ri]
         if not any(str(x or "").strip() for x in row):
             continue
         get = lambda field: str(row[cols[field]] if field in cols and cols[field] < len(row) else "").strip()
         item = {"row": ri + 1, "name": get("name"), "status": "error", "message": ""}
-        items.append(item)
         try:
             name = shops._text(item["name"], "اسم الصنف", 2, 80)
             price = _price(get("price"))
@@ -188,21 +191,81 @@ def plan(c, shop_id, raw):
                 category_name = shops._text(explicit_category, "اسم القسم", 2, 50)
             else:
                 category_name = _existing_category(c, shop_id, _infer_category(shop["slug"], name))
+            group_name, option_name = get("group_name"), get("option_name")
+            if bool(group_name) != bool(option_name):
+                raise ValueError("لازم تكتب اسم المجموعة والاختيار معًا")
+            group = None
+            if group_name:
+                group = shops._text(group_name, "اسم مجموعة الاختيارات", 2, 50)
+                option_name = shops._text(option_name, "اسم الاختيار", 1, 50)
+                kind_raw = get("group_kind").strip().casefold()
+                kind_map = {"variant":"variant", "حجم":"variant", "مقاس":"variant", "نوع":"variant",
+                            "addon":"addon", "add-on":"addon", "إضافة":"addon", "اضافة":"addon"}
+                kind = kind_map.get(kind_raw, "variant" if not kind_raw else None)
+                if kind not in ("variant", "addon"):
+                    raise ValueError("نوع المجموعة اكتب حجم أو إضافة")
+                req_raw = get("required").strip()
+                if req_raw:
+                    required = _available(req_raw)
+                else:
+                    required = kind == "variant"
+                if kind == "addon" and required:
+                    raise ValueError("مجموعة الإضافات المتعددة لا يمكن جعلها إجبارية")
+                delta_raw = get("price_delta")
+                try:
+                    delta = 0.0 if not delta_raw else float(str(delta_raw).translate(DIGITS).replace("٫", ".").replace("٬", ""))
+                except (TypeError, ValueError, OverflowError):
+                    raise ValueError("فرق السعر غير صالح")
+                if delta != delta or abs(delta) > 100000:
+                    raise ValueError("فرق السعر غير صالح")
+                delta = round(delta, 2)
+            else:
+                kind, required, delta = None, False, 0.0
             norm = shops._norm(name)
-            if norm in seen:
-                item.update(status="duplicate", message="مكرر داخل الملف")
+            if norm not in products:
+                products[norm] = {"row": item["row"], "rows": [item["row"]], "name": name, "price": price,
+                    "description": desc, "is_available": available, "category_name": category_name,
+                    "groups": [], "status": "new", "message": "جاهز للإضافة"}
+            product = products[norm]
+            if product["row"] != item["row"] and not group and not product["groups"]:
+                row_errors.append({"row": item["row"], "name": name, "status": "duplicate", "message": "اسم المنتج مكرر داخل الملف بدون مجموعة اختيارات"})
                 continue
-            seen.add(norm)
-            if norm in existing:
-                item.update(status="duplicate", message="الصنف موجود بالفعل في المحل؛ تم تخطيه")
-                continue
-            if shop["require_image"]:
-                item["message"] = "هذا النوع من المحلات يشترط صورة لكل صنف؛ أضف الصورة من لوحة صاحب المحل"
-                continue
-            item.update(status="new", message="جاهز للإضافة", name=name, price=price, description=desc, is_available=available, category_name=category_name)
-            existing.add(norm)
-        except ValueError as e:
-            item["message"] = str(e)
+            if product["row"] != item["row"] and item["row"] not in product["rows"]:
+                product["rows"].append(item["row"])
+            if product["price"] != price or product["description"] != desc or product["is_available"] != available or product["category_name"] != category_name:
+                raise ValueError("بيانات المنتج الأساسية مختلفة بين صفوف المنتج الواحد")
+            if group:
+                norm_group = shops._norm(group)
+                target = next((g for g in product["groups"] if shops._norm(g["name_ar"]) == norm_group), None)
+                if target is None:
+                    target = {"name_ar": group, "kind": kind, "required": required, "values": []}
+                    product["groups"].append(target)
+                elif target["kind"] != kind or target["required"] != required:
+                    raise ValueError("نوع المجموعة أو إلزاميتها غير متطابق بين صفوفها")
+                if any(shops._norm(v["name_ar"]) == shops._norm(option_name) for v in target["values"]):
+                    raise ValueError("اختيار مكرر داخل المجموعة")
+                target["values"].append({"name_ar": option_name, "price_delta": delta})
+                if len(target["values"]) > 20:
+                    raise ValueError("كل مجموعة تسمح بحد أقصى 20 اختيارًا")
+                if sum(len(g["values"]) for g in product["groups"]) > 40:
+                    raise ValueError("الحد الأقصى 40 اختيارًا للمنتج")
+                if len(product["groups"]) > 10:
+                    raise ValueError("الحد الأقصى 10 مجموعات للمنتج")
+            elif product["groups"]:
+                raise ValueError("لا تخلط صفوف المنتج العادي مع صفوف خياراته")
+        except (ValueError, TypeError, OverflowError) as e:
+            row_errors.append({"row": item["row"], "name": item["name"], "status": "error", "message": str(e)})
+    items = []
+    for norm, product in products.items():
+        if norm in existing:
+            product.update(status="duplicate", message="المنتج موجود بالفعل في المحل؛ تم تخطيه")
+        elif shop["require_image"]:
+            product.update(status="error", message="هذا النوع من المحلات يشترط صورة لكل صنف؛ أضف الصورة من لوحة صاحب المحل")
+        elif any(x["row"] in product["rows"] for x in row_errors):
+            product.update(status="error", message="يوجد خطأ في أحد صفوف المنتج؛ لم يتم استيراده")
+        items.append(product)
+        existing.add(norm)
+    items.extend(row_errors)
     remaining = max(0, shops.MAX_ITEMS - current)
     accepted = 0
     for item in items:
@@ -218,21 +281,34 @@ def plan(c, shop_id, raw):
 
 def summary(p):
     counts = {k: 0 for k in ("new", "duplicate", "error")}
+    option_groups = option_values = 0
     for item in p["items"]:
-        counts[item["status"]] += 1
+        if item["status"] in counts:
+            counts[item["status"]] += 1
+        if item["status"] == "new":
+            option_groups += len(item.get("groups", []))
+            option_values += sum(len(g["values"]) for g in item.get("groups", []))
     shown = p["items"][:SHOW_ROWS]
     return {"shop_id": p["shop_id"], "sheet": p["sheet"], "current_items": p["current"],
             "remaining_slots": p["remaining"], "require_image": p["require_image"],
-            "summary": counts, "truncated": len(p["items"]) > SHOW_ROWS,
-            "items": [{"row": x["row"], "name": x["name"], "price": x.get("price", ""),
-                       "status": x["status"], "message": x["message"], "category_name": x.get("category_name")} for x in shown]}
+            "summary": counts, "option_groups": option_groups, "option_values": option_values,
+            "truncated": len(p["items"]) > SHOW_ROWS,
+            "items": [{"row": x["row"], "rows": x.get("rows", [x["row"]]), "name": x["name"],
+                       "price": x.get("price", ""), "status": x["status"], "message": x["message"],
+                       "category_name": x.get("category_name"), "option_groups": len(x.get("groups", [])),
+                       "option_values": sum(len(g["values"]) for g in x.get("groups", []))} for x in shown]}
 
 
 def template_xlsx():
-    rows = [["اسم الصنف", "السعر", "الوصف", "متاح", "القسم (اختياري)"],
-            ["كشري كبير", "45.50", "طبق كبير", "نعم", "كشري ومكرونة"],
-            ["عصير مانجو", "25", "حجم 300 مل", "نعم", "مشروبات"],
-            ["مياه معدنية", "10", "", "لا", "مشروبات"]]
+    rows = [
+        ["اسم الصنف", "السعر الأساسي", "الوصف", "متاح", "القسم (اختياري)", "اسم المجموعة", "نوع المجموعة", "الاختيار", "فرق السعر", "إلزامي؟"],
+        ["بيتزا", "100", "السعر الأساسي قبل الاختيارات", "نعم", "بيتزا", "الحجم", "حجم", "صغير", "0", "نعم"],
+        ["بيتزا", "100", "السعر الأساسي قبل الاختيارات", "نعم", "بيتزا", "الحجم", "حجم", "وسط", "20", "نعم"],
+        ["بيتزا", "100", "السعر الأساسي قبل الاختيارات", "نعم", "بيتزا", "الحجم", "حجم", "كبير", "40", "نعم"],
+        ["بيتزا", "100", "السعر الأساسي قبل الاختيارات", "نعم", "بيتزا", "إضافات", "إضافة", "جبنة إضافية", "15", "لا"],
+        ["بيتزا", "100", "السعر الأساسي قبل الاختيارات", "نعم", "بيتزا", "إضافات", "إضافة", "زيتون", "8", "لا"],
+        ["برجر", "65", "منتج عادي بدون خيارات", "نعم", "برجر", "", "", "", "", ""],
+    ]
     ct = ('<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types"><Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/><Default Extension="xml" ContentType="application/xml"/><Override PartName="/xl/workbook.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet.main+xml"/><Override PartName="/xl/worksheets/sheet1.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.worksheet+xml"/></Types>')
     root = ('<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="xl/workbook.xml"/></Relationships>')
     wb = ('<?xml version="1.0" encoding="UTF-8" standalone="yes"?><workbook xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships"><sheets><sheet name="الأصناف" sheetId="1" r:id="rId1"/></sheets></workbook>')
@@ -243,7 +319,7 @@ def template_xlsx():
         z.writestr("_rels/.rels", root)
         z.writestr("xl/workbook.xml", wb)
         z.writestr("xl/_rels/workbook.xml.rels", rels)
-        z.writestr("xl/worksheets/sheet1.xml", bulk_import._sheet_xml(rows, [24, 14, 30, 12, 22]))
+        z.writestr("xl/worksheets/sheet1.xml", bulk_import._sheet_xml(rows, [24, 14, 30, 12, 22, 20, 16, 18, 14, 12]))
     return b.getvalue()
 
 
@@ -286,20 +362,28 @@ def handle(h, c, u, method, path, q):
         if not ready:
             raise ImportError_(409, "لا توجد أصناف صالحة للإضافة؛ راجع الأخطاء والتكرارات")
         now = int(time.time())
-        inserted = 0
+        inserted = inserted_groups = inserted_options = 0
         for item in ready:
             category_id = _ensure_category(c, shop_id, item.get("category_name"), now)
+            sort = c.execute("SELECT COALESCE(MAX(sort),0)+1 FROM shop_items WHERE shop_id=?", (shop_id,)).fetchone()[0]
             cur = c.execute("INSERT INTO shop_items(shop_id,name_ar,description,price,is_available,sort,status,category_id,created_at,updated_at) VALUES(?,?,?,?,?,?, 'active',?,?,?)",
                             (shop_id, item["name"], item["description"], item["price"], int(item["is_available"]),
-                             c.execute("SELECT COALESCE(MAX(sort),0)+1 FROM shop_items WHERE shop_id=?", (shop_id,)).fetchone()[0],
-                             category_id, now, now))
+                             sort, category_id, now, now))
+            item_id = cur.lastrowid
+            for gi, group in enumerate(item.get("groups", []), 1):
+                inserted_groups += 1
+                for vi, value in enumerate(group["values"], 1):
+                    c.execute("INSERT INTO shop_item_options(shop_id,item_id,group_name,group_kind,option_name,price_delta,is_required,group_sort,sort,created_at,updated_at) VALUES(?,?,?,?,?,?,?,?,?,?,?)",
+                              (shop_id, item_id, group["name_ar"], group["kind"], value["name_ar"], value["price_delta"],
+                               int(group["required"]), gi, vi, now, now))
+                    inserted_options += 1
             inserted += 1
         audit = shops._H.get("audit")
         if audit:
             audit(c, u["id"], "shopitem.bulk_import", shop_id, {"count": inserted, "source": "xlsx"})
         c.commit()
         out = summary(p)
-        out["done"] = {"inserted": inserted}
+        out["done"] = {"inserted": inserted, "option_groups": inserted_groups, "option_values": inserted_options}
         h.send(200, out)
         return True
     except ImportError_ as e:
