@@ -288,8 +288,6 @@ if(sectionsState==='ready')tileHtml+=homeSectionCards(card,true,homeCfg);
 else tileHtml+=homeStateMessage('إعدادات الأقسام',sectionsState);
 if(shopsState==='ready'&&shopsEnabled)tileHtml+=card('shops',I3('shop'),'محلات في منطقتك','مطاعم وسوبر ماركت وحلويات وملابس',"location.href='/shops.html'");
 else if(shopsState==='error')tileHtml+=homeStateMessage('إعدادات المحلات',shopsState);
-if(productsState==='ready'&&productsEnabled)tileHtml+=card('products',I3('prod'),'المنتجات','منتجات الصيدليات والعروض',"window._medicalNavActive=true;mt='pr';mview=null;go(4)");
-else if(productsState==='error')tileHtml+=homeStateMessage('إعدادات المنتجات',productsState);
 tiles.innerHTML=tileHtml;
 tiles.setAttribute('aria-busy','false');
 }
