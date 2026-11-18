@@ -31,6 +31,9 @@ CREATE TABLE IF NOT EXISTS shop_items(id INTEGER PRIMARY KEY, shop_id INTEGER NO
  price REAL NOT NULL CHECK(price>0), is_available INTEGER NOT NULL DEFAULT 1 CHECK(is_available IN(0,1)), sort INTEGER NOT NULL DEFAULT 0,
  status TEXT NOT NULL DEFAULT 'active' CHECK(status IN('active','deleted')), created_at INTEGER NOT NULL, updated_at INTEGER NOT NULL);
 CREATE INDEX IF NOT EXISTS ix_shop_items ON shop_items(shop_id,status,sort,id);
+CREATE TABLE IF NOT EXISTS shop_categories(id INTEGER PRIMARY KEY, shop_id INTEGER NOT NULL REFERENCES shops(id) ON DELETE CASCADE, name_ar TEXT NOT NULL, sort INTEGER NOT NULL DEFAULT 0, is_active INTEGER NOT NULL DEFAULT 1 CHECK(is_active IN(0,1)), created_at INTEGER NOT NULL, updated_at INTEGER NOT NULL);
+CREATE INDEX IF NOT EXISTS ix_shop_categories ON shop_categories(shop_id,is_active,sort,id);
+CREATE UNIQUE INDEX IF NOT EXISTS ux_shop_categories_name ON shop_categories(shop_id,name_ar COLLATE NOCASE);
 CREATE TABLE IF NOT EXISTS shop_item_images(id INTEGER PRIMARY KEY, item_id INTEGER NOT NULL REFERENCES shop_items(id) ON DELETE CASCADE,
  file_id INTEGER NOT NULL UNIQUE REFERENCES files(id), position INTEGER NOT NULL DEFAULT 0, created_at INTEGER NOT NULL);
 CREATE INDEX IF NOT EXISTS ix_shop_item_images ON shop_item_images(item_id,position);
@@ -88,6 +91,9 @@ def install(c):
     cols = {r[1] for r in c.execute("PRAGMA table_info(shops)")}  # phase-83: أعمدة الهوية (ترحيل idempotent بلا حذف شيء)
     for col in ("logo_file_id", "cover_file_id"):
         if col not in cols: c.execute("ALTER TABLE shops ADD COLUMN %s INTEGER" % col)
+    item_cols = {r[1] for r in c.execute("PRAGMA table_info(shop_items)")}
+    if "category_id" not in item_cols:
+        c.execute("ALTER TABLE shop_items ADD COLUMN category_id INTEGER REFERENCES shop_categories(id)")
     if not c.execute("SELECT 1 FROM shop_types LIMIT 1").fetchone() and not c.execute("SELECT 1 FROM settings WHERE key='shop_types_seeded'").fetchone():
         now = int(time.time())
         for sl, nm, ic, srt in SEED: c.execute("INSERT OR IGNORE INTO shop_types(slug,name_ar,icon,sort,is_active,require_image,created_at) VALUES(?,?,?,?,1,0,?)", (sl, nm, ic, srt, now))
@@ -389,6 +395,44 @@ def handle(h, c, u, method, path, q):
                 c.execute("INSERT INTO settings VALUES('shops_regions',?) ON CONFLICT(key) DO UPDATE SET value=excluded.value", (json.dumps(rg),))
             if en is not None: c.execute("INSERT INTO settings VALUES('shops_enabled',?) ON CONFLICT(key) DO UPDATE SET value=excluded.value", ("1" if en else "0",))
             audit("settings.shops", None, {"enabled": en, "regions": rg}); c.commit(); return ok({"enabled": enabled(c), "regions": regions_allowed(c)})
+    # ---- أقسام منيو المحل: ينشئها ويديرها صاحب المحل بنفسه (مستقلة عن نوع النشاط)
+    mcats = re.fullmatch(r"/api/owner/shops/(\d+)/categories(?:/(\d+)/(edit|delete))?", path)
+    if mcats:
+        if not u: return err(401, "سجّل الدخول أولًا")
+        shop, e = need_shop_owner(c, u, int(mcats[1]))
+        if e: return err(*e)
+        cid, act = (int(mcats[2]), mcats[3]) if mcats[2] else (None, None)
+        if method == "GET" and not cid:
+            rows = c.execute("SELECT id,name_ar,sort FROM shop_categories WHERE shop_id=? AND is_active=1 ORDER BY sort,id", (shop["id"],)).fetchall()
+            return ok({"items": [dict(r) for r in rows]})
+        if method != "POST": return err(405, "غير مسموح")
+        d = h.body(); now = int(time.time())
+        if not cid:
+            try: name = _text(d.get("name_ar"), "اسم القسم", 2, 50)
+            except ValueError as ex: return err(400, str(ex))
+            if c.execute("SELECT 1 FROM shop_categories WHERE shop_id=? AND name_ar=? COLLATE NOCASE AND is_active=1", (shop["id"], name)).fetchone():
+                return err(409, "القسم موجود بالفعل")
+            if c.execute("SELECT COUNT(*) FROM shop_categories WHERE shop_id=? AND is_active=1", (shop["id"],)).fetchone()[0] >= 60:
+                return err(429, "وصلت للحد الأقصى للأقسام (60)")
+            sort = c.execute("SELECT COALESCE(MAX(sort),0)+1 FROM shop_categories WHERE shop_id=?", (shop["id"],)).fetchone()[0]
+            cur = c.execute("INSERT INTO shop_categories(shop_id,name_ar,sort,created_at,updated_at) VALUES(?,?,?,?,?)", (shop["id"], name, sort, now, now))
+            audit("shopcategory.create", cur.lastrowid, {"shop": shop["id"]}); c.commit()
+            return ok({"id": cur.lastrowid, "name_ar": name}, 201)
+        cat = c.execute("SELECT * FROM shop_categories WHERE id=? AND shop_id=? AND is_active=1", (cid, shop["id"])).fetchone()
+        if not cat: return err(404, "القسم غير موجود")
+        if act == "delete":
+            c.execute("UPDATE shop_items SET category_id=NULL,updated_at=? WHERE shop_id=? AND category_id=?", (now, shop["id"], cid))
+            c.execute("UPDATE shop_categories SET is_active=0,updated_at=? WHERE id=?", (now, cid))
+            audit("shopcategory.delete", cid, {"shop": shop["id"]}); c.commit()
+            return ok({"ok": True})
+        try: name = _text(d.get("name_ar"), "اسم القسم", 2, 50)
+        except ValueError as ex: return err(400, str(ex))
+        if c.execute("SELECT 1 FROM shop_categories WHERE shop_id=? AND id!=? AND name_ar=? COLLATE NOCASE AND is_active=1", (shop["id"], cid, name)).fetchone():
+            return err(409, "يوجد قسم آخر بنفس الاسم")
+        c.execute("UPDATE shop_categories SET name_ar=?,updated_at=? WHERE id=?", (name, now, cid))
+        audit("shopcategory.edit", cid, {"shop": shop["id"]}); c.commit()
+        return ok({"id": cid, "name_ar": name})
+
     # ---- م3: أصناف المحل (المالك فقط، محله المعتمد)
     m = re.fullmatch(r"/api/owner/shops/(\d+)/items(?:/(\d+)/(edit|delete))?", path)
     if m:
