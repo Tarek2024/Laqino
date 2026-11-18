@@ -427,6 +427,62 @@ def handle(h, c, u, method, path, q):
                 c.execute("INSERT INTO settings VALUES('shops_regions',?) ON CONFLICT(key) DO UPDATE SET value=excluded.value", (json.dumps(rg),))
             if en is not None: c.execute("INSERT INTO settings VALUES('shops_enabled',?) ON CONFLICT(key) DO UPDATE SET value=excluded.value", ("1" if en else "0",))
             audit("settings.shops", None, {"enabled": en, "regions": rg}); c.commit(); return ok({"enabled": enabled(c), "regions": regions_allowed(c)})
+    # ---- أحجام وإضافات الصنف: تُدار بواسطة صاحب المحل وتُحفظ كاختيارات مستقلة.
+    mopt = re.fullmatch(r"/api/owner/shops/(\\d+)/items/(\\d+)/options", path)
+    if mopt:
+        if not u: return err(401, "سجّل الدخول أولًا")
+        shop, e = need_shop_owner(c, u, int(mopt[1]))
+        if e: return err(*e)
+        iid = int(mopt[2])
+        item = c.execute("SELECT id FROM shop_items WHERE id=? AND shop_id=? AND status='active'", (iid, shop["id"])).fetchone()
+        if not item: return err(404, "الصنف غير موجود")
+        if method == "GET":
+            return ok({"groups": _item_options(c, shop["id"], [iid]).get(iid, [])})
+        if method != "POST": return err(405, "غير مسموح")
+        raw_groups = h.body().get("groups")
+        if not isinstance(raw_groups, list) or len(raw_groups) > 10: return err(400, "قائمة الاختيارات غير صالحة (حتى 10 مجموعات)")
+        parsed, names, total_values = [], set(), 0
+        try:
+            for gi, group in enumerate(raw_groups):
+                if not isinstance(group, dict): raise ValueError("بيانات مجموعة الاختيارات غير صالحة")
+                name = _text(group.get("name_ar"), "اسم مجموعة الاختيارات", 2, 50)
+                norm = _norm(name)
+                if norm in names: raise ValueError("اسم مجموعة الاختيارات مكرر")
+                names.add(norm)
+                kind = group.get("kind", "variant")
+                if kind not in ("variant", "addon"): raise ValueError("نوع المجموعة غير صالح")
+                required = group.get("required", kind == "variant")
+                if not isinstance(required, bool) or (kind == "addon" and required): raise ValueError("قيمة الإلزام غير صالحة")
+                values = group.get("values")
+                if not isinstance(values, list) or not 1 <= len(values) <= 20: raise ValueError("كل مجموعة تحتاج من 1 إلى 20 اختيارًا")
+                clean, seen_values = [], set()
+                for vi, value in enumerate(values):
+                    if not isinstance(value, dict): raise ValueError("بيانات الاختيار غير صالحة")
+                    option_name = _text(value.get("name_ar"), "اسم الاختيار", 1, 50)
+                    nv = _norm(option_name)
+                    if nv in seen_values: raise ValueError("يوجد اختيار مكرر داخل المجموعة")
+                    seen_values.add(nv)
+                    delta_raw = value.get("price_delta", 0)
+                    if isinstance(delta_raw, bool): raise ValueError("فرق السعر غير صالح")
+                    try: delta = float(str(delta_raw).translate(str.maketrans("٠١٢٣٤٥٦٧٨٩", "0123456789")))
+                    except (TypeError, ValueError): raise ValueError("فرق السعر غير صالح")
+                    if delta != delta or abs(delta) > 100000: raise ValueError("فرق السعر غير صالح")
+                    clean.append({"name_ar": option_name, "price_delta": round(delta, 2), "sort": vi + 1})
+                total_values += len(clean)
+                parsed.append({"name_ar": name, "kind": kind, "required": required, "sort": gi + 1, "values": clean})
+            if total_values > 40: raise ValueError("الحد الأقصى 40 اختيارًا للصنف")
+        except ValueError as ex:
+            return err(400, str(ex))
+        now = int(time.time())
+        c.execute("DELETE FROM shop_item_options WHERE shop_id=? AND item_id=?", (shop["id"], iid))
+        for group in parsed:
+            for value in group["values"]:
+                c.execute("INSERT INTO shop_item_options(shop_id,item_id,group_name,group_kind,option_name,price_delta,is_required,group_sort,sort,created_at,updated_at) VALUES(?,?,?,?,?,?,?,?,?,?,?)",
+                          (shop["id"], iid, group["name_ar"], group["kind"], value["name_ar"], value["price_delta"], int(group["required"]), group["sort"], value["sort"], now, now))
+        audit("shopitem.options", iid, {"shop": shop["id"], "groups": len(parsed), "values": total_values})
+        c.commit()
+        return ok({"groups": _item_options(c, shop["id"], [iid]).get(iid, [])})
+
     # ---- أقسام منيو المحل: ينشئها ويديرها صاحب المحل بنفسه (مستقلة عن نوع النشاط)
     mcats = re.fullmatch(r"/api/owner/shops/(\d+)/categories(?:/(\d+)/(edit|delete))?", path)
     if mcats:
