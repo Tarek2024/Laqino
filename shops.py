@@ -31,7 +31,6 @@ CREATE TABLE IF NOT EXISTS shop_items(id INTEGER PRIMARY KEY, shop_id INTEGER NO
  price REAL NOT NULL CHECK(price>0), is_available INTEGER NOT NULL DEFAULT 1 CHECK(is_available IN(0,1)), sort INTEGER NOT NULL DEFAULT 0, is_featured INTEGER NOT NULL DEFAULT 0 CHECK(is_featured IN(0,1)),
  status TEXT NOT NULL DEFAULT 'active' CHECK(status IN('active','deleted')), created_at INTEGER NOT NULL, updated_at INTEGER NOT NULL);
 CREATE INDEX IF NOT EXISTS ix_shop_items ON shop_items(shop_id,status,sort,id);
-CREATE INDEX IF NOT EXISTS ix_shop_items_browse ON shop_items(shop_id,status,is_available,is_featured,sort,id);
 CREATE TABLE IF NOT EXISTS shop_categories(id INTEGER PRIMARY KEY, shop_id INTEGER NOT NULL REFERENCES shops(id) ON DELETE CASCADE, name_ar TEXT NOT NULL, sort INTEGER NOT NULL DEFAULT 0, is_active INTEGER NOT NULL DEFAULT 1 CHECK(is_active IN(0,1)), created_at INTEGER NOT NULL, updated_at INTEGER NOT NULL);
 CREATE INDEX IF NOT EXISTS ix_shop_categories ON shop_categories(shop_id,is_active,sort,id);
 CREATE UNIQUE INDEX IF NOT EXISTS ux_shop_categories_name ON shop_categories(shop_id,name_ar COLLATE NOCASE) WHERE is_active=1;
@@ -100,6 +99,7 @@ def install(c):
         c.execute("ALTER TABLE shop_items ADD COLUMN category_id INTEGER REFERENCES shop_categories(id)")
     if "is_featured" not in item_cols:
         c.execute("ALTER TABLE shop_items ADD COLUMN is_featured INTEGER NOT NULL DEFAULT 0 CHECK(is_featured IN(0,1))")
+    c.execute("CREATE INDEX IF NOT EXISTS ix_shop_items_browse ON shop_items(shop_id,status,is_available,is_featured,sort,id)")
     c.execute("CREATE INDEX IF NOT EXISTS ix_shop_items_category_browse ON shop_items(shop_id,category_id,status,is_available,is_featured,sort,id)")
     if not c.execute("SELECT 1 FROM shop_types LIMIT 1").fetchone() and not c.execute("SELECT 1 FROM settings WHERE key='shop_types_seeded'").fetchone():
         now = int(time.time())
