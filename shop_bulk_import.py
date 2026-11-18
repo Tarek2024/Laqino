@@ -28,7 +28,6 @@ CATEGORY_RULES = {
         ("مشويات", ("مشوي", "كباب", "كفتة", "ريش")),
         ("فراخ", ("فراخ", "دجاج", "بانيه", "شاورما فراخ")),
         ("كشري ومكرونة", ("كشري", "مكرونة", "اسباجتي", "لازانيا")),
-        ("وجبات", ("وجبة", "وجبات", "طبق")),
         ("مقبلات", ("بطاطس", "سمبوسة", "سلطة", "مقبلات")),
         ("مشروبات", ("عصير", "مشروب", "مياه", "قهوة", "شاي", "نسكافيه", "كانز")),
         ("حلويات", ("حلويات", "كيك", "جاتوه", "بسبوسة", "كنافة", "مهلبية")),
@@ -60,11 +59,18 @@ CATEGORY_RULES = {
 }
 
 
+def _has_category_term(text, word):
+    term = shops._norm(word)
+    if " " in term:
+        return term in text
+    return re.search(r"(?<!\\w)" + re.escape(term) + r"(?!\\w)", text, re.UNICODE) is not None
+
+
 def _infer_category(slug, name):
     text = shops._norm(name)
     matches = []
     for category, words in CATEGORY_RULES.get(slug, []):
-        if any(shops._norm(word) in text for word in words):
+        if any(_has_category_term(text, word) for word in words):
             matches.append(category)
     return matches[0] if len(matches) == 1 else None
 
