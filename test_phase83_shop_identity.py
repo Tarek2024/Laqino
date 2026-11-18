@@ -139,11 +139,11 @@ try:
         with pg.expect_response(lambda r: "/menu?" in r.url and "category_id=" not in r.url, timeout=8000):
             pg.locator(".menu-cats button").filter(has_text="الكل").click()
         with pg.expect_response(lambda r: "/menu?" in r.url and "category_id=" in r.url, timeout=8000):
-            pg.evaluate("""(()=>{const e=document.querySelector('#menu-products');e.dispatchEvent(new PointerEvent('pointerdown',{bubbles:true,clientX:300,clientY:350,pointerId:71,pointerType:'touch'}));e.dispatchEvent(new PointerEvent('pointerup',{bubbles:true,clientX:180,clientY:352,pointerId:71,pointerType:'touch'}))})()""")
+            pg.evaluate("""(()=>{const e=document.querySelector('.gi .zb')||document.querySelector('.gi .gb');e.dispatchEvent(new PointerEvent('pointerdown',{bubbles:true,clientX:300,clientY:350,pointerId:71,pointerType:'touch',isPrimary:true,button:0}));e.dispatchEvent(new PointerEvent('pointerup',{bubbles:true,clientX:180,clientY:352,pointerId:71,pointerType:'touch',isPrimary:true,button:0}));return document.querySelector('.menu-cats button.on')?.textContent})()""")
         pg.wait_for_function("document.querySelector('.menu-cats button.on')?.textContent.includes('أطباق')", timeout=8000)
         ok("left swipe from the menu content switches to the next category", pg.locator(".menu-cats button.on").inner_text() == "أطباق")
         with pg.expect_response(lambda r: "/menu?" in r.url and "category_id=" not in r.url, timeout=8000):
-            pg.evaluate("""(()=>{const e=document.querySelector('#menu-products');e.dispatchEvent(new PointerEvent('pointerdown',{bubbles:true,clientX:180,clientY:350,pointerId:72,pointerType:'touch'}));e.dispatchEvent(new PointerEvent('pointerup',{bubbles:true,clientX:300,clientY:352,pointerId:72,pointerType:'touch'}))})()""")
+            pg.evaluate("""(()=>{const e=document.querySelector('.gi .gb')||document.querySelector('.gi');e.dispatchEvent(new PointerEvent('pointerdown',{bubbles:true,clientX:180,clientY:350,pointerId:72,pointerType:'touch',isPrimary:true,button:0}));e.dispatchEvent(new PointerEvent('pointerup',{bubbles:true,clientX:300,clientY:352,pointerId:72,pointerType:'touch',isPrimary:true,button:0}));return document.querySelector('.menu-cats button.on')?.textContent})()""")
         pg.wait_for_function("document.querySelector('.menu-cats button.on')?.textContent.includes('الكل')", timeout=8000)
         ok("right swipe returns to all categories", pg.locator(".menu-cats button.on").inner_text() == "الكل")
         with pg.expect_response(lambda r: "/menu?" in r.url and "q=" in r.url, timeout=8000):
