@@ -144,8 +144,12 @@ def handle(h, c, u, method, path, q):
         for x in raw:
             iid, qty = (_int(x.get("item_id")), _int(x.get("qty"))) if isinstance(x, dict) else (None, None)
             option_ids = x.get("option_ids", []) if isinstance(x, dict) else None
-            if iid is None or qty is None or not 1 <= iid <= 10 ** 12 or not 1 <= qty <= MAX_QTY or not isinstance(option_ids, list) or len(option_ids) > 40 or any(_int(v) is None or v < 1 for v in option_ids) or len(set(option_ids)) != len(option_ids):
+            if iid is None or qty is None or not 1 <= iid <= 10 ** 12 or not 1 <= qty <= MAX_QTY or not isinstance(option_ids, list) or len(option_ids) > 40:
                 return err(400, "بيانات الأصناف والاختيارات غير صالحة")
+            normalized_options = [_int(v) for v in option_ids]
+            if any(v is None or v < 1 for v in normalized_options) or len(set(normalized_options)) != len(normalized_options):
+                return err(400, "بيانات الأصناف والاختيارات غير صالحة")
+            option_ids = normalized_options
             line_key = (iid, tuple(sorted(option_ids)))
             if line_key in seen_lines: return err(400, "يوجد سطر مكرر بنفس اختيارات الصنف")
             seen_lines.add(line_key)
