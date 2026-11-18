@@ -188,6 +188,7 @@ try:
         isz = sql("SELECT size FROM files WHERE id=?", it["image_ids"][0])[0][0]
         ok("item picture was resized in the browser before upload (big png → small jpeg)", 0 < isz < bigsz // 3)
         ctx.close(); br.close()
+    if errs: print("BROWSER_PAGE_ERRORS:", json.dumps(errs, ensure_ascii=False))
     ok("no JS page errors", not errs)
 except ImportError:
     print("SKIP browser checks (playwright/PIL not installed)")
