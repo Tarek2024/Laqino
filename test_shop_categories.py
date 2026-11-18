@@ -194,6 +194,6 @@ ok("selected category updates immediately and preserves accessible pressed state
    "updateMenuCategoryUI();const results=$('menu-results')" in shops_ui
    and "b.setAttribute('aria-pressed',on?'true':'false')" in shops_ui)
 ok("swipe click is suppressed without blocking normal taps",
-   "menuSwipeClickGuard" in shops_ui and "MENU_SUPPRESS_SWIPE_CLICK=false},500)" in shops_ui)
+   "menuSwipeClickGuard" in shops_ui and "MENU_SUPPRESS_SWIPE_TARGET=s.target" in shops_ui and "MENU_SUPPRESS_SWIPE_CLICK=false;MENU_SUPPRESS_SWIPE_TARGET=null},250)" in shops_ui)
 ok("category auto-centering does not rebuild the strip",
    "active.scrollIntoView({block:'nearest',inline:'nearest',behavior:'smooth'})" in shops_ui)
