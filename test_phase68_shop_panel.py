@@ -100,4 +100,8 @@ ok("merchant item search and category/availability filters are present", 'id="it
 ok("empty search results have an accessible visible state", 'id="items-filter-empty"' in s and "مفيش أصناف مطابقة" in s)
 ok("home dashboard has a live preview of active customer orders", 'id="home-order-preview"' in s and "OPENST.includes(x.status)" in s and "preview.innerHTML" in s)
 ok("orders page has lifecycle filters and normalized order statuses", 'id="order-filters"' in s and 'data-order-filter="new"' in s and 'data-order-filter="ready"' in s and "orderStatusKey" in s)
+# Action-center navigation regression checks
+ok("merchant dashboard exposes direct action-center shortcuts", 'class="action-center"' in s and all("shopAction(\\\\'"+k+"\\\\')" in s for k in ["orders","items","categories","additem","delivery"]))
+ok("action shortcuts target the real orders, item, category, add-item and delivery sections", "window.shopAction=" in s and "category-panel" in s and "id=\\\"dia\\\"" in s and "dlbw" in s)
+ok("home dashboard renders recent active orders for immediate action", 'id="home-order-preview"' in s and "preview.innerHTML" in s)
 print("ALL PASS")
