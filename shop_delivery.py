@@ -126,22 +126,65 @@ def handle(h, c, u, method, path, q):
             if not shops.enabled(c): return ok({"enabled": False, "shop": None, "items": []})
             s = c.execute("SELECT s.id,s.name_ar,s.region_id,s.is_open,t.name_ar type_name FROM shops s JOIN shop_types t ON t.id=s.type_id WHERE s.id=? AND s.status='approved'", (sid,)).fetchone()
             if not s or not shops.region_ok(c, s["region_id"]): return err(404, "المحل غير موجود")
+            # تحميل تدريجي: لا نرسل كل أصناف المحل وصورها واختياراتها في أول زيارة.
+            # حد الصفحة مضبوط من الخادم حتى لو أرسل العميل قيمة أكبر.
+            def _query_int(key, default, minimum, maximum):
+                raw = (q.get(key) or [str(default)])[0]
+                try: value = int(raw)
+                except (TypeError, ValueError): raise ValueError
+                if value < minimum or value > maximum: raise ValueError
+                return value
+            try:
+                limit = _query_int("limit", 40, 1, 60)
+                offset = _query_int("offset", 0, 0, 1000000)
+                category_id = _query_int("category_id", 0, 0, 10**9)
+            except ValueError:
+                return err(400, "معاملات تحميل المنيو غير صالحة")
+            search = str((q.get("q") or [""])[0]).strip()[:80]
+            if category_id and not c.execute("SELECT 1 FROM shop_categories WHERE id=? AND shop_id=? AND is_active=1", (category_id, sid)).fetchone():
+                return err(400, "القسم المحدد غير صالح لهذا المحل")
+            filters = ["shop_id=?", "status='active'", "is_available=1"]
+            args = [sid]
+            if category_id:
+                filters.append("category_id=?"); args.append(category_id)
+            if search:
+                like = "%" + search.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_") + "%"
+                filters.append("(name_ar LIKE ? ESCAPE '\\' OR COALESCE(description,'') LIKE ? ESCAPE '\\')")
+                args.extend((like, like))
+            where = " AND ".join(filters)
+            total_items = c.execute("SELECT COUNT(*) FROM shop_items WHERE " + where, args).fetchone()[0]
+            rows = c.execute(
+                "SELECT id,name_ar,description,price,category_id,is_featured FROM shop_items WHERE " + where +
+                " ORDER BY is_featured DESC,sort,id LIMIT ? OFFSET ?", (*args, limit, offset)).fetchall()
+            item_ids = [r["id"] for r in rows]
             imgs = {}
-            for r in c.execute("SELECT i.item_id,i.file_id FROM shop_item_images i JOIN shop_items x ON x.id=i.item_id WHERE x.shop_id=? ORDER BY i.rowid", (sid,)): imgs.setdefault(r["item_id"], []).append(r["file_id"])
+            if item_ids:
+                marks = ",".join("?" * len(item_ids))
+                for r in c.execute("SELECT item_id,file_id FROM shop_item_images WHERE item_id IN (" + marks + ") ORDER BY item_id,position,id", item_ids):
+                    imgs.setdefault(r["item_id"], []).append(r["file_id"])
             cats = [dict(r) for r in c.execute("SELECT id,name_ar,sort FROM shop_categories WHERE shop_id=? AND is_active=1 ORDER BY sort,id", (sid,))]
-            its = [{"id": r["id"], "name_ar": r["name_ar"], "description": r["description"] or "", "price": r["price"], "category_id": r["category_id"], "is_featured": bool(r["is_featured"]), "image_ids": imgs.get(r["id"], [])} for r in c.execute("SELECT id,name_ar,description,price,category_id,is_featured FROM shop_items WHERE shop_id=? AND status='active' AND is_available=1 ORDER BY is_featured DESC,sort,id", (sid,))]
-            opts = shops._item_options(c, sid, [x["id"] for x in its]) if its else {}
+            its = [{"id": r["id"], "name_ar": r["name_ar"], "description": r["description"] or "", "price": r["price"],
+                    "category_id": r["category_id"], "is_featured": bool(r["is_featured"]), "image_ids": imgs.get(r["id"], [])}
+                   for r in rows]
+            opts = shops._item_options(c, sid, item_ids) if item_ids else {}
             popularity = {}
-            for rec in c.execute("SELECT l.order_id,l.items_json FROM shop_delivery_links l JOIN delivery_orders o ON o.id=l.order_id WHERE l.shop_id=? AND l.kind=? AND o.status!='cancelled'", (sid, ORDER)):
-                try:
-                    for line in json.loads(rec["items_json"] or "[]"):
-                        popularity.setdefault(line["id"], set()).add(rec["order_id"])
-                except (TypeError, ValueError, KeyError):
-                    continue
+            if item_ids:
+                wanted = set(item_ids)
+                for rec in c.execute("SELECT l.order_id,l.items_json FROM shop_delivery_links l JOIN delivery_orders o ON o.id=l.order_id WHERE l.shop_id=? AND l.kind=? AND o.status!='cancelled'", (sid, ORDER)):
+                    try:
+                        for line in json.loads(rec["items_json"] or "[]"):
+                            iid = line.get("id")
+                            if iid in wanted:
+                                popularity.setdefault(iid, set()).add(rec["order_id"])
+                    except (TypeError, ValueError, AttributeError):
+                        continue
             for item in its:
                 item["options"] = opts.get(item["id"], [])
                 item["orders_count"] = len(popularity.get(item["id"], set()))
-            return ok({"enabled": True, "order_enabled": settings(c)[0], "shop": {"id": s["id"], "name_ar": s["name_ar"], "type_name": s["type_name"], "region_id": s["region_id"], "is_open": bool(s["is_open"])}, "categories": cats, "items": its})
+            return ok({"enabled": True, "order_enabled": settings(c)[0],
+                       "shop": {"id": s["id"], "name_ar": s["name_ar"], "type_name": s["type_name"], "region_id": s["region_id"], "is_open": bool(s["is_open"])},
+                       "categories": cats, "items": its, "total_items": total_items, "limit": limit,
+                       "offset": offset, "has_more": offset + len(its) < total_items})
         if not u: return err(401, "سجّل الدخول أولًا")
         on, _, _ = settings(c)
         if not on: return err(403, "الطلب من المحلات غير مفعّل حاليًا")

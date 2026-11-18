@@ -131,13 +131,29 @@ try:
         hero = pg.evaluate("(()=>{const cv=document.querySelector('.hero .cv img'),lg=document.querySelector('.hero .lgw img');return {cv:cv&&cv.naturalWidth>0,lg:lg&&lg.naturalWidth>0,priority:cv&&lg&&cv.loading==='eager'&&lg.loading==='eager'&&cv.fetchPriority==='high'&&lg.fetchPriority==='high',h2:document.querySelector('.ht h2').textContent,open:document.querySelector('.ht .bd.on')!==null,menuLayout:getComputedStyle(document.querySelector('.menu-grid')).display,categoryBar:!!document.querySelector('.menu-cats'),search:!!document.querySelector('#menu-search')}})()")
         ok("shop page: big cover + logo + title + status + vertical menu + categories + search", hero["cv"] and hero["lg"] and hero["h2"] == "مطعم الأمل" and hero["open"] and hero["menuLayout"] == "flex" and hero["categoryBar"] and hero["search"])
         ok("shop page: hero cover and logo are prioritized", hero["priority"])
-        pg.locator(".menu-cats button").filter(has_text="أطباق").click()
-        ok("category strip filters the menu to the selected section", pg.locator(".gi").count() == 1 and "كشري" in pg.inner_text(".gi"))
-        pg.locator(".menu-cats button").filter(has_text="الكل").click()
-        pg.fill("#menu-search", "كشري")
-        ok("menu search filters by item name", pg.locator(".gi").count() == 1 and "كشري" in pg.inner_text(".gi"))
-        pg.fill("#menu-search", "")
-        pg.locator(".menu-cats button").filter(has_text="الكل").click()
+        with pg.expect_response(lambda r: "/menu?" in r.url and "category_id=" in r.url, timeout=8000):
+            pg.locator(".menu-cats button").filter(has_text="أطباق").click()
+        pg.wait_for_function("document.querySelectorAll('.gi').length === 1 && document.querySelector('.gi').innerText.includes('كشري')", timeout=8000)
+        ok("category strip requests and renders only the selected section", pg.locator(".gi").count() == 1 and "كشري" in pg.inner_text(".gi"))
+        ok("menu shows a swipe hint when multiple categories exist", pg.locator(".menu-swipe-hint").count() == 1)
+        with pg.expect_response(lambda r: "/menu?" in r.url and "category_id=" not in r.url, timeout=8000):
+            pg.locator(".menu-cats button").filter(has_text="الكل").click()
+        with pg.expect_response(lambda r: "/menu?" in r.url and "category_id=" in r.url, timeout=8000):
+            pg.evaluate("""(()=>{const e=document.querySelector('#menu-products');e.dispatchEvent(new PointerEvent('pointerdown',{bubbles:true,clientX:300,clientY:350,pointerId:71,pointerType:'touch'}));e.dispatchEvent(new PointerEvent('pointerup',{bubbles:true,clientX:180,clientY:352,pointerId:71,pointerType:'touch'}))})()""")
+        pg.wait_for_function("document.querySelector('.menu-cats button.on')?.textContent.includes('أطباق')", timeout=8000)
+        ok("left swipe from the menu content switches to the next category", pg.locator(".menu-cats button.on").inner_text() == "أطباق")
+        with pg.expect_response(lambda r: "/menu?" in r.url and "category_id=" not in r.url, timeout=8000):
+            pg.evaluate("""(()=>{const e=document.querySelector('#menu-products');e.dispatchEvent(new PointerEvent('pointerdown',{bubbles:true,clientX:180,clientY:350,pointerId:72,pointerType:'touch'}));e.dispatchEvent(new PointerEvent('pointerup',{bubbles:true,clientX:300,clientY:352,pointerId:72,pointerType:'touch'}))})()""")
+        pg.wait_for_function("document.querySelector('.menu-cats button.on')?.textContent.includes('الكل')", timeout=8000)
+        ok("right swipe returns to all categories", pg.locator(".menu-cats button.on").inner_text() == "الكل")
+        with pg.expect_response(lambda r: "/menu?" in r.url and "q=" in r.url, timeout=8000):
+            pg.fill("#menu-search", "كشري")
+        pg.wait_for_function("document.querySelectorAll('.gi').length === 1 && document.querySelector('.gi').innerText.includes('كشري')", timeout=8000)
+        ok("menu search requests and renders matching item names", pg.locator(".gi").count() == 1 and "كشري" in pg.inner_text(".gi"))
+        with pg.expect_response(lambda r: "/menu?" in r.url and "q=" not in r.url, timeout=8000):
+            pg.fill("#menu-search", "")
+        with pg.expect_response(lambda r: "/menu?" in r.url and "category_id=" not in r.url, timeout=8000):
+            pg.locator(".menu-cats button").filter(has_text="الكل").click()
         sq = pg.evaluate("[...document.querySelectorAll('.zb')].map(b=>{const r=b.getBoundingClientRect();return Math.abs(r.width-r.height)<2})")
         ok("item pictures are square", len(sq) == 3 and all(sq))
         ok("price shown + no +/- when not logged in", "35.5" in pg.inner_text(".grid") and pg.locator(".gb .row").count() == 0)
@@ -161,6 +177,8 @@ try:
         ok("same item with different options stays in a separate cart line", pg.locator("#cart-lines .cart-line").count() == 2 and "86" in pg.inner_text("#ct"))
         pg.click(".gi:has-text('كشري') button[aria-label='أقل']")
         ok("decrement removes only the matching last configuration", pg.locator("#cart-lines .cart-line").count() == 1 and "50.5" in pg.inner_text("#ct") and pg.locator("#ob").is_enabled())
+        pg.click("#cart-lines .cart-remove")
+        ok("customer can remove an accidentally added item directly from the cart", pg.locator("#cart-lines .cart-line").count() == 0 and "0 ج" in pg.inner_text("#ct") and pg.locator("#ob").is_disabled())
         ctx.close()
         # 5c) صاحب المحل: ودجت الهوية + تنبيه + تصغير ومعاينة قبل الرفع
         ctx = br.new_context(viewport={"width": 390, "height": 800}); ctx.add_init_script("localStorage.setItem('t','%s')" % own); pg = ctx.new_page(); pg.on("pageerror", lambda e: errs.append(str(e)))
@@ -198,6 +216,24 @@ try:
         it = [x for x in call("GET", "/owner/shops/%d/items" % S, None, own)[1]["items"] if x["name_ar"] == "كباب"][0]
         isz = sql("SELECT size FROM files WHERE id=?", it["image_ids"][0])[0][0]
         ok("item picture was resized in the browser before upload (big png → small jpeg)", 0 < isz < bigsz // 3)
+        ctx.close()
+        # 5d) large menu: the browser renders one bounded batch, can fetch more, and searches beyond loaded rows.
+        c = sqlite3.connect(DB); now = int(time.time())
+        for n in range(205):
+            c.execute("INSERT INTO shop_items(shop_id,name_ar,description,price,is_available,sort,is_featured,status,created_at,updated_at,category_id) VALUES(?,?,?,?,1,?,0,'active',?,?,?)",
+                      (S, "عنصر أداء %03d" % n, "اختبار تحميل تدريجي", 5, 20000 + n, now, now, MENU_CAT))
+        c.commit(); c.close()
+        ctx = br.new_context(viewport={"width": 390, "height": 800}); pg = ctx.new_page(); pg.on("pageerror", lambda e: errs.append(str(e)))
+        pg.goto(BASE + "/shops.html#s%d" % S); pg.wait_for_function("document.querySelectorAll('.gi').length === 40", timeout=10000)
+        ok("large shop menu initially renders only one 40-item batch", pg.locator(".gi").count() == 40 and pg.locator("#menu-more").count() == 1)
+        with pg.expect_response(lambda r: "/menu?" in r.url and "offset=40" in r.url, timeout=8000):
+            pg.click("#menu-more")
+        pg.wait_for_function("document.querySelectorAll('.gi').length === 80", timeout=8000)
+        ok("load-more appends the next batch without replacing existing rows", pg.locator(".gi").count() == 80)
+        with pg.expect_response(lambda r: "/menu?" in r.url and "q=" in r.url, timeout=8000):
+            pg.fill("#menu-search", "عنصر أداء 199")
+        pg.wait_for_function("document.querySelectorAll('.gi').length === 1 && document.querySelector('.gi').innerText.includes('عنصر أداء 199')", timeout=8000)
+        ok("search finds an item beyond the first 80 loaded rows", pg.locator(".gi").count() == 1 and "عنصر أداء 199" in pg.inner_text(".gi"))
         ctx.close(); br.close()
     if errs: print("BROWSER_PAGE_ERRORS:", json.dumps(errs, ensure_ascii=False))
     ok("no JS page errors", not errs)
