@@ -63,7 +63,7 @@ def _has_category_term(text, word):
     term = shops._norm(word)
     if " " in term:
         return term in text
-    return re.search(r"(?<!\\w)" + re.escape(term) + r"(?!\\w)", text, re.UNICODE) is not None
+    return re.search(r"(?<!\w)" + re.escape(term) + r"(?!\w)", text, re.UNICODE) is not None
 
 
 def _infer_category(slug, name):
