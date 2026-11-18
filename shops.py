@@ -34,6 +34,9 @@ CREATE INDEX IF NOT EXISTS ix_shop_items ON shop_items(shop_id,status,sort,id);
 CREATE TABLE IF NOT EXISTS shop_categories(id INTEGER PRIMARY KEY, shop_id INTEGER NOT NULL REFERENCES shops(id) ON DELETE CASCADE, name_ar TEXT NOT NULL, sort INTEGER NOT NULL DEFAULT 0, is_active INTEGER NOT NULL DEFAULT 1 CHECK(is_active IN(0,1)), created_at INTEGER NOT NULL, updated_at INTEGER NOT NULL);
 CREATE INDEX IF NOT EXISTS ix_shop_categories ON shop_categories(shop_id,is_active,sort,id);
 CREATE UNIQUE INDEX IF NOT EXISTS ux_shop_categories_name ON shop_categories(shop_id,name_ar COLLATE NOCASE) WHERE is_active=1;
+CREATE TABLE IF NOT EXISTS shop_item_options(id INTEGER PRIMARY KEY, shop_id INTEGER NOT NULL REFERENCES shops(id) ON DELETE CASCADE, item_id INTEGER NOT NULL REFERENCES shop_items(id) ON DELETE CASCADE, group_name TEXT NOT NULL, group_kind TEXT NOT NULL CHECK(group_kind IN('variant','addon')), option_name TEXT NOT NULL, price_delta REAL NOT NULL DEFAULT 0, is_required INTEGER NOT NULL DEFAULT 0 CHECK(is_required IN(0,1)), group_sort INTEGER NOT NULL DEFAULT 0, sort INTEGER NOT NULL DEFAULT 0, is_active INTEGER NOT NULL DEFAULT 1 CHECK(is_active IN(0,1)), created_at INTEGER NOT NULL, updated_at INTEGER NOT NULL);
+CREATE INDEX IF NOT EXISTS ix_shop_item_options ON shop_item_options(shop_id,item_id,is_active,group_sort,sort,id);
+CREATE UNIQUE INDEX IF NOT EXISTS ux_shop_item_options_name ON shop_item_options(item_id,group_name,option_name) WHERE is_active=1;
 CREATE TABLE IF NOT EXISTS shop_item_images(id INTEGER PRIMARY KEY, item_id INTEGER NOT NULL REFERENCES shop_items(id) ON DELETE CASCADE,
  file_id INTEGER NOT NULL UNIQUE REFERENCES files(id), position INTEGER NOT NULL DEFAULT 0, created_at INTEGER NOT NULL);
 CREATE INDEX IF NOT EXISTS ix_shop_item_images ON shop_item_images(item_id,position);
@@ -203,12 +206,33 @@ def _category_id(c, shop_id, raw):
     return cid
 
 
+def _item_options(c, shop_id, item_ids=None):
+    args = [shop_id]
+    where = "shop_id=? AND is_active=1"
+    if item_ids is not None:
+        ids = sorted(set(int(x) for x in item_ids))
+        if not ids: return {}
+        where += " AND item_id IN (%s)" % ",".join("?" * len(ids))
+        args.extend(ids)
+    grouped = {}
+    rows = c.execute("SELECT id,item_id,group_name,group_kind,option_name,price_delta,is_required,group_sort,sort FROM shop_item_options WHERE " + where + " ORDER BY item_id,group_sort,sort,id", args).fetchall()
+    for r in rows:
+        groups = grouped.setdefault(r["item_id"], [])
+        group = next((g for g in groups if g["name_ar"] == r["group_name"] and g["kind"] == r["group_kind"]), None)
+        if group is None:
+            group = {"name_ar": r["group_name"], "kind": r["group_kind"], "required": bool(r["is_required"]), "values": []}
+            groups.append(group)
+        group["values"].append({"id": r["id"], "name_ar": r["option_name"], "price_delta": r["price_delta"]})
+    return grouped
+
+
 def _items(c, shop_id, item_id=None):
     q = "SELECT * FROM shop_items WHERE shop_id=? AND status='active'" + (" AND id=?" if item_id else "") + " ORDER BY sort,id"
     rows = c.execute(q, (shop_id, item_id) if item_id else (shop_id,)).fetchall(); imgs = {}
     if rows:
         for r in c.execute("SELECT item_id,file_id FROM shop_item_images WHERE item_id IN (%s) ORDER BY item_id,position,id" % ",".join("?" * len(rows)), [x["id"] for x in rows]): imgs.setdefault(r[0], []).append(r[1])
-    return [{"id": r["id"], "name_ar": r["name_ar"], "description": r["description"] or "", "price": r["price"], "is_available": bool(r["is_available"]), "sort": r["sort"], "category_id": r["category_id"], "image_ids": imgs.get(r["id"], []), "created_at": r["created_at"]} for r in rows]
+    options = _item_options(c, shop_id, [r["id"] for r in rows]) if rows else {}
+    return [{"id": r["id"], "name_ar": r["name_ar"], "description": r["description"] or "", "price": r["price"], "is_available": bool(r["is_available"]), "sort": r["sort"], "category_id": r["category_id"], "image_ids": imgs.get(r["id"], []), "options": options.get(r["id"], []), "created_at": r["created_at"]} for r in rows]
 
 
 def _set_images(c, item_id, ids, now):
