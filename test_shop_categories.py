@@ -180,7 +180,8 @@ ok("category strip keeps native horizontal touch scrolling",
 ok("vertical page scrolling is scoped to the item list, not the whole menu",
    ".menu-grid{touch-action:pan-y}" in shops_ui)
 ok("menu swipe requires a dominant horizontal gesture and matching pointer",
-   "e.pointerId!==start.id" in shops_ui and "Math.abs(dx)<Math.abs(dy)*1.25" in shops_ui)
+   "e.pointerId!==start.id" in shops_ui and "Math.abs(dx)<Math.abs(dy)*1.25" in shops_ui
+   and "!e.target.closest('.menu-grid')" in shops_ui)
 ok("menu swipe ignores category chips and interactive controls",
    "menuSwipeBlocked" in shops_ui and ".menu-cats" in shops_ui and "button,a,input,select,textarea" in shops_ui)
 ok("active category is centered only when it leaves the visible chip strip",
