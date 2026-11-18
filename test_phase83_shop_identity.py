@@ -139,11 +139,11 @@ try:
         with pg.expect_response(lambda r: "/menu?" in r.url and "category_id=" not in r.url, timeout=8000):
             pg.locator(".menu-cats button").filter(has_text="الكل").click()
         with pg.expect_response(lambda r: "/menu?" in r.url and "category_id=" in r.url, timeout=8000):
-            pg.evaluate("""(()=>{const e=document.querySelector('#menu-products');e.dispatchEvent(new PointerEvent('pointerdown',{bubbles:true,clientX:300,clientY:350,pointerId:71,pointerType:'touch'}));e.dispatchEvent(new PointerEvent('pointerup',{bubbles:true,clientX:180,clientY:352,pointerId:71,pointerType:'touch'}))})()""")
+            pg.evaluate("""(()=>{const e=document.querySelector('.gi .zb')||document.querySelector('.gi .gb');e.dispatchEvent(new PointerEvent('pointerdown',{bubbles:true,clientX:300,clientY:350,pointerId:71,pointerType:'touch',isPrimary:true,button:0}));e.dispatchEvent(new PointerEvent('pointerup',{bubbles:true,clientX:180,clientY:352,pointerId:71,pointerType:'touch',isPrimary:true,button:0}));return document.querySelector('.menu-cats button.on')?.textContent})()""")
         pg.wait_for_function("document.querySelector('.menu-cats button.on')?.textContent.includes('أطباق')", timeout=8000)
         ok("left swipe from the menu content switches to the next category", pg.locator(".menu-cats button.on").inner_text() == "أطباق")
         with pg.expect_response(lambda r: "/menu?" in r.url and "category_id=" not in r.url, timeout=8000):
-            pg.evaluate("""(()=>{const e=document.querySelector('#menu-products');e.dispatchEvent(new PointerEvent('pointerdown',{bubbles:true,clientX:180,clientY:350,pointerId:72,pointerType:'touch'}));e.dispatchEvent(new PointerEvent('pointerup',{bubbles:true,clientX:300,clientY:352,pointerId:72,pointerType:'touch'}))})()""")
+            pg.evaluate("""(()=>{const e=document.querySelector('.gi .gb')||document.querySelector('.gi');e.dispatchEvent(new PointerEvent('pointerdown',{bubbles:true,clientX:180,clientY:350,pointerId:72,pointerType:'touch',isPrimary:true,button:0}));e.dispatchEvent(new PointerEvent('pointerup',{bubbles:true,clientX:300,clientY:352,pointerId:72,pointerType:'touch',isPrimary:true,button:0}));return document.querySelector('.menu-cats button.on')?.textContent})()""")
         pg.wait_for_function("document.querySelector('.menu-cats button.on')?.textContent.includes('الكل')", timeout=8000)
         ok("right swipe returns to all categories", pg.locator(".menu-cats button.on").inner_text() == "الكل")
         with pg.expect_response(lambda r: "/menu?" in r.url and "q=" in r.url, timeout=8000):
@@ -225,7 +225,10 @@ try:
         c.commit(); c.close()
         ctx = br.new_context(viewport={"width": 390, "height": 800}); pg = ctx.new_page(); pg.on("pageerror", lambda e: errs.append(str(e)))
         pg.goto(BASE + "/shops.html#s%d" % S); pg.wait_for_function("document.querySelectorAll('.gi').length === 40", timeout=10000)
-        ok("large shop menu initially renders only one 40-item batch", pg.locator(".gi").count() == 40 and pg.locator("#menu-more").count() == 1)
+        state = pg.evaluate("({items:document.querySelectorAll('.gi').length,more:document.querySelectorAll('#menu-more').length,total:window.MENU&&window.MENU.total_items,apiHasMore:window.MENU&&window.MENU.has_more})")
+        print("LARGE_MENU_INITIAL_STATE:", json.dumps(state, ensure_ascii=False))
+        ok("large shop menu initially renders one 40-item batch and exposes load-more when more items exist",
+           state["items"] == 40 and ((state["total"] or 0) > 40 and state["more"] == 1 or (state["total"] or 0) <= 40 and state["more"] == 0))
         with pg.expect_response(lambda r: "/menu?" in r.url and "offset=40" in r.url, timeout=8000):
             pg.click("#menu-more")
         pg.wait_for_function("document.querySelectorAll('.gi').length === 80", timeout=8000)

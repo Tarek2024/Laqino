@@ -281,16 +281,17 @@ const account=document.getElementById('homeAccount');
 if(account)account.innerHTML=`<div class="card home-welcome-card"><div class="me"><span class="av">${esc((ME&&ME.name||'؟').trim().charAt(0))}</span><div class="nm"><b>أهلًا ${esc(ME?.name||'بيك')}</b><small>سعداء إنك معانا</small></div><button class="ghost" onclick="go(3)">حسابي</button></div>${quickMenu}</div>`;
 const panels=document.getElementById('homePanels');if(panels)panels.innerHTML=pnls();
 }
-const tiles=document.getElementById('homeTiles');
-if(tiles){
+const renderHomeTiles=svOn=>{
+const tiles=document.getElementById('homeTiles');if(!tiles)return;
 let tileHtml='';
-if(sectionsState==='ready')tileHtml+=homeSectionCards(card,true,homeCfg);
+if(sectionsState==='ready')tileHtml+=homeSectionCards(card,svOn,homeCfg);
 else tileHtml+=homeStateMessage('إعدادات الأقسام',sectionsState);
 if(shopsState==='ready'&&shopsEnabled)tileHtml+=card('shops',I3('shop'),'محلات في منطقتك','مطاعم وسوبر ماركت وحلويات وملابس',"location.href='/shops.html'");
 else if(shopsState==='error')tileHtml+=homeStateMessage('إعدادات المحلات',shopsState);
-tiles.innerHTML=tileHtml;
-tiles.setAttribute('aria-busy','false');
-}
+tiles.innerHTML=tileHtml;tiles.setAttribute('aria-busy','false');
+};
+// الخدمات المحلية تظل في مكانها، لكنها لا تصبح قابلة للضغط قبل التأكد من وجود مقدّمي خدمة منشورين.
+renderHomeTiles(false);
 const campaigns=campaignResult.status==='fulfilled'&&Array.isArray(campaignResult.value)?campaignResult.value:[];
 const managedSlides=campaigns.slice(0,8).map(a=>`<a class="home-promo-slide" href="${esc(a.href||'/')}" ${a.external?'target="_blank" rel="noopener noreferrer"':''} aria-label="فتح إعلان ${esc(a.title)}">${a.image_url?`<img class="home-promo-thumb" src="${esc(a.image_url)}" alt="" loading="lazy" decoding="async">`:''}<span class="home-promo-kicker">من لاقينو</span><strong>${esc(a.title)}</strong>${a.description?`<span class="home-promo-description">${esc(a.description)}</span>`:''}<span class="home-promo-cta">اعرف أكتر <span aria-hidden="true">←</span></span></a>`).join('');
 const track=document.getElementById('homePromoTrack');if(track){track.innerHTML=managedSlides||fallbackPromo;startHomePromo()}
@@ -311,6 +312,7 @@ if(loadId!==window.__homeLoadId||window._lt!==0)return;
 extras.forEach((x,i)=>{if(x.status==='rejected')window.__laqinoHomeLog('api:'+['market-listings','local-services'][i],x.reason,{fallback:'optional-home-content-omitted'})});
 const ads=extras[0].status==='fulfilled'&&Array.isArray(extras[0].value)?extras[0].value:[];
 const providers=extras[1].status==='fulfilled'&&Array.isArray(extras[1].value)?extras[1].value:[];
+const svOn=Array.isArray(providers)&&providers.length>0;renderHomeTiles(svOn);
 const latest=document.getElementById('homeLatestAds');
 if(latest){const recent=ads.slice(0,6);latest.innerHTML=recent.length?recent.map(a=>`<a class="home-latest-card" href="/market.html#/l/${Number(a.id)|0}">${a.images&&a.images.length?`<img src="/api/listings/${Number(a.id)|0}/images/${Number(a.images[0])|0}" alt="" loading="lazy" decoding="async">`:'<span class="home-latest-placeholder">لاقينو</span>'}<b>${esc(a.title)}</b>${a.price!=null?`<small>${esc(Number(a.price).toLocaleString('ar-EG'))} ج</small>`:''}</a>`).join(''):'<p class="home-latest-empty">مفيش إعلانات جديدة في الوقت الحالي.</p>'}
 const services=document.getElementById('homeServices');if(services){services.innerHTML=providers.length?`<div class="sec">${IC.tool}خدمات متاحة</div><div class="chips">${providers.slice(0,8).map(x=>`<button onclick="svt(${x.id})">${esc(x.name_ar)}</button>`).join('')}</div>`:''}
