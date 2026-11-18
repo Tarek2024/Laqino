@@ -168,6 +168,8 @@ try:
         ok("same item with different options stays in a separate cart line", pg.locator("#cart-lines .cart-line").count() == 2 and "86" in pg.inner_text("#ct"))
         pg.click(".gi:has-text('كشري') button[aria-label='أقل']")
         ok("decrement removes only the matching last configuration", pg.locator("#cart-lines .cart-line").count() == 1 and "50.5" in pg.inner_text("#ct") and pg.locator("#ob").is_enabled())
+        pg.click("#cart-lines .cart-remove")
+        ok("customer can remove an accidentally added item directly from the cart", pg.locator("#cart-lines .cart-line").count() == 0 and "0 ج" in pg.inner_text("#ct") and pg.locator("#ob").is_disabled())
         ctx.close()
         # 5c) صاحب المحل: ودجت الهوية + تنبيه + تصغير ومعاينة قبل الرفع
         ctx = br.new_context(viewport={"width": 390, "height": 800}); ctx.add_init_script("localStorage.setItem('t','%s')" % own); pg = ctx.new_page(); pg.on("pageerror", lambda e: errs.append(str(e)))
