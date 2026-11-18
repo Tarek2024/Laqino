@@ -28,7 +28,7 @@ CREATE INDEX IF NOT EXISTS ix_shops_owner ON shops(owner_id,status);
 CREATE INDEX IF NOT EXISTS ix_shops_browse ON shops(status,region_id,type_id);
 CREATE UNIQUE INDEX IF NOT EXISTS ux_shops_owner_name ON shops(owner_id,name_norm) WHERE status!='rejected';
 CREATE TABLE IF NOT EXISTS shop_items(id INTEGER PRIMARY KEY, shop_id INTEGER NOT NULL REFERENCES shops(id), name_ar TEXT NOT NULL, description TEXT,
- price REAL NOT NULL CHECK(price>0), is_available INTEGER NOT NULL DEFAULT 1 CHECK(is_available IN(0,1)), sort INTEGER NOT NULL DEFAULT 0,
+ price REAL NOT NULL CHECK(price>0), is_available INTEGER NOT NULL DEFAULT 1 CHECK(is_available IN(0,1)), sort INTEGER NOT NULL DEFAULT 0, is_featured INTEGER NOT NULL DEFAULT 0 CHECK(is_featured IN(0,1)),
  status TEXT NOT NULL DEFAULT 'active' CHECK(status IN('active','deleted')), created_at INTEGER NOT NULL, updated_at INTEGER NOT NULL);
 CREATE INDEX IF NOT EXISTS ix_shop_items ON shop_items(shop_id,status,sort,id);
 CREATE TABLE IF NOT EXISTS shop_categories(id INTEGER PRIMARY KEY, shop_id INTEGER NOT NULL REFERENCES shops(id) ON DELETE CASCADE, name_ar TEXT NOT NULL, sort INTEGER NOT NULL DEFAULT 0, is_active INTEGER NOT NULL DEFAULT 1 CHECK(is_active IN(0,1)), created_at INTEGER NOT NULL, updated_at INTEGER NOT NULL);
@@ -97,6 +97,8 @@ def install(c):
     item_cols = {r[1] for r in c.execute("PRAGMA table_info(shop_items)")}
     if "category_id" not in item_cols:
         c.execute("ALTER TABLE shop_items ADD COLUMN category_id INTEGER REFERENCES shop_categories(id)")
+    if "is_featured" not in item_cols:
+        c.execute("ALTER TABLE shop_items ADD COLUMN is_featured INTEGER NOT NULL DEFAULT 0 CHECK(is_featured IN(0,1))")
     if not c.execute("SELECT 1 FROM shop_types LIMIT 1").fetchone() and not c.execute("SELECT 1 FROM settings WHERE key='shop_types_seeded'").fetchone():
         now = int(time.time())
         for sl, nm, ic, srt in SEED: c.execute("INSERT OR IGNORE INTO shop_types(slug,name_ar,icon,sort,is_active,require_image,created_at) VALUES(?,?,?,?,1,0,?)", (sl, nm, ic, srt, now))
@@ -232,7 +234,7 @@ def _items(c, shop_id, item_id=None):
     if rows:
         for r in c.execute("SELECT item_id,file_id FROM shop_item_images WHERE item_id IN (%s) ORDER BY item_id,position,id" % ",".join("?" * len(rows)), [x["id"] for x in rows]): imgs.setdefault(r[0], []).append(r[1])
     options = _item_options(c, shop_id, [r["id"] for r in rows]) if rows else {}
-    return [{"id": r["id"], "name_ar": r["name_ar"], "description": r["description"] or "", "price": r["price"], "is_available": bool(r["is_available"]), "sort": r["sort"], "category_id": r["category_id"], "image_ids": imgs.get(r["id"], []), "options": options.get(r["id"], []), "created_at": r["created_at"]} for r in rows]
+    return [{"id": r["id"], "name_ar": r["name_ar"], "description": r["description"] or "", "price": r["price"], "is_available": bool(r["is_available"]), "sort": r["sort"], "is_featured": bool(r["is_featured"]), "category_id": r["category_id"], "image_ids": imgs.get(r["id"], []), "options": options.get(r["id"], []), "created_at": r["created_at"]} for r in rows]
 
 
 def _set_images(c, item_id, ids, now):
@@ -482,6 +484,34 @@ def handle(h, c, u, method, path, q):
         audit("shopitem.options", iid, {"shop": shop["id"], "groups": len(parsed), "values": total_values})
         c.commit()
         return ok({"groups": _item_options(c, shop["id"], [iid]).get(iid, [])})
+
+    # ---- ترتيب المنيو واختيار الأصناف المميزة (المالك فقط)
+    mo = re.fullmatch(r"/api/owner/shops/(\d{1,9})/menu-order", path)
+    if mo:
+        if not u: return err(401, "سجّل الدخول أولًا")
+        shop, e = need_shop_owner(c, u, int(mo[1]))
+        if e: return err(*e)
+        if method != "POST": return err(405, "غير مسموح")
+        d = h.body()
+        category_ids, item_ids, featured_ids = d.get("category_ids"), d.get("item_ids"), d.get("featured_item_ids")
+        if not all(isinstance(v, list) for v in (category_ids, item_ids, featured_ids)):
+            return err(400, "بيانات ترتيب المنيو غير مكتملة")
+        if len(category_ids) > 60 or len(item_ids) > MAX_ITEMS or len(featured_ids) > 20:
+            return err(400, "عدد عناصر الترتيب غير صالح")
+        if any(type(v) is not int or v <= 0 for v in category_ids + item_ids + featured_ids):
+            return err(400, "معرّف عنصر غير صالح")
+        if len(set(category_ids)) != len(category_ids) or len(set(item_ids)) != len(item_ids) or len(set(featured_ids)) != len(featured_ids):
+            return err(400, "يوجد عنصر مكرر في الترتيب")
+        actual_categories = [r[0] for r in c.execute("SELECT id FROM shop_categories WHERE shop_id=? AND is_active=1 ORDER BY sort,id", (shop["id"],))]
+        actual_items = [r[0] for r in c.execute("SELECT id FROM shop_items WHERE shop_id=? AND status='active' ORDER BY sort,id", (shop["id"],))]
+        if set(category_ids) != set(actual_categories) or set(item_ids) != set(actual_items) or not set(featured_ids).issubset(set(item_ids)):
+            return err(400, "قائمة الأقسام أو الأصناف لا تطابق عناصر المحل الحالية")
+        now = int(time.time())
+        c.executemany("UPDATE shop_categories SET sort=?,updated_at=? WHERE id=? AND shop_id=?", [(i + 1, now, cid, shop["id"]) for i, cid in enumerate(category_ids)])
+        c.executemany("UPDATE shop_items SET sort=?,is_featured=?,updated_at=? WHERE id=? AND shop_id=?", [(i + 1, int(iid in featured_ids), now, iid, shop["id"]) for i, iid in enumerate(item_ids)])
+        audit("shop.menu_order", shop["id"], {"categories": len(category_ids), "items": len(item_ids), "featured": len(featured_ids)})
+        c.commit()
+        return ok({"ok": True, "featured_count": len(featured_ids)})
 
     # ---- أقسام منيو المحل: ينشئها ويديرها صاحب المحل بنفسه (مستقلة عن نوع النشاط)
     mcats = re.fullmatch(r"/api/owner/shops/(\d+)/categories(?:/(\d+)/(edit|delete))?", path)
