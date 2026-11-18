@@ -226,8 +226,10 @@ def plan(c, shop_id, raw):
             if norm not in products:
                 products[norm] = {"row": item["row"], "rows": [item["row"]], "name": name, "price": price,
                     "description": desc, "is_available": available, "category_name": category_name,
-                    "groups": [], "status": "new", "message": "جاهز للإضافة"}
+                    "groups": [], "row_mode": "grouped" if group else "plain", "status": "new", "message": "جاهز للإضافة"}
             product = products[norm]
+            if product["row_mode"] != ("grouped" if group else "plain"):
+                raise ValueError("لا تخلط صفوف المنتج العادي مع صفوف خياراته؛ استخدم صفوف الخيارات كلها أو صفًا عاديًا واحدًا")
             if product["row"] != item["row"] and not group and not product["groups"]:
                 row_errors.append({"row": item["row"], "name": name, "product_norm": norm, "status": "duplicate", "message": "اسم المنتج مكرر داخل الملف بدون مجموعة اختيارات"})
                 continue
