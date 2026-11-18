@@ -68,7 +68,7 @@ ok("Excel import links a confidently inferred item to an existing manual categor
    status == 200 and sql("SELECT category_id FROM shop_items WHERE id=?", auto_id)[0][0] == cid)
 
 # The public customer menu exposes category metadata without changing the order flow.
-menu_status, menu = call("GET", "/shops/%d/menu" % shop)
+menu_status, menu = call("GET", "/shops/%d/menu?q=%s&limit=40" % (shop, urllib.parse.quote("عصير اختبار")))
 ok("customer menu exposes the shop's categories", menu_status == 200 and any(x["id"] == cid for x in menu.get("categories", [])))
 
 menu_item = next((x for x in menu.get("items", []) if x["id"] == item["id"]), None)
@@ -155,7 +155,7 @@ while True:
         break
 ok("all pages expose every available item exactly once",
    page_status == 200 and len(all_ids) == total_public and len(set(all_ids)) == total_public)
-cat_status, cat_page = call("GET", "/shops/%d/menu?limit=40&category_id=%d" % (shop, cid))
+cat_status, cat_page = call("GET", "/shops/%d/menu?limit=40&category_id=%d" % (shop, perf_cat))
 ok("server-side category filter returns only items from that shop category",
    perf_cat_status == 201 and cat_status == 200 and cat_page["total_items"] == 205
    and all(x["category_id"] == perf_cat for x in cat_page["items"]))
@@ -165,5 +165,9 @@ ok("server-side menu search returns matching item names",
 ok("menu page size and category validation are bounded",
    call("GET", "/shops/%d/menu?limit=500" % shop)[0] == 400
    and call("GET", "/shops/%d/menu?category_id=999999" % shop)[0] == 400)
+
+# Swipe hint must remain visible with one category: the customer can still swipe between "الكل" and that category.
+shops_ui = open(os.path.join(base.HERE, "static", "shops.html"), encoding="utf-8").read()
+ok("single-category menu shows swipe hint", "const swipeHint=cats.length>0?" in shops_ui)
 
 print("SHOP CATEGORY TESTS ALL PASS")
