@@ -9,7 +9,7 @@ prefix = "/owner/shops/%d/categories" % shop
 status, category = call("POST", prefix, {"name_ar": "مشروبات"}, owner)
 ok("shop owner can create a category", status == 201 and category.get("id"))
 cid = category["id"]
-ok("customer cannot create merchant categories", call("POST", prefix, {"name_ar": "محاولات"}, customer)[0] == 403)
+ok("customer cannot create merchant categories", call("POST", prefix, {"name_ar": "محاولات"}, customer)[0] == 404)
 ok("owner can list only their own categories", call("GET", prefix, None, owner)[1]["items"][0]["id"] == cid)
 
 status, item = call("POST", "/owner/shops/%d/items" % shop,
@@ -30,7 +30,7 @@ groups = [
 option_path = "/owner/shops/%d/items/%d/options" % (shop, item["id"])
 option_status, saved = call("POST", option_path, {"groups": groups}, owner)
 ok("owner can save size and add-on groups", option_status == 200 and len(saved["groups"]) == 2)
-ok("customer cannot edit item options", call("POST", option_path, {"groups": []}, customer)[0] == 403)
+ok("customer cannot edit item options", call("POST", option_path, {"groups": []}, customer)[0] == 404)
 loaded_status, loaded = call("GET", option_path, None, owner)
 ok("saved item options can be loaded again", loaded_status == 200 and loaded["groups"][0]["values"][1]["price_delta"] == 10)
 
