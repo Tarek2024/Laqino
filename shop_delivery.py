@@ -72,6 +72,19 @@ def _int(v):
     return None if isinstance(v, bool) or not isinstance(v, int) else v
 
 
+def _option_int(v):
+    """Accept integer option IDs from JSON numbers or decimal strings; reject bools and malformed/oversized values."""
+    if isinstance(v, str):
+        if not re.fullmatch(r"[0-9]{1,19}", v):
+            return None
+        try:
+            n = int(v)
+        except (TypeError, ValueError, OverflowError):
+            return None
+        return n if 1 <= n <= 2**63 - 1 else None
+    return _int(v)
+
+
 def handle(h, c, u, method, path, q):
     """True إن عالج الطلب. h = معالج السيرفر (send/body). الأخطاء تُرجَع مباشرة عبر h.send."""
     mo = re.fullmatch(r"/api/owner/shops/(\d{1,9})/(delivery-request|delivery-requests|orders)(?:/(\d{1,9})/(reject|accept|ready))?", path)
@@ -146,7 +159,7 @@ def handle(h, c, u, method, path, q):
             option_ids = x.get("option_ids", []) if isinstance(x, dict) else None
             if iid is None or qty is None or not 1 <= iid <= 10 ** 12 or not 1 <= qty <= MAX_QTY or not isinstance(option_ids, list) or len(option_ids) > 40:
                 return err(400, "بيانات الأصناف والاختيارات غير صالحة")
-            normalized_options = [_int(v) for v in option_ids]
+            normalized_options = [_option_int(v) for v in option_ids]
             if any(v is None or v < 1 for v in normalized_options) or len(set(normalized_options)) != len(normalized_options):
                 return err(400, "بيانات الأصناف والاختيارات غير صالحة")
             option_ids = normalized_options
