@@ -10,7 +10,7 @@ DIGITS = str.maketrans("٠١٢٣٤٥٦٧٨٩۰۱۲۳۴۵۶۷۸۹", "012345678901
 AR = str.maketrans({"أ":"ا","إ":"ا","آ":"ا","ٱ":"ا","ة":"ه","ى":"ي","ؤ":"و","ئ":"ي"})
 SYN = {
     "name": {"الاسم", "اسم الصنف", "الصنف", "اسم المنتج", "المنتج", "name", "item", "product"},
-    "price": {"السعر", "سعر", "السعر بالجنيه", "price"},
+    "price": {"السعر", "سعر", "السعر بالجنيه", "السعر الأساسي", "سعر المنتج", "base price", "price"},
     "description": {"الوصف", "التفاصيل", "وصف الصنف", "description", "details"},
     "available": {"متاح", "متوفر", "حالة التوفر", "التوفر", "available", "availability", "in stock"},
     "category": {"القسم", "القسم (اختياري)", "القسم الاختياري", "التصنيف", "قسم الصنف", "category", "section"},
@@ -180,6 +180,7 @@ def plan(c, shop_id, raw):
             continue
         get = lambda field: str(row[cols[field]] if field in cols and cols[field] < len(row) else "").strip()
         item = {"row": ri + 1, "name": get("name"), "status": "error", "message": ""}
+        norm = None
         try:
             name = shops._text(item["name"], "اسم الصنف", 2, 80)
             price = _price(get("price"))
@@ -228,7 +229,7 @@ def plan(c, shop_id, raw):
                     "groups": [], "status": "new", "message": "جاهز للإضافة"}
             product = products[norm]
             if product["row"] != item["row"] and not group and not product["groups"]:
-                row_errors.append({"row": item["row"], "name": name, "status": "duplicate", "message": "اسم المنتج مكرر داخل الملف بدون مجموعة اختيارات"})
+                row_errors.append({"row": item["row"], "name": name, "product_norm": norm, "status": "duplicate", "message": "اسم المنتج مكرر داخل الملف بدون مجموعة اختيارات"})
                 continue
             if product["row"] != item["row"] and item["row"] not in product["rows"]:
                 product["rows"].append(item["row"])
@@ -254,14 +255,14 @@ def plan(c, shop_id, raw):
             elif product["groups"]:
                 raise ValueError("لا تخلط صفوف المنتج العادي مع صفوف خياراته")
         except (ValueError, TypeError, OverflowError) as e:
-            row_errors.append({"row": item["row"], "name": item["name"], "status": "error", "message": str(e)})
+            row_errors.append({"row": item["row"], "name": item["name"], "product_norm": norm, "status": "error", "message": str(e)})
     items = []
     for norm, product in products.items():
         if norm in existing:
             product.update(status="duplicate", message="المنتج موجود بالفعل في المحل؛ تم تخطيه")
         elif shop["require_image"]:
             product.update(status="error", message="هذا النوع من المحلات يشترط صورة لكل صنف؛ أضف الصورة من لوحة صاحب المحل")
-        elif any(x["row"] in product["rows"] for x in row_errors):
+        elif any(x.get("product_norm") == norm for x in row_errors if x["status"] == "error"):
             product.update(status="error", message="يوجد خطأ في أحد صفوف المنتج؛ لم يتم استيراده")
         items.append(product)
         existing.add(norm)
