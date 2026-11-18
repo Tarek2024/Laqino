@@ -187,7 +187,7 @@ try:
         featured_menu = call("GET", "/shops/%d/menu" % S)[1]["items"]
         ok("featured item is promoted to the top of the customer menu", featured_menu[0]["id"] == i1 and featured_menu[0]["is_featured"] is True)
         pg.locator("#it%d .menu-order-controls button[title='خفض الصنف']" % i2).click()
-        pg.wait_for_selector("text=تم حفظ ترتيب وظهور المنيو.", timeout=8000)
+        pg.wait_for_function("(()=>{const a=[...document.querySelectorAll('.item-card')].map(x=>x.id);return a.indexOf('it%d')>a.indexOf('it%d')})()" % (i2, i3), timeout=8000)
         ordered_items = call("GET", "/owner/shops/%d/items" % S, None, own)[1]["items"]
         ok("merchant can reorder items from the dashboard", [x["id"] for x in ordered_items].index(i2) > [x["id"] for x in ordered_items].index(i3))
         pg.click("summary:has-text('إضافة صنف جديد')"); pg.set_input_files("#if", big)
