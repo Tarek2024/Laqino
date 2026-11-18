@@ -181,6 +181,15 @@ try:
         pg.click("button[data-tab=i]"); ok("items tab shows the missing-pictures alert", "من غير صور" in pg.inner_text("section[data-t=i]"))
         ok("merchant can manage menu categories and assign an item", "أقسام المحل" in pg.inner_text("section[data-t=i]") and pg.locator("#ec%d" % i1).input_value() == str(MENU_CAT))
         ok("merchant sees the saved size and add-on configuration", "الحجم!: صغير | 0, كبير | 10" in pg.locator("#op%d" % i1).input_value() and "جبنة" in pg.locator("#op%d" % i1).input_value())
+        ok("merchant dashboard mounts reorder and featured controls for every item", pg.locator(".item-card .menu-order-controls").count() == 3)
+        pg.locator("#it%d .menu-order-controls input[type=checkbox]" % i1).check()
+        pg.wait_for_selector("text=تم حفظ ترتيب وظهور المنيو.", timeout=8000)
+        featured_menu = call("GET", "/shops/%d/menu" % S)[1]["items"]
+        ok("featured item is promoted to the top of the customer menu", featured_menu[0]["id"] == i1 and featured_menu[0]["is_featured"] is True)
+        pg.locator("#it%d .menu-order-controls button[title='خفض الصنف']" % i2).click()
+        pg.wait_for_selector("text=تم حفظ ترتيب وظهور المنيو.", timeout=8000)
+        ordered_items = call("GET", "/owner/shops/%d/items" % S, None, own)[1]["items"]
+        ok("merchant can reorder items from the dashboard", [x["id"] for x in ordered_items].index(i2) > [x["id"] for x in ordered_items].index(i3))
         pg.click("summary:has-text('إضافة صنف جديد')"); pg.set_input_files("#if", big)
         pg.wait_for_selector("#dia .pv img", timeout=5000); ok("item form shows thumbnail preview before upload", pg.locator("#dia .pv img").count() == 1)
         pg.fill("#in", "كباب"); pg.fill("#ip", "90"); pg.click("button:has-text('إضافة الصنف')"); pg.wait_for_selector("text=تمت إضافة الصنف", timeout=20000)
