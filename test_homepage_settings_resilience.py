@@ -24,6 +24,12 @@ class HomepageSettingsResilienceTests(unittest.TestCase):
         self.assertNotIn("api('/home-sections')", helper)
         self.assertIn("x.visible===true", helper)
 
+    def test_public_api_does_not_return_legacy_defaults_when_admin_config_is_missing(self):
+        server = (ROOT / "server.py").read_text(encoding="utf-8")
+        self.assertIn('if not u or u["role"] != "admin":', server)
+        self.assertIn('{"error": "home_sections_not_configured"}', server)
+        self.assertIn("saved = defaults", server)
+
     def test_last_known_good_settings_are_cached_and_reused(self):
         self.assertIn("laqino_home_sections_last_valid_v1", self.html)
         self.assertIn("writeHomeCache(HOME_SECTION_CACHE_KEY,homeCfg)", self.html)
