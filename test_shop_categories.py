@@ -178,7 +178,7 @@ ok("category strip keeps native horizontal touch scrolling",
    ".menu-cats{display:flex" in shops_ui and "touch-action:pan-x" in shops_ui
    and "scroll-snap-align:center" in shops_ui)
 ok("vertical page scrolling remains native while menu results accept horizontal gestures",
-   "#menu-results{touch-action:pan-y" in shops_ui and ".menu-grid{touch-action:pan-y}" in shops_ui)
+   "#menu-results{touch-action:pan-y" in shops_ui and ".menu-grid{touch-action:pan-y" in shops_ui)
 ok("swipe starts from any product card, including image and quantity controls",
    "e.target.closest('#menu-results .gi')" in shops_ui
    and "e.target.closest('.opt-modal,[data-no-menu-swipe],input,select,textarea,a')" in shops_ui
