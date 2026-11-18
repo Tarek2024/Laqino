@@ -20,6 +20,29 @@ ok("item rejects a category from another shop",
    call("POST", "/owner/shops/%d/items/%d/edit" % (shop, item["id"]),
         {"category_id": 999999}, owner)[0] == 400)
 
+# Owner can control category/item order and select curated products for the top of the customer menu.
+status, category2 = call("POST", prefix, {"name_ar": "حلويات"}, owner)
+item2_status, item2 = call("POST", "/owner/shops/%d/items" % shop,
+                           {"name_ar": "كيكة اختبار", "price": 25, "category_id": category2["id"]}, owner)
+before_cats = call("GET", prefix, None, owner)[1]["items"]
+before_items = call("GET", "/owner/shops/%d/items" % shop, None, owner)[1]["items"]
+ordered = call("POST", "/owner/shops/%d/menu-order" % shop,
+               {"category_ids": [category2["id"], cid],
+                "item_ids": [item2["id"], item["id"]],
+                "featured_item_ids": [item2["id"]]}, owner)
+after_cats = call("GET", prefix, None, owner)[1]["items"]
+after_items = call("GET", "/owner/shops/%d/items" % shop, None, owner)[1]["items"]
+public_order = call("GET", "/shops/%d/menu" % shop)[1]["items"]
+ok("merchant can save a custom category order", ordered[0] == 200 and after_cats[0]["id"] == category2["id"])
+ok("merchant can save item order and mark selected products as featured",
+   ordered[0] == 200 and after_items[0]["id"] == item2["id"] and after_items[0]["is_featured"] is True)
+ok("customer menu puts merchant-featured products first",
+   public_order[0]["id"] == item2["id"] and public_order[0]["is_featured"] is True)
+ok("customer cannot change the menu order", call("POST", "/owner/shops/%d/menu-order" % shop,
+   {"category_ids": [cid, category2["id"]], "item_ids": [item["id"], item2["id"]], "featured_item_ids": []}, customer)[0] == 404)
+ok("menu order rejects incomplete item lists", call("POST", "/owner/shops/%d/menu-order" % shop,
+   {"category_ids": [cid, category2["id"]], "item_ids": [item["id"]], "featured_item_ids": []}, owner)[0] == 400)
+
 # Owner-managed size variants and add-ons are returned to the public menu.
 groups = [
     {"name_ar": "الحجم", "kind": "variant", "required": True,
