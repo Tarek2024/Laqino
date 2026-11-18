@@ -164,7 +164,11 @@ def handle(h, c, u, method, path, q):
             unit_price = round(float(item["price"]) + sum(float(opt["price_delta"]) for opt in selected), 2)
             if not 0 < unit_price <= 1000000: return err(400, "سعر الصنف بعد الاختيارات غير صالح")
             options_snapshot = [{"id": opt["id"], "group_name": opt["group_name"], "kind": opt["group_kind"], "name": opt["option_name"], "price_delta": opt["price_delta"]} for opt in selected]
-            lines.append({"id": iid, "name": item["name_ar"], "base_price": item["price"], "price": unit_price, "qty": qty, "options": options_snapshot})
+            line = {"id": iid, "name": item["name_ar"], "price": unit_price, "qty": qty}
+            if options_snapshot:
+                line["base_price"] = item["price"]
+                line["options"] = options_snapshot
+            lines.append(line)
         total = round(sum(x["price"] * x["qty"] for x in lines), 2)
         note = re.sub(r"\s+", " ", str(d.get("note") or "")).strip()[:300]
         dr = str(d.get("dropoff_text", "")).strip()
@@ -182,7 +186,7 @@ def handle(h, c, u, method, path, q):
         cm = {r["key"]: r["value"] for r in c.execute("SELECT * FROM settings")}; ct, cv = cm.get("commission_type", "fixed"), float(cm.get("commission_value", 0))
         comm = _H["commission_for"](c, f["fee"], ct, cv); now = int(time.time()); code = "%06d" % secrets.randbelow(10 ** 6)
         pk = ("محل " + s["name_ar"] + (" — " + s["address"] if s["address"] else ""))[:300]
-        det = "\n".join("%d× %s%s" % (x["qty"], x["name"], (" (" + "، ".join(o["name"] for o in x["options"]) + ")") if x["options"] else "") for x in lines) + ("\nملاحظة: " + note if note else "")
+        det = "\n".join("%d× %s%s" % (x["qty"], x["name"], (" (" + "، ".join(o["name"] for o in x.get("options", [])) + ")") if x.get("options") else "") for x in lines) + ("\nملاحظة: " + note if note else "")
         try:
             cur = c.execute("INSERT INTO delivery_orders(customer_id,region_id,pickup_text,dropoff_text,details,fee,commission,created_at,updated_at,search_started_at,delivery_code,request_key,dropoff_lat,dropoff_lng,fare_status,origin_type,comm_type,comm_value) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,'none',?,?,?)",
                             (u["id"], s["region_id"], pk, dr[:300], "", f["fee"], round(comm, 2), now, now, now, code, rk, dla, dln, ORDER, ct, cv))
