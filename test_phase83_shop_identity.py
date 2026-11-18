@@ -225,7 +225,10 @@ try:
         c.commit(); c.close()
         ctx = br.new_context(viewport={"width": 390, "height": 800}); pg = ctx.new_page(); pg.on("pageerror", lambda e: errs.append(str(e)))
         pg.goto(BASE + "/shops.html#s%d" % S); pg.wait_for_function("document.querySelectorAll('.gi').length === 40", timeout=10000)
-        ok("large shop menu initially renders only one 40-item batch", pg.locator(".gi").count() == 40 and pg.locator("#menu-more").count() == 1)
+        state = pg.evaluate("({items:document.querySelectorAll('.gi').length,more:document.querySelectorAll('#menu-more').length,total:window.MENU&&window.MENU.total_items,apiHasMore:window.MENU&&window.MENU.has_more})")
+        print("LARGE_MENU_INITIAL_STATE:", json.dumps(state, ensure_ascii=False))
+        ok("large shop menu initially renders one 40-item batch and exposes load-more when more items exist",
+           state["items"] == 40 and ((state["total"] or 0) > 40 and state["more"] == 1 or (state["total"] or 0) <= 40 and state["more"] == 0))
         with pg.expect_response(lambda r: "/menu?" in r.url and "offset=40" in r.url, timeout=8000):
             pg.click("#menu-more")
         pg.wait_for_function("document.querySelectorAll('.gi').length === 80", timeout=8000)
