@@ -265,10 +265,12 @@ def plan(c, shop_id, raw):
         elif shop["require_image"]:
             product.update(status="error", message="هذا النوع من المحلات يشترط صورة لكل صنف؛ أضف الصورة من لوحة صاحب المحل")
         elif any(x.get("product_norm") == norm for x in row_errors if x["status"] == "error"):
-            product.update(status="error", message="يوجد خطأ في أحد صفوف المنتج؛ لم يتم استيراده")
+            details = [x for x in row_errors if x.get("product_norm") == norm and x["status"] == "error"]
+            product.update(status="error", message="خطأ في صف %s: %s؛ لم يتم استيراد المنتج" % (details[0]["row"], details[0]["message"]))
         items.append(product)
         existing.add(norm)
-    items.extend(row_errors)
+    # Keep row-level diagnostics only when no product summary row represents that name.
+    items.extend(x for x in row_errors if x["status"] == "duplicate" or x.get("product_norm") not in products)
     remaining = max(0, shops.MAX_ITEMS - current)
     accepted = 0
     for item in items:
