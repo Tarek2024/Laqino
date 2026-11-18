@@ -52,6 +52,16 @@ OPT_GROUPS = [
 OPT_SAVED = call("POST", "/owner/shops/%d/items/%d/options" % (S, i1), {"groups": OPT_GROUPS}, own)[1]["groups"]
 OPT_SMALL, OPT_LARGE = OPT_SAVED[0]["values"][0]["id"], OPT_SAVED[0]["values"][1]["id"]
 OPT_CHEESE = OPT_SAVED[1]["values"][0]["id"]
+# Server-side order validation must reject a missing required variant and option IDs from another item.
+missing_variant = call("POST", "/shops/%d/order" % S,
+                       {"items": [{"item_id": i1, "qty": 1, "option_ids": []}]}, cust)
+wrong_item_option = call("POST", "/shops/%d/order" % S,
+                         {"items": [{"item_id": i2, "qty": 1, "option_ids": [OPT_LARGE]}]}, cust)
+ok("order API rejects missing required size even if the client bypasses the UI",
+   missing_variant[0] == 400 and "الحجم" in missing_variant[1].get("error", ""))
+ok("order API rejects an option belonging to another item",
+   wrong_item_option[0] == 400 and "اختيار غير صالح" in wrong_item_option[1].get("error", ""))
+
 i3 = call("POST", "/owner/shops/%d/items" % S, {"name_ar": "رز", "price": 10}, own)[1]["id"]
 o = call("GET", "/owner/shops", None, own)[1]["items"][0]
 ok("owner warning data: 2 of 3 items have no images", o["items_total"] == 3 and o["items_without_images"] == 2)
