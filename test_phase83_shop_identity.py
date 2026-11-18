@@ -41,6 +41,17 @@ ok("new shop has no identity (optional)", o["logo_file_id"] is None and o["cover
 lg, cv, p1, p2, other, priv = upload(own), upload(own), upload(own), upload(own), upload(own2), upload(own)
 i1 = call("POST", "/owner/shops/%d/items" % S, {"name_ar": "كشري", "price": 35.5, "image_ids": [p1, p2]}, own)[1]["id"]
 i2 = call("POST", "/owner/shops/%d/items" % S, {"name_ar": "شوربة", "price": 20}, own)[1]["id"]
+MENU_CAT = call("POST", "/owner/shops/%d/categories" % S, {"name_ar": "أطباق"}, own)[1]["id"]
+call("POST", "/owner/shops/%d/items/%d/edit" % (S, i1), {"category_id": MENU_CAT}, own)
+OPT_GROUPS = [
+    {"name_ar": "الحجم", "kind": "variant", "required": True,
+     "values": [{"name_ar": "صغير", "price_delta": 0}, {"name_ar": "كبير", "price_delta": 10}]},
+    {"name_ar": "إضافات", "kind": "addon", "required": False,
+     "values": [{"name_ar": "جبنة", "price_delta": 5}]},
+]
+OPT_SAVED = call("POST", "/owner/shops/%d/items/%d/options" % (S, i1), {"groups": OPT_GROUPS}, own)[1]["groups"]
+OPT_SMALL, OPT_LARGE = OPT_SAVED[0]["values"][0]["id"], OPT_SAVED[0]["values"][1]["id"]
+OPT_CHEESE = OPT_SAVED[1]["values"][0]["id"]
 i3 = call("POST", "/owner/shops/%d/items" % S, {"name_ar": "رز", "price": 10}, own)[1]["id"]
 o = call("GET", "/owner/shops", None, own)[1]["items"][0]
 ok("owner warning data: 2 of 3 items have no images", o["items_total"] == 3 and o["items_without_images"] == 2)
@@ -110,6 +121,12 @@ try:
         hero = pg.evaluate("(()=>{const cv=document.querySelector('.hero .cv img'),lg=document.querySelector('.hero .lgw img');return {cv:cv&&cv.naturalWidth>0,lg:lg&&lg.naturalWidth>0,priority:cv&&lg&&cv.loading==='eager'&&lg.loading==='eager'&&cv.fetchPriority==='high'&&lg.fetchPriority==='high',h2:document.querySelector('.ht h2').textContent,open:document.querySelector('.ht .bd.on')!==null,menuLayout:getComputedStyle(document.querySelector('.menu-grid')).display,categoryBar:!!document.querySelector('.menu-cats'),search:!!document.querySelector('#menu-search')}})()")
         ok("shop page: big cover + logo + title + status + vertical menu + categories + search", hero["cv"] and hero["lg"] and hero["h2"] == "مطعم الأمل" and hero["open"] and hero["menuLayout"] == "flex" and hero["categoryBar"] and hero["search"])
         ok("shop page: hero cover and logo are prioritized", hero["priority"])
+        pg.locator(".menu-cats button").filter(has_text="أطباق").click()
+        ok("category strip filters the menu to the selected section", pg.locator(".gi").count() == 1 and "كشري" in pg.inner_text(".gi"))
+        pg.locator(".menu-cats button").filter(has_text="الكل").click()
+        pg.fill("#menu-search", "كشري")
+        ok("menu search filters by item name", pg.locator(".gi").count() == 1 and "كشري" in pg.inner_text(".gi"))
+        pg.fill("#menu-search", "")
         sq = pg.evaluate("[...document.querySelectorAll('.zb')].map(b=>{const r=b.getBoundingClientRect();return Math.abs(r.width-r.height)<2})")
         ok("item pictures are square", len(sq) == 3 and all(sq))
         ok("price shown + no +/- when not logged in", "35.5" in pg.inner_text(".grid") and pg.locator(".gb .row").count() == 0)
@@ -124,8 +141,15 @@ try:
         # 5b) عميل مسجَّل: +/−
         ctx = br.new_context(viewport={"width": 390, "height": 800}); ctx.add_init_script("localStorage.setItem('t','%s')" % cust); pg = ctx.new_page(); pg.on("pageerror", lambda e: errs.append(str(e)))
         pg.goto(BASE + "/shops.html#s%d" % S); pg.wait_for_selector(".gi", timeout=8000)
-        pg.click(".gi:has-text('كشري') button[aria-label='أكثر']"); pg.click(".gi:has-text('كشري') button[aria-label='أكثر']"); pg.click(".gi:has-text('كشري') button[aria-label='أقل']")
-        ok("+/− buttons on the grid update the cart total", pg.inner_text(".gi:has-text('كشري') .row b").strip() == "1" and "35.5" in pg.inner_text("#ct") and pg.locator("#ob").is_enabled())
+        pg.click(".gi:has-text('كشري') button[aria-label='أكثر']"); pg.wait_for_selector("#opt-modal", timeout=3000)
+        pg.check("#opt-modal input[value='%d']" % OPT_LARGE); pg.check("#opt-modal input[value='%d']" % OPT_CHEESE)
+        pg.click("#opt-modal button.full")
+        ok("variant + add-on selections calculate the correct cart unit price", "50.5" in pg.inner_text("#ct") and "الحجم: كبير" in pg.inner_text("#cart-lines") and "إضافات: جبنة" in pg.inner_text("#cart-lines"))
+        pg.click(".gi:has-text('كشري') button[aria-label='أكثر']"); pg.check("#opt-modal input[value='%d']" % OPT_SMALL)
+        pg.click("#opt-modal button.full")
+        ok("same item with different options stays in a separate cart line", pg.locator("#cart-lines .cart-line").count() == 2 and "86" in pg.inner_text("#ct"))
+        pg.click(".gi:has-text('كشري') button[aria-label='أقل']")
+        ok("decrement removes only the matching last configuration", pg.locator("#cart-lines .cart-line").count() == 1 and "50.5" in pg.inner_text("#ct") and pg.locator("#ob").is_enabled())
         ctx.close()
         # 5c) صاحب المحل: ودجت الهوية + تنبيه + تصغير ومعاينة قبل الرفع
         ctx = br.new_context(viewport={"width": 390, "height": 800}); ctx.add_init_script("localStorage.setItem('t','%s')" % own); pg = ctx.new_page(); pg.on("pageerror", lambda e: errs.append(str(e)))
