@@ -40,7 +40,7 @@ r = ui(o1, [{"wait": 700, **SNAP}]); v = r["m"]
 ok("no script errors on load", r["errs"] == [])
 ok("two approved shops -> switcher shown", 'id="shsel"' in v and v.count("<option") >= 2)
 ok("shop name is HTML-escaped", "&lt;i&gt;الأمل&lt;/i&gt;" in v and "<i>الأمل</i>" not in v)
-ok("closed by default with an open button", "مغلق الآن" in v and "shtog(%d,1)" % S1 in v)
+ok("closed by default with an open button", "مغلق حاليًا" in v and "shtog(%d,1)" % S1 in v)
 r = ui(o1, [{"js": "shtog(%d,1)" % S1, "wait": 900, **SNAP}])
 ok("open button opens the shop (DB + UI)", sql("SELECT is_open FROM shops WHERE id=?", S1)[0][0] == 1 and "مفتوح الآن" in r["m"] and "shtog(%d,0)" % S1 in r["m"])
 ui(o1, [{"js": "shtog(%d,0)" % S1, "wait": 900}])
@@ -54,6 +54,8 @@ ok("UI add item creates the row for the selected shop", len(row) == 1 and row[0]
 ok("item name is escaped in the list", "كشري &lt;b&gt;كبير&lt;/b&gt;" in r["m"] and "<b>كبير</b>" not in r["m"])
 ok("add success message shown", "تمت إضافة الصنف" in r["m"])
 iid = sql("SELECT id FROM shop_items")[0][0]; SH = sql("SELECT shop_id FROM shop_items")[0][0]
+r = ui(o1, [{"js": "document.getElementById('op%d').value='الحجم!: صغير | 0, كبير | 10\\n+إضافات: جبنة | 5';opsave(%d)" % (iid, iid), "wait": 1000, **SNAP}])
+ok("merchant UI saves sizes and add-ons", sql("SELECT COUNT(*) FROM shop_item_options WHERE item_id=?", iid)[0][0] == 3 and "تم حفظ الأحجام والإضافات" in r["m"])
 r = ui(o1, [{"js": NOF + "document.getElementById('in').value='ا';document.getElementById('ip').value='5';iadd()", "wait": 900, **SNAP}])
 ok("invalid item shows the server error and adds nothing", sql("SELECT COUNT(*) FROM shop_items")[0][0] == 1 and "اسم الصنف" in r["m"])
 ui(o1, [{"js": "iav(%d,0)" % iid, "wait": 800}])
@@ -92,4 +94,15 @@ ok("shop.html never injects raw server fields (all through esc)", not re.search(
 ok("shop dashboard defers image downloads until near viewport", "new IntersectionObserver" in s and "rootMargin:'240px 0px'" in s and "observeShopImages()" in s)
 ok("shop dashboard deduplicates downloads and reuses object URLs", "SHOP_IMG_PENDING" in s and "SHOP_IMG_URLS" in s and "URL.createObjectURL" in s)
 ok("localStorage keys used are limited to t, rg, shsel", set(re.findall(r"localStorage\.(?:getItem|setItem)\('(\w+)'", s)) == {"t", "rg", "shsel"})
+# 6) لوحة التاجر المحسّنة: بحث الأصناف، معاينة الطلبات، وفلاتر الطلبات
+ok("merchant dashboard has a dedicated responsive visual refresh", "Merchant dashboard refresh" in s and "shop-hero" in s and "dash-grid" in s and "@media(min-width:650px)" in s)
+ok("merchant item search and category/availability filters are present", 'id="item-search"' in s and 'id="item-category"' in s and 'id="item-availability"' in s and "function bindMerchantFilters()" in s and "data-item-search" in s)
+ok("empty search results have an accessible visible state", 'id="items-filter-empty"' in s and "مفيش أصناف مطابقة" in s)
+ok("home dashboard has a live preview of active customer orders", 'id="home-order-preview"' in s and "OPENST.includes(x.status)" in s and "preview.innerHTML" in s)
+ok("orders page has lifecycle filters and normalized order statuses", 'id="order-filters"' in s and 'data-order-filter="new"' in s and 'data-order-filter="ready"' in s and "orderStatusKey" in s)
+# Action-center navigation regression checks
+ok("merchant dashboard exposes direct action-center shortcuts", 'class="action-center"' in s and all("shopAction(\\'"+k+"\\')" in s for k in ["orders","items","categories","additem","delivery"]))
+ok("action shortcuts target the real orders, item, category, add-item and delivery sections", "window.shopAction=" in s and "category-panel" in s and 'id="dia"' in s and "dlbw" in s)
+ok("home dashboard renders recent active orders for immediate action", 'id="home-order-preview"' in s and "preview.innerHTML" in s)
+ok("merchant can reorder categories/items and feature products on the customer menu", "menu-order" in s and "mountMenuOrderingControls" in s and "menuFeature" in s and "ترتيب المنيو" in s)
 print("ALL PASS")

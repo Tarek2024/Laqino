@@ -41,6 +41,27 @@ ok("new shop has no identity (optional)", o["logo_file_id"] is None and o["cover
 lg, cv, p1, p2, other, priv = upload(own), upload(own), upload(own), upload(own), upload(own2), upload(own)
 i1 = call("POST", "/owner/shops/%d/items" % S, {"name_ar": "كشري", "price": 35.5, "image_ids": [p1, p2]}, own)[1]["id"]
 i2 = call("POST", "/owner/shops/%d/items" % S, {"name_ar": "شوربة", "price": 20}, own)[1]["id"]
+MENU_CAT = call("POST", "/owner/shops/%d/categories" % S, {"name_ar": "أطباق"}, own)[1]["id"]
+call("POST", "/owner/shops/%d/items/%d/edit" % (S, i1), {"category_id": MENU_CAT}, own)
+OPT_GROUPS = [
+    {"name_ar": "الحجم", "kind": "variant", "required": True,
+     "values": [{"name_ar": "صغير", "price_delta": 0}, {"name_ar": "كبير", "price_delta": 10}]},
+    {"name_ar": "إضافات", "kind": "addon", "required": False,
+     "values": [{"name_ar": "جبنة", "price_delta": 5}]},
+]
+OPT_SAVED = call("POST", "/owner/shops/%d/items/%d/options" % (S, i1), {"groups": OPT_GROUPS}, own)[1]["groups"]
+OPT_SMALL, OPT_LARGE = OPT_SAVED[0]["values"][0]["id"], OPT_SAVED[0]["values"][1]["id"]
+OPT_CHEESE = OPT_SAVED[1]["values"][0]["id"]
+# Server-side order validation must reject a missing required variant and option IDs from another item.
+missing_variant = call("POST", "/shops/%d/order" % S,
+                       {"items": [{"item_id": i1, "qty": 1, "option_ids": []}]}, cust)
+wrong_item_option = call("POST", "/shops/%d/order" % S,
+                         {"items": [{"item_id": i2, "qty": 1, "option_ids": [OPT_LARGE]}]}, cust)
+ok("order API rejects missing required size even if the client bypasses the UI",
+   missing_variant[0] == 400 and "الحجم" in missing_variant[1].get("error", ""))
+ok("order API rejects an option belonging to another item",
+   wrong_item_option[0] == 400 and "اختيار غير صالح" in wrong_item_option[1].get("error", ""))
+
 i3 = call("POST", "/owner/shops/%d/items" % S, {"name_ar": "رز", "price": 10}, own)[1]["id"]
 o = call("GET", "/owner/shops", None, own)[1]["items"][0]
 ok("owner warning data: 2 of 3 items have no images", o["items_total"] == 3 and o["items_without_images"] == 2)
@@ -107,9 +128,16 @@ try:
         card2 = pg.evaluate("(()=>{const c=[...document.querySelectorAll('.shc')].find(x=>x.textContent.includes('سوبر الخير'));return {ph:!!c.querySelector('.cv .imph'),lph:!!c.querySelector('.lgw .imph'),closed:c.textContent.includes('مغلق حاليًا')}})()")
         ok("card without identity: icon tiles + closed badge", all(card2.values()))
         pg.click("text=مطعم الأمل"); pg.wait_for_selector(".gi", timeout=8000); pg.wait_for_timeout(800)
-        hero = pg.evaluate("(()=>{const cv=document.querySelector('.hero .cv img'),lg=document.querySelector('.hero .lgw img');return {cv:cv&&cv.naturalWidth>0,lg:lg&&lg.naturalWidth>0,priority:cv&&lg&&cv.loading==='eager'&&lg.loading==='eager'&&cv.fetchPriority==='high'&&lg.fetchPriority==='high',h2:document.querySelector('.ht h2').textContent,open:document.querySelector('.ht .bd.on')!==null,grid:getComputedStyle(document.querySelector('.grid')).display}})()")
-        ok("shop page: big cover + logo + title + status + grid", hero["cv"] and hero["lg"] and hero["h2"] == "مطعم الأمل" and hero["open"] and hero["grid"] == "grid")
+        hero = pg.evaluate("(()=>{const cv=document.querySelector('.hero .cv img'),lg=document.querySelector('.hero .lgw img');return {cv:cv&&cv.naturalWidth>0,lg:lg&&lg.naturalWidth>0,priority:cv&&lg&&cv.loading==='eager'&&lg.loading==='eager'&&cv.fetchPriority==='high'&&lg.fetchPriority==='high',h2:document.querySelector('.ht h2').textContent,open:document.querySelector('.ht .bd.on')!==null,menuLayout:getComputedStyle(document.querySelector('.menu-grid')).display,categoryBar:!!document.querySelector('.menu-cats'),search:!!document.querySelector('#menu-search')}})()")
+        ok("shop page: big cover + logo + title + status + vertical menu + categories + search", hero["cv"] and hero["lg"] and hero["h2"] == "مطعم الأمل" and hero["open"] and hero["menuLayout"] == "flex" and hero["categoryBar"] and hero["search"])
         ok("shop page: hero cover and logo are prioritized", hero["priority"])
+        pg.locator(".menu-cats button").filter(has_text="أطباق").click()
+        ok("category strip filters the menu to the selected section", pg.locator(".gi").count() == 1 and "كشري" in pg.inner_text(".gi"))
+        pg.locator(".menu-cats button").filter(has_text="الكل").click()
+        pg.fill("#menu-search", "كشري")
+        ok("menu search filters by item name", pg.locator(".gi").count() == 1 and "كشري" in pg.inner_text(".gi"))
+        pg.fill("#menu-search", "")
+        pg.locator(".menu-cats button").filter(has_text="الكل").click()
         sq = pg.evaluate("[...document.querySelectorAll('.zb')].map(b=>{const r=b.getBoundingClientRect();return Math.abs(r.width-r.height)<2})")
         ok("item pictures are square", len(sq) == 3 and all(sq))
         ok("price shown + no +/- when not logged in", "35.5" in pg.inner_text(".grid") and pg.locator(".gb .row").count() == 0)
@@ -124,8 +152,15 @@ try:
         # 5b) عميل مسجَّل: +/−
         ctx = br.new_context(viewport={"width": 390, "height": 800}); ctx.add_init_script("localStorage.setItem('t','%s')" % cust); pg = ctx.new_page(); pg.on("pageerror", lambda e: errs.append(str(e)))
         pg.goto(BASE + "/shops.html#s%d" % S); pg.wait_for_selector(".gi", timeout=8000)
-        pg.click(".gi:has-text('كشري') button[aria-label='أكثر']"); pg.click(".gi:has-text('كشري') button[aria-label='أكثر']"); pg.click(".gi:has-text('كشري') button[aria-label='أقل']")
-        ok("+/− buttons on the grid update the cart total", pg.inner_text(".gi:has-text('كشري') .row b").strip() == "1" and "35.5" in pg.inner_text("#ct") and pg.locator("#ob").is_enabled())
+        pg.click(".gi:has-text('كشري') button[aria-label='أكثر']"); pg.wait_for_selector("#opt-modal", timeout=3000)
+        pg.check("#opt-modal input[value='%d']" % OPT_LARGE); pg.check("#opt-modal input[value='%d']" % OPT_CHEESE)
+        pg.click("#opt-modal button.full")
+        ok("variant + add-on selections calculate the correct cart unit price", "50.5" in pg.inner_text("#ct") and "الحجم: كبير" in pg.inner_text("#cart-lines") and "إضافات: جبنة" in pg.inner_text("#cart-lines"))
+        pg.click(".gi:has-text('كشري') button[aria-label='أكثر']"); pg.check("#opt-modal input[value='%d']" % OPT_SMALL)
+        pg.click("#opt-modal button.full")
+        ok("same item with different options stays in a separate cart line", pg.locator("#cart-lines .cart-line").count() == 2 and "86" in pg.inner_text("#ct"))
+        pg.click(".gi:has-text('كشري') button[aria-label='أقل']")
+        ok("decrement removes only the matching last configuration", pg.locator("#cart-lines .cart-line").count() == 1 and "50.5" in pg.inner_text("#ct") and pg.locator("#ob").is_enabled())
         ctx.close()
         # 5c) صاحب المحل: ودجت الهوية + تنبيه + تصغير ومعاينة قبل الرفع
         ctx = br.new_context(viewport={"width": 390, "height": 800}); ctx.add_init_script("localStorage.setItem('t','%s')" % own); pg = ctx.new_page(); pg.on("pageerror", lambda e: errs.append(str(e)))
@@ -144,6 +179,19 @@ try:
         pg.click("button[data-a=rm][data-k=cover]"); pg.wait_for_selector("button[data-a=rm][data-k=cover]", state="detached", timeout=8000)
         ok("remove cover works (identity optional)", sql("SELECT cover_file_id FROM shops WHERE id=?", S)[0][0] is None)
         pg.click("button[data-tab=i]"); ok("items tab shows the missing-pictures alert", "من غير صور" in pg.inner_text("section[data-t=i]"))
+        ok("merchant can manage menu categories and assign an item", "أقسام المحل" in pg.inner_text("section[data-t=i]") and pg.locator("#ec%d" % i1).input_value() == str(MENU_CAT))
+        ok("merchant sees the saved size and add-on configuration", "الحجم!: صغير | 0, كبير | 10" in pg.locator("#op%d" % i1).input_value() and "جبنة" in pg.locator("#op%d" % i1).input_value())
+        ok("merchant dashboard mounts reorder and featured controls for every item", pg.locator(".item-card .menu-order-controls").count() == 3)
+        pg.locator("#it%d .menu-order-controls input[type=checkbox]" % i1).check()
+        pg.wait_for_selector("text=تم حفظ ترتيب وظهور المنيو.", timeout=8000)
+        featured_menu = call("GET", "/shops/%d/menu" % S)[1]["items"]
+        ok("featured item is promoted to the top of the customer menu", featured_menu[0]["id"] == i1 and featured_menu[0]["is_featured"] is True)
+        pg.wait_for_timeout(500)
+        with pg.expect_response(lambda r: r.url.endswith("/api/owner/shops/%d/menu-order" % S) and r.request.method == "POST", timeout=8000) as reorder_response:
+            pg.locator("#it%d .menu-order-controls button[title='خفض الصنف']" % i2).click()
+        ok("dashboard reorder request was accepted", reorder_response.value.status == 200)
+        ordered_items = call("GET", "/owner/shops/%d/items" % S, None, own)[1]["items"]
+        ok("merchant can reorder items from the dashboard", [x["id"] for x in ordered_items].index(i2) > [x["id"] for x in ordered_items].index(i3))
         pg.click("summary:has-text('إضافة صنف جديد')"); pg.set_input_files("#if", big)
         pg.wait_for_selector("#dia .pv img", timeout=5000); ok("item form shows thumbnail preview before upload", pg.locator("#dia .pv img").count() == 1)
         pg.fill("#in", "كباب"); pg.fill("#ip", "90"); pg.click("button:has-text('إضافة الصنف')"); pg.wait_for_selector("text=تمت إضافة الصنف", timeout=20000)
@@ -151,6 +199,7 @@ try:
         isz = sql("SELECT size FROM files WHERE id=?", it["image_ids"][0])[0][0]
         ok("item picture was resized in the browser before upload (big png → small jpeg)", 0 < isz < bigsz // 3)
         ctx.close(); br.close()
+    if errs: print("BROWSER_PAGE_ERRORS:", json.dumps(errs, ensure_ascii=False))
     ok("no JS page errors", not errs)
 except ImportError:
     print("SKIP browser checks (playwright/PIL not installed)")

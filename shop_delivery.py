@@ -72,6 +72,19 @@ def _int(v):
     return None if isinstance(v, bool) or not isinstance(v, int) else v
 
 
+def _option_int(v):
+    """Accept integer option IDs from JSON numbers or decimal strings; reject bools and malformed/oversized values."""
+    if isinstance(v, str):
+        if not re.fullmatch(r"[0-9]{1,19}", v):
+            return None
+        try:
+            n = int(v)
+        except (TypeError, ValueError, OverflowError):
+            return None
+        return n if 1 <= n <= 2**63 - 1 else None
+    return _int(v)
+
+
 def handle(h, c, u, method, path, q):
     """True إن عالج الطلب. h = معالج السيرفر (send/body). الأخطاء تُرجَع مباشرة عبر h.send."""
     mo = re.fullmatch(r"/api/owner/shops/(\d{1,9})/(delivery-request|delivery-requests|orders)(?:/(\d{1,9})/(reject|accept|ready))?", path)
@@ -115,8 +128,20 @@ def handle(h, c, u, method, path, q):
             if not s or not shops.region_ok(c, s["region_id"]): return err(404, "المحل غير موجود")
             imgs = {}
             for r in c.execute("SELECT i.item_id,i.file_id FROM shop_item_images i JOIN shop_items x ON x.id=i.item_id WHERE x.shop_id=? ORDER BY i.rowid", (sid,)): imgs.setdefault(r["item_id"], []).append(r["file_id"])
-            its = [{"id": r["id"], "name_ar": r["name_ar"], "description": r["description"] or "", "price": r["price"], "image_ids": imgs.get(r["id"], [])} for r in c.execute("SELECT id,name_ar,description,price FROM shop_items WHERE shop_id=? AND status='active' AND is_available=1 ORDER BY sort,id", (sid,))]
-            return ok({"enabled": True, "order_enabled": settings(c)[0], "shop": {"id": s["id"], "name_ar": s["name_ar"], "type_name": s["type_name"], "region_id": s["region_id"], "is_open": bool(s["is_open"])}, "items": its})
+            cats = [dict(r) for r in c.execute("SELECT id,name_ar,sort FROM shop_categories WHERE shop_id=? AND is_active=1 ORDER BY sort,id", (sid,))]
+            its = [{"id": r["id"], "name_ar": r["name_ar"], "description": r["description"] or "", "price": r["price"], "category_id": r["category_id"], "is_featured": bool(r["is_featured"]), "image_ids": imgs.get(r["id"], [])} for r in c.execute("SELECT id,name_ar,description,price,category_id,is_featured FROM shop_items WHERE shop_id=? AND status='active' AND is_available=1 ORDER BY is_featured DESC,sort,id", (sid,))]
+            opts = shops._item_options(c, sid, [x["id"] for x in its]) if its else {}
+            popularity = {}
+            for rec in c.execute("SELECT l.order_id,l.items_json FROM shop_delivery_links l JOIN delivery_orders o ON o.id=l.order_id WHERE l.shop_id=? AND l.kind=? AND o.status!='cancelled'", (sid, ORDER)):
+                try:
+                    for line in json.loads(rec["items_json"] or "[]"):
+                        popularity.setdefault(line["id"], set()).add(rec["order_id"])
+                except (TypeError, ValueError, KeyError):
+                    continue
+            for item in its:
+                item["options"] = opts.get(item["id"], [])
+                item["orders_count"] = len(popularity.get(item["id"], set()))
+            return ok({"enabled": True, "order_enabled": settings(c)[0], "shop": {"id": s["id"], "name_ar": s["name_ar"], "type_name": s["type_name"], "region_id": s["region_id"], "is_open": bool(s["is_open"])}, "categories": cats, "items": its})
         if not u: return err(401, "سجّل الدخول أولًا")
         on, _, _ = settings(c)
         if not on: return err(403, "الطلب من المحلات غير مفعّل حاليًا")
@@ -128,17 +153,48 @@ def handle(h, c, u, method, path, q):
         if not s["is_open"]: return err(409, "المحل مغلق حاليًا")
         raw = d.get("items")
         if not isinstance(raw, list) or not 1 <= len(raw) <= MAX_LINES: return err(400, "اختر من 1 إلى %d أصناف" % MAX_LINES)
-        want = {}
+        want, seen_lines = [], set()
         for x in raw:
-            # سقف المعرّف (1..10^12) يمنع OverflowError في SQLite
             iid, qty = (_int(x.get("item_id")), _int(x.get("qty"))) if isinstance(x, dict) else (None, None)
-            if iid is None or qty is None or not 1 <= iid <= 10 ** 12 or not 1 <= qty <= MAX_QTY or iid in want: return err(400, "قائمة الأصناف غير صالحة (الكمية من 1 إلى %d بلا تكرار صنف)" % MAX_QTY)
-            want[iid] = qty
-        rows = {r["id"]: r for r in c.execute("SELECT id,name_ar,price,is_available FROM shop_items WHERE shop_id=? AND status='active' AND id IN (%s)" % ",".join("?" * len(want)), (sid, *want))}
-        if len(rows) != len(want): return err(400, "صنف غير موجود في هذا المحل")
-        for iid in want:
-            if not rows[iid]["is_available"]: return err(409, "الصنف «%s» غير متاح حاليًا" % rows[iid]["name_ar"])
-        lines = [{"id": i, "name": rows[i]["name_ar"], "price": rows[i]["price"], "qty": want[i]} for i in want]
+            option_ids = x.get("option_ids", []) if isinstance(x, dict) else None
+            if iid is None or qty is None or not 1 <= iid <= 10 ** 12 or not 1 <= qty <= MAX_QTY or not isinstance(option_ids, list) or len(option_ids) > 40:
+                return err(400, "بيانات الأصناف والاختيارات غير صالحة")
+            normalized_options = [_option_int(v) for v in option_ids]
+            if any(v is None or v < 1 for v in normalized_options) or len(set(normalized_options)) != len(normalized_options):
+                return err(400, "بيانات الأصناف والاختيارات غير صالحة")
+            option_ids = normalized_options
+            line_key = (iid, tuple(sorted(option_ids)))
+            if line_key in seen_lines: return err(400, "يوجد سطر مكرر بنفس اختيارات الصنف")
+            seen_lines.add(line_key)
+            want.append({"item_id": iid, "qty": qty, "option_ids": option_ids})
+        item_ids = sorted({x["item_id"] for x in want})
+        rows = {r["id"]: r for r in c.execute("SELECT id,name_ar,price,is_available FROM shop_items WHERE shop_id=? AND status='active' AND id IN (%s)" % ",".join("?" * len(item_ids)), (sid, *item_ids))}
+        if len(rows) != len(item_ids): return err(400, "صنف غير موجود في هذا المحل")
+        lines = []
+        for requested in want:
+            iid, qty = requested["item_id"], requested["qty"]
+            item = rows[iid]
+            if not item["is_available"]: return err(409, "الصنف «%s» غير متاح حاليًا" % item["name_ar"])
+            option_ids = requested["option_ids"]
+            selected = []
+            if option_ids:
+                selected = c.execute("SELECT id,group_name,group_kind,option_name,price_delta FROM shop_item_options WHERE shop_id=? AND item_id=? AND is_active=1 AND id IN (%s)" % ",".join("?" * len(option_ids)), (sid, iid, *option_ids)).fetchall()
+                if len(selected) != len(option_ids): return err(400, "اختيار غير صالح لهذا الصنف")
+            selected_groups = {}
+            for opt in selected:
+                if opt["group_kind"] == "variant":
+                    if selected_groups.get(opt["group_name"], 0): return err(400, "اختر قيمة واحدة فقط من كل مجموعة أحجام")
+                selected_groups[opt["group_name"]] = selected_groups.get(opt["group_name"], 0) + 1
+            required_groups = [r["group_name"] for r in c.execute("SELECT group_name FROM shop_item_options WHERE shop_id=? AND item_id=? AND is_active=1 AND group_kind='variant' AND is_required=1 GROUP BY group_name", (sid, iid))]
+            if any(not selected_groups.get(group) for group in required_groups): return err(400, "اختر الحجم أو النوع المطلوب للصنف «%s»" % item["name_ar"])
+            unit_price = round(float(item["price"]) + sum(float(opt["price_delta"]) for opt in selected), 2)
+            if not 0 < unit_price <= 1000000: return err(400, "سعر الصنف بعد الاختيارات غير صالح")
+            options_snapshot = [{"id": opt["id"], "group_name": opt["group_name"], "kind": opt["group_kind"], "name": opt["option_name"], "price_delta": opt["price_delta"]} for opt in selected]
+            line = {"id": iid, "name": item["name_ar"], "price": unit_price, "qty": qty}
+            if options_snapshot:
+                line["base_price"] = item["price"]
+                line["options"] = options_snapshot
+            lines.append(line)
         total = round(sum(x["price"] * x["qty"] for x in lines), 2)
         note = re.sub(r"\s+", " ", str(d.get("note") or "")).strip()[:300]
         dr = str(d.get("dropoff_text", "")).strip()
@@ -156,7 +212,7 @@ def handle(h, c, u, method, path, q):
         cm = {r["key"]: r["value"] for r in c.execute("SELECT * FROM settings")}; ct, cv = cm.get("commission_type", "fixed"), float(cm.get("commission_value", 0))
         comm = _H["commission_for"](c, f["fee"], ct, cv); now = int(time.time()); code = "%06d" % secrets.randbelow(10 ** 6)
         pk = ("محل " + s["name_ar"] + (" — " + s["address"] if s["address"] else ""))[:300]
-        det = "\n".join("%d× %s" % (x["qty"], x["name"]) for x in lines) + ("\nملاحظة: " + note if note else "")
+        det = "\n".join("%d× %s%s" % (x["qty"], x["name"], (" (" + "، ".join(o["name"] for o in x.get("options", [])) + ")") if x.get("options") else "") for x in lines) + ("\nملاحظة: " + note if note else "")
         try:
             cur = c.execute("INSERT INTO delivery_orders(customer_id,region_id,pickup_text,dropoff_text,details,fee,commission,created_at,updated_at,search_started_at,delivery_code,request_key,dropoff_lat,dropoff_lng,fare_status,origin_type,comm_type,comm_value) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,'none',?,?,?)",
                             (u["id"], s["region_id"], pk, dr[:300], "", f["fee"], round(comm, 2), now, now, now, code, rk, dla, dln, ORDER, ct, cv))

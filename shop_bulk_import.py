@@ -13,9 +13,92 @@ SYN = {
     "price": {"السعر", "سعر", "السعر بالجنيه", "price"},
     "description": {"الوصف", "التفاصيل", "وصف الصنف", "description", "details"},
     "available": {"متاح", "متوفر", "حالة التوفر", "التوفر", "available", "availability", "in stock"},
+    "category": {"القسم", "القسم (اختياري)", "القسم الاختياري", "التصنيف", "قسم الصنف", "category", "section"},
 }
 YES = {"نعم", "ايوه", "ايوا", "متاح", "متوفر", "موجود", "yes", "y", "true", "1"}
 NO = {"لا", "غير متاح", "غير متوفر", "نفد", "نفذ", "no", "n", "false", "0"}
+
+
+CATEGORY_RULES = {
+    "restaurants": [
+        ("فول وطعمية", ("فول", "طعمية", "فلافل")),
+        ("ساندوتشات", ("ساندوتش", "سندوتش", "شاورما", "كبدة", "سجق")),
+        ("برجر", ("برجر", "burger")),
+        ("بيتزا", ("بيتزا", "pizza")),
+        ("مشويات", ("مشوي", "كباب", "كفتة", "ريش")),
+        ("فراخ", ("فراخ", "دجاج", "بانيه", "شاورما فراخ")),
+        ("كشري ومكرونة", ("كشري", "مكرونة", "اسباجتي", "لازانيا")),
+        ("مقبلات", ("بطاطس", "سمبوسة", "سلطة", "مقبلات")),
+        ("مشروبات", ("عصير", "مشروب", "مياه", "قهوة", "شاي", "نسكافيه", "كانز")),
+        ("حلويات", ("حلويات", "كيك", "جاتوه", "بسبوسة", "كنافة", "مهلبية")),
+    ],
+    "sweets": [
+        ("تورت وكيك", ("تورت", "كيك", "جاتوه")),
+        ("حلويات شرقية", ("كنافة", "بسبوسة", "بقلاوة", "هريسة", "بلح الشام")),
+        ("حلويات غربية", ("تشيز كيك", "دونات", "كوكيز", "براونيز")),
+        ("آيس كريم", ("ايس كريم", "آيس كريم", "جيلاتي")),
+        ("مشروبات", ("عصير", "مشروب", "قهوة", "شاي")),
+    ],
+    "supermarket": [
+        ("مشروبات", ("مياه", "عصير", "مشروب", "كانز", "قهوة", "شاي")),
+        ("ألبان وأجبان", ("لبن", "زبادي", "جبنة", "جبن", "قشطة", "زبدة")),
+        ("زيوت وسمن", ("زيت", "سمن")),
+        ("منظفات", ("مسحوق", "منظف", "صابون", "كلور", "مطهر", "سائل أطباق")),
+        ("خضروات وفاكهة", ("طماطم", "بطاطس", "بصل", "تفاح", "موز", "برتقال")),
+        ("مخبوزات", ("عيش", "خبز", "توست", "فينو", "كرواسون")),
+        ("تسالي وسناكس", ("شيبسي", "شوكولاتة", "بسكويت", "لب", "مكسرات")),
+        ("معلبات", ("تونة", "فول معلب", "صلصة", "معلب")),
+    ],
+    "clothing": [
+        ("رجالي", ("رجالي", "رجاليه", "للرجال")),
+        ("حريمي", ("حريمي", "نسائي", "للسيدات")),
+        ("أطفال", ("أطفال", "اطفال", "ولادي", "بناتي")),
+        ("أحذية", ("حذاء", "حذاء", "كوتشي", "شبشب", "جزمة")),
+        ("إكسسوارات", ("إكسسوار", "اكسسوار", "حزام", "شنطة", "محفظة")),
+    ],
+}
+
+
+def _has_category_term(text, word):
+    term = shops._norm(word)
+    if " " in term:
+        return term in text
+    return re.search(r"(?<!\w)" + re.escape(term) + r"(?!\w)", text, re.UNICODE) is not None
+
+
+def _infer_category(slug, name):
+    text = shops._norm(name)
+    matches = []
+    for category, words in CATEGORY_RULES.get(slug, []):
+        if any(_has_category_term(text, word) for word in words):
+            matches.append(category)
+    return matches[0] if len(matches) == 1 else None
+
+
+def _existing_category(c, shop_id, suggested):
+    if not suggested:
+        return None
+    rows = c.execute("SELECT id,name_ar FROM shop_categories WHERE shop_id=? AND is_active=1", (shop_id,)).fetchall()
+    if not rows:
+        return suggested
+    norm = shops._norm(suggested)
+    for row in rows:
+        if shops._norm(row["name_ar"]) == norm:
+            return row["name_ar"]
+    return None
+
+
+def _ensure_category(c, shop_id, name, now):
+    if not name:
+        return None
+    row = c.execute("SELECT id FROM shop_categories WHERE shop_id=? AND name_ar=? COLLATE NOCASE AND is_active=1", (shop_id, name)).fetchone()
+    if row:
+        return row["id"]
+    count = c.execute("SELECT COUNT(*) FROM shop_categories WHERE shop_id=? AND is_active=1", (shop_id,)).fetchone()[0]
+    if count >= 60:
+        return None
+    sort = c.execute("SELECT COALESCE(MAX(sort),0)+1 FROM shop_categories WHERE shop_id=?", (shop_id,)).fetchone()[0]
+    return c.execute("INSERT INTO shop_categories(shop_id,name_ar,sort,created_at,updated_at) VALUES(?,?,?,?,?)", (shop_id, name, sort, now, now)).lastrowid
 
 
 class ImportError_(Exception):
@@ -61,7 +144,7 @@ def _available(raw):
 
 
 def plan(c, shop_id, raw):
-    shop = c.execute("SELECT s.id,s.status,s.type_id,t.require_image FROM shops s JOIN shop_types t ON t.id=s.type_id WHERE s.id=?", (shop_id,)).fetchone()
+    shop = c.execute("SELECT s.id,s.status,s.type_id,t.slug,t.require_image FROM shops s JOIN shop_types t ON t.id=s.type_id WHERE s.id=?", (shop_id,)).fetchone()
     if not shop:
         raise ImportError_(404, "المحل غير موجود")
     if shop["status"] != "approved":
@@ -85,6 +168,7 @@ def plan(c, shop_id, raw):
         raise ImportError_(413, "عدد الصفوف كبير (الحد 1000 صف لكل ملف)")
     current = c.execute("SELECT COUNT(*) FROM shop_items WHERE shop_id=? AND status='active'", (shop_id,)).fetchone()[0]
     existing = {shops._norm(r["name_ar"]) for r in c.execute("SELECT name_ar FROM shop_items WHERE shop_id=? AND status='active'", (shop_id,))}
+    existing_categories = c.execute("SELECT name_ar FROM shop_categories WHERE shop_id=? AND is_active=1", (shop_id,)).fetchall()
     seen, items = set(), []
     for ri in range(hi + 1, len(rows)):
         row = rows[ri]
@@ -99,6 +183,11 @@ def plan(c, shop_id, raw):
             desc_raw = get("description")
             desc = None if not desc_raw else shops._text(desc_raw, "الوصف", 1, 500)
             available = _available(get("available"))
+            explicit_category = get("category")
+            if explicit_category:
+                category_name = shops._text(explicit_category, "اسم القسم", 2, 50)
+            else:
+                category_name = _existing_category(c, shop_id, _infer_category(shop["slug"], name))
             norm = shops._norm(name)
             if norm in seen:
                 item.update(status="duplicate", message="مكرر داخل الملف")
@@ -110,7 +199,7 @@ def plan(c, shop_id, raw):
             if shop["require_image"]:
                 item["message"] = "هذا النوع من المحلات يشترط صورة لكل صنف؛ أضف الصورة من لوحة صاحب المحل"
                 continue
-            item.update(status="new", message="جاهز للإضافة", name=name, price=price, description=desc, is_available=available)
+            item.update(status="new", message="جاهز للإضافة", name=name, price=price, description=desc, is_available=available, category_name=category_name)
             existing.add(norm)
         except ValueError as e:
             item["message"] = str(e)
@@ -136,14 +225,14 @@ def summary(p):
             "remaining_slots": p["remaining"], "require_image": p["require_image"],
             "summary": counts, "truncated": len(p["items"]) > SHOW_ROWS,
             "items": [{"row": x["row"], "name": x["name"], "price": x.get("price", ""),
-                       "status": x["status"], "message": x["message"]} for x in shown]}
+                       "status": x["status"], "message": x["message"], "category_name": x.get("category_name")} for x in shown]}
 
 
 def template_xlsx():
-    rows = [["اسم الصنف", "السعر", "الوصف", "متاح"],
-            ["كشري كبير", "45.50", "طبق كبير", "نعم"],
-            ["عصير مانجو", "25", "حجم 300 مل", "نعم"],
-            ["مياه معدنية", "10", "", "لا"]]
+    rows = [["اسم الصنف", "السعر", "الوصف", "متاح", "القسم (اختياري)"],
+            ["كشري كبير", "45.50", "طبق كبير", "نعم", "كشري ومكرونة"],
+            ["عصير مانجو", "25", "حجم 300 مل", "نعم", "مشروبات"],
+            ["مياه معدنية", "10", "", "لا", "مشروبات"]]
     ct = ('<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types"><Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/><Default Extension="xml" ContentType="application/xml"/><Override PartName="/xl/workbook.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet.main+xml"/><Override PartName="/xl/worksheets/sheet1.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.worksheet+xml"/></Types>')
     root = ('<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="xl/workbook.xml"/></Relationships>')
     wb = ('<?xml version="1.0" encoding="UTF-8" standalone="yes"?><workbook xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships"><sheets><sheet name="الأصناف" sheetId="1" r:id="rId1"/></sheets></workbook>')
@@ -154,7 +243,7 @@ def template_xlsx():
         z.writestr("_rels/.rels", root)
         z.writestr("xl/workbook.xml", wb)
         z.writestr("xl/_rels/workbook.xml.rels", rels)
-        z.writestr("xl/worksheets/sheet1.xml", bulk_import._sheet_xml(rows, [24, 14, 30, 12]))
+        z.writestr("xl/worksheets/sheet1.xml", bulk_import._sheet_xml(rows, [24, 14, 30, 12, 22]))
     return b.getvalue()
 
 
@@ -199,10 +288,11 @@ def handle(h, c, u, method, path, q):
         now = int(time.time())
         inserted = 0
         for item in ready:
-            cur = c.execute("INSERT INTO shop_items(shop_id,name_ar,description,price,is_available,sort,status,created_at,updated_at) VALUES(?,?,?,?,?,?, 'active',?,?)",
+            category_id = _ensure_category(c, shop_id, item.get("category_name"), now)
+            cur = c.execute("INSERT INTO shop_items(shop_id,name_ar,description,price,is_available,sort,status,category_id,created_at,updated_at) VALUES(?,?,?,?,?,?, 'active',?,?,?)",
                             (shop_id, item["name"], item["description"], item["price"], int(item["is_available"]),
                              c.execute("SELECT COALESCE(MAX(sort),0)+1 FROM shop_items WHERE shop_id=?", (shop_id,)).fetchone()[0],
-                             now, now))
+                             category_id, now, now))
             inserted += 1
         audit = shops._H.get("audit")
         if audit:
