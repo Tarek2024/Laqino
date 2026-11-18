@@ -40,7 +40,7 @@ r = ui(o1, [{"wait": 700, **SNAP}]); v = r["m"]
 ok("no script errors on load", r["errs"] == [])
 ok("two approved shops -> switcher shown", 'id="shsel"' in v and v.count("<option") >= 2)
 ok("shop name is HTML-escaped", "&lt;i&gt;الأمل&lt;/i&gt;" in v and "<i>الأمل</i>" not in v)
-ok("closed by default with an open button", "مغلق الآن" in v and "shtog(%d,1)" % S1 in v)
+ok("closed by default with an open button", "مغلق حاليًا" in v and "shtog(%d,1)" % S1 in v)
 r = ui(o1, [{"js": "shtog(%d,1)" % S1, "wait": 900, **SNAP}])
 ok("open button opens the shop (DB + UI)", sql("SELECT is_open FROM shops WHERE id=?", S1)[0][0] == 1 and "مفتوح الآن" in r["m"] and "shtog(%d,0)" % S1 in r["m"])
 ui(o1, [{"js": "shtog(%d,0)" % S1, "wait": 900}])
