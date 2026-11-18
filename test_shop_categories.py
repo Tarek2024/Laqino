@@ -29,6 +29,20 @@ auto_id = sql("SELECT id FROM shop_items WHERE shop_id=? AND name_ar=?",
 ok("Excel import links a confidently inferred item to an existing manual category",
    status == 200 and sql("SELECT category_id FROM shop_items WHERE id=?", auto_id)[0][0] == cid)
 
+# The public customer menu exposes category metadata without changing the order flow.
+menu_status, menu = call("GET", "/shops/%d/menu" % shop)
+ok("customer menu exposes the shop's categories", menu_status == 200 and any(x["id"] == cid for x in menu.get("categories", [])))
+
+# An explicit category column in Excel is authoritative and may create a new section.
+data = xlsx([["اسم الصنف", "السعر", "القسم"], ["صنف بقسم صريح", "20", "مخبوزات"]])
+status, imported = call("POST", "/admin/shops/items-import/commit",
+                        {"shop_id": shop, "data": data}, admin)
+explicit_id = sql("SELECT id FROM shop_items WHERE shop_id=? AND name_ar=?",
+                  shop, "صنف بقسم صريح")[0][0]
+explicit_category = sql("SELECT c.name_ar FROM shop_categories c JOIN shop_items i ON i.category_id=c.id WHERE i.id=?",
+                        explicit_id)[0][0]
+ok("explicit Excel category is preserved", status == 200 and explicit_category == "مخبوزات")
+
 # Ambiguous products stay unassigned instead of receiving a guessed category.
 data = xlsx([["اسم الصنف", "السعر"], ["منتج تجريبي غير واضح", "19"]])
 status, imported = call("POST", "/admin/shops/items-import/commit",
