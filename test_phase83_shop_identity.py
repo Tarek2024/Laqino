@@ -127,6 +127,7 @@ try:
         pg.fill("#menu-search", "كشري")
         ok("menu search filters by item name", pg.locator(".gi").count() == 1 and "كشري" in pg.inner_text(".gi"))
         pg.fill("#menu-search", "")
+        pg.locator(".menu-cats button").filter(has_text="الكل").click()
         sq = pg.evaluate("[...document.querySelectorAll('.zb')].map(b=>{const r=b.getBoundingClientRect();return Math.abs(r.width-r.height)<2})")
         ok("item pictures are square", len(sq) == 3 and all(sq))
         ok("price shown + no +/- when not logged in", "35.5" in pg.inner_text(".grid") and pg.locator(".gb .row").count() == 0)
