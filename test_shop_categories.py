@@ -27,8 +27,8 @@ item2_status, item2 = call("POST", "/owner/shops/%d/items" % shop,
 before_cats = call("GET", prefix, None, owner)[1]["items"]
 before_items = call("GET", "/owner/shops/%d/items" % shop, None, owner)[1]["items"]
 ordered = call("POST", "/owner/shops/%d/menu-order" % shop,
-               {"category_ids": [category2["id"], cid],
-                "item_ids": [item2["id"], item["id"]],
+               {"category_ids": [category2["id"]] + [x["id"] for x in before_cats if x["id"] != category2["id"]],
+                "item_ids": [item2["id"]] + [x["id"] for x in before_items if x["id"] != item2["id"]],
                 "featured_item_ids": [item2["id"]]}, owner)
 after_cats = call("GET", prefix, None, owner)[1]["items"]
 after_items = call("GET", "/owner/shops/%d/items" % shop, None, owner)[1]["items"]
