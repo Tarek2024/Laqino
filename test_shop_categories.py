@@ -71,6 +71,28 @@ unknown_id = sql("SELECT id FROM shop_items WHERE shop_id=? AND name_ar=?",
 ok("ambiguous imported items remain without a category",
    status == 200 and sql("SELECT category_id FROM shop_items WHERE id=?", unknown_id)[0][0] is None)
 
+# A known but non-matching suggestion must not create a new section when the owner already curated categories.
+before_categories = sql("SELECT COUNT(*) FROM shop_categories WHERE shop_id=? AND is_active=1", shop)[0][0]
+data = xlsx([["اسم الصنف", "السعر"], ["فول بلدي"], ["فول بلدي", "12"]])
+status, imported = call("POST", "/admin/shops/items-import/commit",
+                        {"shop_id": shop, "data": data}, admin)
+# This row is intentionally malformed (missing price); it must not create a guessed category.
+ok("unmatched inferred category does not create a new section",
+   status == 200 and sql("SELECT COUNT(*) FROM shop_categories WHERE shop_id=? AND is_active=1", shop)[0][0] == before_categories)
+
+# With no manually curated categories, a single confident type-specific match creates its section.
+auto_shop = call("POST", "/shops/apply",
+                 {"type_id": 1, "name_ar": "مطعم التصنيف التلقائي", "address": "شارع النصر",
+                  "phone": "01012345678", "region_id": base.region}, owner)[1]["id"]
+call("POST", "/admin/shops/%d/review" % auto_shop, {"status": "approved"}, admin)
+status, imported = call("POST", "/admin/shops/items-import/commit",
+                        {"shop_id": auto_shop,
+                         "data": xlsx([["اسم الصنف", "السعر"], ["فول بلدي", "15"]])}, admin)
+auto_category = sql("SELECT c.name_ar FROM shop_categories c JOIN shop_items i ON i.category_id=c.id WHERE i.shop_id=?",
+                    auto_shop)
+ok("confident inference creates a category when the shop has no manual categories",
+   status == 200 and auto_category == [("فول وطعمية",)])
+
 # Archiving a category never deletes items; it unassigns them.
 status, result = call("POST", prefix + "/%d/delete" % cid, {}, owner)
 ok("archiving a category preserves and unassigns its items",
