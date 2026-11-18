@@ -168,6 +168,8 @@ try:
         pg.click("button[data-a=rm][data-k=cover]"); pg.wait_for_selector("button[data-a=rm][data-k=cover]", state="detached", timeout=8000)
         ok("remove cover works (identity optional)", sql("SELECT cover_file_id FROM shops WHERE id=?", S)[0][0] is None)
         pg.click("button[data-tab=i]"); ok("items tab shows the missing-pictures alert", "من غير صور" in pg.inner_text("section[data-t=i]"))
+        ok("merchant can manage menu categories and assign an item", "أقسام المحل" in pg.inner_text("section[data-t=i]") and pg.locator("#ec%d" % i1).input_value() == str(MENU_CAT))
+        ok("merchant sees the saved size and add-on configuration", "الحجم!: صغير | 0, كبير | 10" in pg.locator("#op%d" % i1).input_value() and "جبنة" in pg.locator("#op%d" % i1).input_value())
         pg.click("summary:has-text('إضافة صنف جديد')"); pg.set_input_files("#if", big)
         pg.wait_for_selector("#dia .pv img", timeout=5000); ok("item form shows thumbnail preview before upload", pg.locator("#dia .pv img").count() == 1)
         pg.fill("#in", "كباب"); pg.fill("#ip", "90"); pg.click("button:has-text('إضافة الصنف')"); pg.wait_for_selector("text=تمت إضافة الصنف", timeout=20000)
