@@ -284,7 +284,7 @@ const panels=document.getElementById('homePanels');if(panels)panels.innerHTML=pn
 const tiles=document.getElementById('homeTiles');
 if(tiles){
 let tileHtml='';
-if(sectionsState==='ready')tileHtml+=homeSectionCards(card,false,homeCfg);
+if(sectionsState==='ready')tileHtml+=homeSectionCards(card,true,homeCfg);
 else tileHtml+=homeStateMessage('إعدادات الأقسام',sectionsState);
 if(shopsState==='ready'&&shopsEnabled)tileHtml+=card('shops',I3('shop'),'محلات في منطقتك','مطاعم وسوبر ماركت وحلويات وملابس',"location.href='/shops.html'");
 else if(shopsState==='error')tileHtml+=homeStateMessage('إعدادات المحلات',shopsState);
