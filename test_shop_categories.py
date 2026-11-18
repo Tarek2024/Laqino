@@ -81,9 +81,10 @@ ok("unmatched inferred category does not create a new section",
    status == 200 and sql("SELECT COUNT(*) FROM shop_categories WHERE shop_id=? AND is_active=1", shop)[0][0] == before_categories)
 
 # With no manually curated categories, a single confident type-specific match creates its section.
+auto_owner = base.user("01080000003")
 auto_shop = call("POST", "/shops/apply",
                  {"type_id": 1, "name_ar": "مطعم التصنيف التلقائي", "address": "شارع النصر",
-                  "phone": "01012345678", "region_id": base.region}, owner)[1]["id"]
+                  "phone": "01012345678", "region_id": base.region}, auto_owner)[1]["id"]
 call("POST", "/admin/shops/%d/review" % auto_shop, {"status": "approved"}, admin)
 status, imported = call("POST", "/admin/shops/items-import/commit",
                         {"shop_id": auto_shop,
