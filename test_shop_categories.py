@@ -53,7 +53,7 @@ ok("public menu exposes size and add-on choices with prices",
    and menu_item["options"][0]["values"][1]["price_delta"] == 10)
 
 # An explicit category column in Excel is authoritative and may create a new section.
-data = xlsx([["اسم الصنف", "السعر", "القسم"], ["صنف بقسم صريح", "20", "مخبوزات"]])
+data = xlsx([["اسم الصنف", "السعر", "القسم (اختياري)"], ["صنف بقسم صريح", "20", "مخبوزات"]])
 status, imported = call("POST", "/admin/shops/items-import/commit",
                         {"shop_id": shop, "data": data}, admin)
 explicit_id = sql("SELECT id FROM shop_items WHERE shop_id=? AND name_ar=?",
