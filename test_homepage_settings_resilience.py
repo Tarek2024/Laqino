@@ -36,21 +36,17 @@ class HomepageSettingsResilienceTests(unittest.TestCase):
         self.assertIn("readHomeCache(HOME_SECTION_CACHE_KEY,validHomeSections)", self.html)
         self.assertIn("fallback:'last-known-good-or-explicit-error'", self.html)
 
-    def test_shops_and_products_use_independent_admin_flags(self):
-        self.assertIn("api('/shop-types'", self.html)
-        self.assertIn("api('/features'", self.html)
-        self.assertIn("shopsResult.value.enabled", self.html)
-        self.assertIn("featuresResult.value.products", self.html)
+    def test_products_stay_inside_medical_section_not_as_homepage_card(self):
         self.assertIn("card('shops'", self.html)
-        self.assertIn("card('products'", self.html)
+        self.assertNotIn("card('products'", self.html)
+        self.assertIn("FT.products?msc('prod'", self.html)
+        self.assertIn("productsEnabled", self.html)
         self.assertNotIn("shopTypes.items.length", self.html)
 
     def test_loading_error_and_hidden_are_distinct(self):
         self.assertIn("homeStateMessage('إعدادات الأقسام',sectionsState)", self.html)
         self.assertIn("homeStateMessage('إعدادات المحلات',shopsState)", self.html)
-        self.assertIn("homeStateMessage('إعدادات المنتجات',productsState)", self.html)
         self.assertIn("shopsEnabled)tileHtml", self.html)
-        self.assertIn("productsEnabled)tileHtml", self.html)
 
     def test_optional_home_data_is_deferred_until_after_settings(self):
         self.assertIn("const hydrateExtras=async()=>", self.html)
