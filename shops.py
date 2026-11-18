@@ -428,7 +428,7 @@ def handle(h, c, u, method, path, q):
             if en is not None: c.execute("INSERT INTO settings VALUES('shops_enabled',?) ON CONFLICT(key) DO UPDATE SET value=excluded.value", ("1" if en else "0",))
             audit("settings.shops", None, {"enabled": en, "regions": rg}); c.commit(); return ok({"enabled": enabled(c), "regions": regions_allowed(c)})
     # ---- أحجام وإضافات الصنف: تُدار بواسطة صاحب المحل وتُحفظ كاختيارات مستقلة.
-    mopt = re.fullmatch(r"/api/owner/shops/(\\d+)/items/(\\d+)/options", path)
+    mopt = re.fullmatch(r"/api/owner/shops/(\d+)/items/(\d+)/options", path)
     if mopt:
         if not u: return err(401, "سجّل الدخول أولًا")
         shop, e = need_shop_owner(c, u, int(mopt[1]))
