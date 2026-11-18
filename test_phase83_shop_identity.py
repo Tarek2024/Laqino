@@ -131,13 +131,20 @@ try:
         hero = pg.evaluate("(()=>{const cv=document.querySelector('.hero .cv img'),lg=document.querySelector('.hero .lgw img');return {cv:cv&&cv.naturalWidth>0,lg:lg&&lg.naturalWidth>0,priority:cv&&lg&&cv.loading==='eager'&&lg.loading==='eager'&&cv.fetchPriority==='high'&&lg.fetchPriority==='high',h2:document.querySelector('.ht h2').textContent,open:document.querySelector('.ht .bd.on')!==null,menuLayout:getComputedStyle(document.querySelector('.menu-grid')).display,categoryBar:!!document.querySelector('.menu-cats'),search:!!document.querySelector('#menu-search')}})()")
         ok("shop page: big cover + logo + title + status + vertical menu + categories + search", hero["cv"] and hero["lg"] and hero["h2"] == "مطعم الأمل" and hero["open"] and hero["menuLayout"] == "flex" and hero["categoryBar"] and hero["search"])
         ok("shop page: hero cover and logo are prioritized", hero["priority"])
-        pg.locator(".menu-cats button").filter(has_text="أطباق").click()
-        ok("category strip filters the menu to the selected section", pg.locator(".gi").count() == 1 and "كشري" in pg.inner_text(".gi"))
-        pg.locator(".menu-cats button").filter(has_text="الكل").click()
-        pg.fill("#menu-search", "كشري")
-        ok("menu search filters by item name", pg.locator(".gi").count() == 1 and "كشري" in pg.inner_text(".gi"))
-        pg.fill("#menu-search", "")
-        pg.locator(".menu-cats button").filter(has_text="الكل").click()
+        with pg.expect_response(lambda r: "/menu?" in r.url and "category_id=" in r.url, timeout=8000):
+            pg.locator(".menu-cats button").filter(has_text="أطباق").click()
+        pg.wait_for_function("document.querySelectorAll('.gi').length === 1 && document.querySelector('.gi').innerText.includes('كشري')", timeout=8000)
+        ok("category strip requests and renders only the selected section", pg.locator(".gi").count() == 1 and "كشري" in pg.inner_text(".gi"))
+        with pg.expect_response(lambda r: "/menu?" in r.url and "category_id=" not in r.url, timeout=8000):
+            pg.locator(".menu-cats button").filter(has_text="الكل").click()
+        with pg.expect_response(lambda r: "/menu?" in r.url and "q=" in r.url, timeout=8000):
+            pg.fill("#menu-search", "كشري")
+        pg.wait_for_function("document.querySelectorAll('.gi').length === 1 && document.querySelector('.gi').innerText.includes('كشري')", timeout=8000)
+        ok("menu search requests and renders matching item names", pg.locator(".gi").count() == 1 and "كشري" in pg.inner_text(".gi"))
+        with pg.expect_response(lambda r: "/menu?" in r.url and "q=" not in r.url, timeout=8000):
+            pg.fill("#menu-search", "")
+        with pg.expect_response(lambda r: "/menu?" in r.url and "category_id=" not in r.url, timeout=8000):
+            pg.locator(".menu-cats button").filter(has_text="الكل").click()
         sq = pg.evaluate("[...document.querySelectorAll('.zb')].map(b=>{const r=b.getBoundingClientRect();return Math.abs(r.width-r.height)<2})")
         ok("item pictures are square", len(sq) == 3 and all(sq))
         ok("price shown + no +/- when not logged in", "35.5" in pg.inner_text(".grid") and pg.locator(".gb .row").count() == 0)
