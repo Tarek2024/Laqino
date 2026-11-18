@@ -20,6 +20,20 @@ ok("item rejects a category from another shop",
    call("POST", "/owner/shops/%d/items/%d/edit" % (shop, item["id"]),
         {"category_id": 999999}, owner)[0] == 400)
 
+# Owner-managed size variants and add-ons are returned to the public menu.
+groups = [
+    {"name_ar": "الحجم", "kind": "variant", "required": True,
+     "values": [{"name_ar": "صغير", "price_delta": 0}, {"name_ar": "كبير", "price_delta": 10}]},
+    {"name_ar": "إضافات", "kind": "addon", "required": False,
+     "values": [{"name_ar": "جبنة", "price_delta": 5}]},
+]
+option_path = "/owner/shops/%d/items/%d/options" % (shop, item["id"])
+option_status, saved = call("POST", option_path, {"groups": groups}, owner)
+ok("owner can save size and add-on groups", option_status == 200 and len(saved["groups"]) == 2)
+ok("customer cannot edit item options", call("POST", option_path, {"groups": []}, customer)[0] == 403)
+loaded_status, loaded = call("GET", option_path, None, owner)
+ok("saved item options can be loaded again", loaded_status == 200 and loaded["groups"][0]["values"][1]["price_delta"] == 10)
+
 # An existing manually-created category is preferred over an automatic guess.
 data = xlsx([["اسم الصنف", "السعر"], ["عصير ليمون آلي", "15"]])
 status, imported = call("POST", "/admin/shops/items-import/commit",
@@ -32,6 +46,11 @@ ok("Excel import links a confidently inferred item to an existing manual categor
 # The public customer menu exposes category metadata without changing the order flow.
 menu_status, menu = call("GET", "/shops/%d/menu" % shop)
 ok("customer menu exposes the shop's categories", menu_status == 200 and any(x["id"] == cid for x in menu.get("categories", [])))
+
+menu_item = next((x for x in menu.get("items", []) if x["id"] == item["id"]), None)
+ok("public menu exposes size and add-on choices with prices",
+   menu_item is not None and len(menu_item.get("options", [])) == 2
+   and menu_item["options"][0]["values"][1]["price_delta"] == 10)
 
 # An explicit category column in Excel is authoritative and may create a new section.
 data = xlsx([["اسم الصنف", "السعر", "القسم"], ["صنف بقسم صريح", "20", "مخبوزات"]])
