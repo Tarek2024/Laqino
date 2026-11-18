@@ -81,6 +81,8 @@ def plan(c, shop_id, raw):
     if selected is None:
         raise ImportError_(400, "لم أجد صف عناوين يحتوي على «اسم الصنف» و«السعر». حمّل النموذج واستخدمه.")
     sheet_name, rows, hi, cols = selected
+    if len(rows) - hi - 1 > MAX_ROWS:
+        raise ImportError_(413, "عدد الصفوف كبير (الحد 1000 صف لكل ملف)")
     current = c.execute("SELECT COUNT(*) FROM shop_items WHERE shop_id=? AND status='active'", (shop_id,)).fetchone()[0]
     existing = {shops._norm(r["name_ar"]) for r in c.execute("SELECT name_ar FROM shop_items WHERE shop_id=? AND status='active'", (shop_id,))}
     seen, items = set(), []
