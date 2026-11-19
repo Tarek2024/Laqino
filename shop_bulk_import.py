@@ -150,8 +150,8 @@ def _available(raw):
 
 def _group_label_norm(value):
     label = str(value or "").strip().casefold().translate(AR)
-    label = re.sub(r"[\\u064b-\\u065f\\u0670\\u0640]", "", label)
-    label = re.sub(r"\\s+", " ", label)
+    label = re.sub(r"[\u064b-\u065f\u0670\u0640]", "", label)
+    label = re.sub(r"\s+", " ", label)
     return label
 
 
@@ -177,7 +177,7 @@ def _infer_group_kind(group_name):
     )
     if any(_group_label_norm(term) in label for term in multi_terms):
         return "addon"
-    if any(shops._norm(term) in label for term in single_terms):
+    if any(_group_label_norm(term) in label for term in single_terms):
         return "variant"
     # Conservative fallback: a named attribute is treated as a single-choice group.
     # The preview keeps this inference visible so an admin can correct it explicitly.
@@ -185,7 +185,7 @@ def _infer_group_kind(group_name):
 
 
 def _known_group_mode(group_name):
-    label = shops._norm(group_name)
+    label = _group_label_norm(group_name)
     multi_terms = (
         "اضافات", "اضافة", "التوبينج", "توبينج", "topping", "toppings",
         "extras", "extra", "add on", "addon", "اختيارات متعددة", "اختيار متعدد",
@@ -203,7 +203,7 @@ def _known_group_mode(group_name):
         "weight", "model", "type", "length", "width", "height", "brand", "fabric",
         "grind", "roast", "temperature", "age"
     )
-    return any(shops._norm(term) in label for term in multi_terms + single_terms)
+    return any(_group_label_norm(term) in label for term in multi_terms + single_terms)
 
 
 def _group_kind(group_name, explicit):
