@@ -172,6 +172,21 @@ def _infer_group_kind(group_name):
     return "variant"
 
 
+def _known_group_mode(group_name):
+    label = shops._norm(group_name)
+    terms = (
+        "اضافات", "اضافة", "التوبينج", "توبينج", "topping", "extras", "extra",
+        "add on", "addon", "اختيارات متعددة", "متعدد", "المكونات الاضافية",
+        "الصوصات", "الصوص", "الصلصات", "الجبن الاضافي", "الاضافات",
+        "الحجم", "حجم", "المقاس", "مقاس", "اللون", "لون", "النوع", "نوع",
+        "الخامة", "خامه", "السعة", "سعة", "النكهة", "نكهة", "الوزن", "وزن",
+        "عدد القطع", "المادة", "الموديل", "الشكل", "الرائحة", "التركيز",
+        "size", "color", "colour", "material", "capacity", "flavor", "flavour",
+        "weight", "model", "type"
+    )
+    return any(shops._norm(term) in label for term in terms)
+
+
 def _group_kind(group_name, explicit):
     raw = shops._norm(explicit)
     aliases = {
@@ -244,7 +259,9 @@ def plan(c, shop_id, raw):
             if group_name:
                 group = shops._text(group_name, "اسم مجموعة الاختيارات", 2, 50)
                 option_name = shops._text(option_name, "اسم الاختيار", 1, 50)
-                kind = _group_kind(group, get("group_kind"))
+                kind_raw = get("group_kind").strip()
+                kind = _group_kind(group, kind_raw)
+                needs_mode_review = not kind_raw and not _known_group_mode(group)
                 req_raw = get("required").strip()
                 if req_raw:
                     required = _available(req_raw)
@@ -280,10 +297,11 @@ def plan(c, shop_id, raw):
                 norm_group = shops._norm(group)
                 target = next((g for g in product["groups"] if shops._norm(g["name_ar"]) == norm_group), None)
                 if target is None:
-                    target = {"name_ar": group, "kind": kind, "required": required, "values": []}
+                    target = {"name_ar": group, "kind": kind, "required": required, "values": [], "needs_mode_review": needs_mode_review}
                     product["groups"].append(target)
                 elif target["kind"] != kind or target["required"] != required:
                     raise ValueError("نوع المجموعة أو إلزاميتها غير متطابق بين صفوفها")
+                target["needs_mode_review"] = target.get("needs_mode_review", False) or needs_mode_review
                 if any(shops._norm(v["name_ar"]) == shops._norm(option_name) for v in target["values"]):
                     raise ValueError("اختيار مكرر داخل المجموعة")
                 target["values"].append({"name_ar": option_name, "price_delta": delta})
@@ -340,7 +358,9 @@ def summary(p):
             "items": [{"row": x["row"], "rows": x.get("rows", [x["row"]]), "name": x["name"],
                        "price": x.get("price", ""), "status": x["status"], "message": x["message"],
                        "category_name": x.get("category_name"), "option_groups": len(x.get("groups", [])),
-                       "option_values": sum(len(g["values"]) for g in x.get("groups", []))} for x in shown]}
+                       "option_values": sum(len(g["values"]) for g in x.get("groups", [])),
+                       "option_modes": "، ".join(g["name_ar"] + ": " + ("اختيارات متعددة" if g["kind"] == "addon" else "اختيار واحد") + (" (راجع النوع)" if g.get("needs_mode_review") else "") for g in x.get("groups", [])),
+                       "needs_mode_review": any(g.get("needs_mode_review") for g in x.get("groups", []))} for x in shown]}
 
 
 def template_xlsx():
