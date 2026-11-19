@@ -1,5 +1,5 @@
 # اختبارات استيراد أصناف المحلات من Excel — قاعدة بيانات مؤقتة ومعزولة.
-import os, json, threading, urllib.request, urllib.error, tempfile, time, sqlite3, base64, io, zipfile
+import os, json, threading, urllib.request, urllib.error, tempfile, time, sqlite3, base64, io, zipfile, re
 os.environ["LAQINO_DB"] = tempfile.mktemp(suffix=".db")
 os.environ["LAQINO_UPLOADS"] = tempfile.mkdtemp()
 import server, bulk_import, shop_bulk_import
@@ -111,7 +111,7 @@ admin_html=open(os.path.join(os.path.dirname(os.path.abspath(__file__)),"static"
 ok("admin Excel preview shows grouped option totals and per-product option counts",
    "r.option_groups||0" in admin_html and "r.option_values||0" in admin_html and "x.option_groups||0" in admin_html)
 ok("admin shop import mount is async and does not break the admin page script",
-   "async function shopItemsImportMount()" in admin_html and not admin_html.split("function shopItemsImportMount()",1)[0].endswith("function "))
+   "async function shopItemsImportMount()" in admin_html and re.search(r"(?<!async )function shopItemsImportMount", admin_html) is None)
 ok("admin shop import explains automatic generic attribute inference and review of unknown names",
    "النظام يستنتج تلقائيًا" in admin_html and "راجع النوع" in admin_html and "السعر الأساسي + فروق أسعار القيم المختارة" in admin_html)
 print("GROUPED IMPORT TESTS PASS")
