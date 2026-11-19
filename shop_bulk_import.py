@@ -154,14 +154,19 @@ def _infer_group_kind(group_name):
     multi_terms = (
         "اضافات", "اضافة", "التوبينج", "توبينج", " toppings", "topping", "extras",
         "extra", "add on", "addon", "اختيارات متعددة", "متعدد", "المكونات الاضافية",
-        "الصوصات", "الصوص", "الصلصات", "الجبن الاضافي", "الاضافات"
+        "الصوصات", "الصوص", "الصلصات", "الجبن الاضافي", "الاضافات",
+        "اختيارات", "تoppings", "toppings", "sauces", "sauce", "flavours", "flavors",
+        "choose many", "multiple choices"
     )
     single_terms = (
         "الحجم", "حجم", "المقاس", "مقاس", "اللون", "لون", "النوع", "نوع",
         "الخامة", "خامه", "السعة", "سعة", "النكهة", "نكهة", "الوزن", "وزن",
         "عدد القطع", "المادة", "الموديل", "الشكل", "الرائحة", "التركيز",
+        "الطول", "العرض", "الارتفاع", "الماركة", "العلامة التجارية", "القماش",
+        "الطعم", "درجة الحرارة", "درجة التحميص", "نوع الطحن", "السن", "الجنس",
         "size", "color", "colour", "material", "capacity", "flavor", "flavour",
-        "weight", "model", "type"
+        "weight", "model", "type", "length", "width", "height", "brand", "fabric",
+        "grind", "roast", "temperature", "age"
     )
     if any(shops._norm(term) in label for term in multi_terms):
         return "addon"
@@ -319,6 +324,8 @@ def plan(c, shop_id, raw):
     for norm, product in products.items():
         if norm in existing:
             product.update(status="duplicate", message="المنتج موجود بالفعل في المحل؛ تم تخطيه")
+        elif any(g.get("needs_mode_review") for g in product.get("groups", [])):
+            product.update(status="error", message="طريقة اختيار إحدى الخصائص غير مؤكدة؛ اكتب نوع الاختيار صراحةً في Excel (اختيار واحد أو اختيارات متعددة) ثم أعد المعاينة")
         elif shop["require_image"]:
             product.update(status="error", message="هذا النوع من المحلات يشترط صورة لكل صنف؛ أضف الصورة من لوحة صاحب المحل")
         elif any(x.get("product_norm") == norm for x in row_errors if x["status"] == "error"):
