@@ -148,6 +148,49 @@ def _available(raw):
     raise ValueError("حالة التوفر اكتبها نعم أو لا")
 
 
+def _infer_group_kind(group_name):
+    """Infer the interaction mode from a free-form attribute label; never infer from the option value."""
+    label = shops._norm(group_name)
+    multi_terms = (
+        "اضافات", "اضافة", "التوبينج", "توبينج", " toppings", "topping", "extras",
+        "extra", "add on", "addon", "اختيارات متعددة", "متعدد", "المكونات الاضافية",
+        "الصوصات", "الصوص", "الصلصات", "الجبن الاضافي", "الاضافات"
+    )
+    single_terms = (
+        "الحجم", "حجم", "المقاس", "مقاس", "اللون", "لون", "النوع", "نوع",
+        "الخامة", "خامه", "السعة", "سعة", "النكهة", "نكهة", "الوزن", "وزن",
+        "عدد القطع", "المادة", "الموديل", "الشكل", "الرائحة", "التركيز",
+        "size", "color", "colour", "material", "capacity", "flavor", "flavour",
+        "weight", "model", "type"
+    )
+    if any(shops._norm(term) in label for term in multi_terms):
+        return "addon"
+    if any(shops._norm(term) in label for term in single_terms):
+        return "variant"
+    # Conservative fallback: a named attribute is treated as a single-choice group.
+    # The preview keeps this inference visible so an admin can correct it explicitly.
+    return "variant"
+
+
+def _group_kind(group_name, explicit):
+    raw = re.sub(r"\\s+", " ", str(explicit or "").strip()).translate(AR).casefold()
+    aliases = {
+        "variant": "variant", "single": "variant", "single select": "variant",
+        "one": "variant", "اختيار واحد": "variant", "واحد": "variant",
+        "مفرد": "variant", "حجم": "variant", "مقاس": "variant", "نوع": "variant",
+        "addon": "addon", "add-on": "addon", "multi": "addon", "multiple": "addon",
+        "multi select": "addon", "اختيارات متعددة": "addon", "اختيار متعدد": "addon",
+        "متعدد": "addon", "إضافة": "addon", "اضافة": "addon", "إضافات": "addon",
+        "اضافات": "addon"
+    }
+    if not raw:
+        return _infer_group_kind(group_name)
+    kind = aliases.get(raw)
+    if kind not in ("variant", "addon"):
+        raise ValueError("نوع الاختيار غير مفهوم؛ اتركه فارغًا ليحدده النظام أو اكتب اختيار واحد / اختيارات متعددة")
+    return kind
+
+
 def plan(c, shop_id, raw):
     shop = c.execute("SELECT s.id,s.status,s.type_id,t.slug,t.require_image FROM shops s JOIN shop_types t ON t.id=s.type_id WHERE s.id=?", (shop_id,)).fetchone()
     if not shop:
@@ -200,12 +243,7 @@ def plan(c, shop_id, raw):
             if group_name:
                 group = shops._text(group_name, "اسم مجموعة الاختيارات", 2, 50)
                 option_name = shops._text(option_name, "اسم الاختيار", 1, 50)
-                kind_raw = get("group_kind").strip().casefold()
-                kind_map = {"variant":"variant", "حجم":"variant", "مقاس":"variant", "نوع":"variant",
-                            "addon":"addon", "add-on":"addon", "إضافة":"addon", "اضافة":"addon"}
-                kind = kind_map.get(kind_raw, "variant" if not kind_raw else None)
-                if kind not in ("variant", "addon"):
-                    raise ValueError("نوع المجموعة اكتب حجم أو إضافة")
+                kind = _group_kind(group, get("group_kind"))
                 req_raw = get("required").strip()
                 if req_raw:
                     required = _available(req_raw)
@@ -306,12 +344,17 @@ def summary(p):
 
 def template_xlsx():
     rows = [
-        ["اسم الصنف", "السعر الأساسي", "الوصف", "متاح", "القسم (اختياري)", "اسم المجموعة", "نوع المجموعة", "الاختيار", "فرق السعر", "إلزامي؟"],
-        ["بيتزا", "100", "السعر الأساسي قبل الاختيارات", "نعم", "بيتزا", "الحجم", "حجم", "صغير", "0", "نعم"],
-        ["بيتزا", "100", "السعر الأساسي قبل الاختيارات", "نعم", "بيتزا", "الحجم", "حجم", "وسط", "20", "نعم"],
-        ["بيتزا", "100", "السعر الأساسي قبل الاختيارات", "نعم", "بيتزا", "الحجم", "حجم", "كبير", "40", "نعم"],
-        ["بيتزا", "100", "السعر الأساسي قبل الاختيارات", "نعم", "بيتزا", "إضافات", "إضافة", "جبنة إضافية", "15", "لا"],
-        ["بيتزا", "100", "السعر الأساسي قبل الاختيارات", "نعم", "بيتزا", "إضافات", "إضافة", "زيتون", "8", "لا"],
+        ["اسم الصنف", "السعر الأساسي", "الوصف", "متاح", "القسم (اختياري)", "اسم الخاصية / المجموعة", "نوع الاختيار (اختياري)", "القيمة / الاختيار", "فرق السعر", "إلزامي؟"],
+        ["بيتزا", "100", "السعر الأساسي قبل الاختيارات", "نعم", "بيتزا", "الحجم", "", "صغير", "0", "نعم"],
+        ["بيتزا", "100", "السعر الأساسي قبل الاختيارات", "نعم", "بيتزا", "الحجم", "", "وسط", "20", "نعم"],
+        ["بيتزا", "100", "السعر الأساسي قبل الاختيارات", "نعم", "بيتزا", "الحجم", "", "كبير", "40", "نعم"],
+        ["بيتزا", "100", "السعر الأساسي قبل الاختيارات", "نعم", "بيتزا", "إضافات", "", "جبنة إضافية", "15", "لا"],
+        ["بيتزا", "100", "السعر الأساسي قبل الاختيارات", "نعم", "بيتزا", "إضافات", "", "زيتون", "8", "لا"],
+        ["قميص", "250", "السعر الأساسي قبل الاختيارات", "نعم", "ملابس", "اللون", "", "أسود", "0", "نعم"],
+        ["قميص", "250", "السعر الأساسي قبل الاختيارات", "نعم", "ملابس", "اللون", "", "أبيض", "0", "نعم"],
+        ["قميص", "250", "السعر الأساسي قبل الاختيارات", "نعم", "ملابس", "المقاس", "", "XL", "20", "نعم"],
+        ["قميص", "250", "السعر الأساسي قبل الاختيارات", "نعم", "ملابس", "المقاس", "", "XXL", "35", "نعم"],
+        ["قميص", "250", "السعر الأساسي قبل الاختيارات", "نعم", "ملابس", "إضافات", "", "تغليف هدية", "10", "لا"],
         ["برجر", "65", "منتج عادي بدون خيارات", "نعم", "برجر", "", "", "", "", ""],
     ]
     ct = ('<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types"><Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/><Default Extension="xml" ContentType="application/xml"/><Override PartName="/xl/workbook.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet.main+xml"/><Override PartName="/xl/worksheets/sheet1.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.worksheet+xml"/></Types>')
@@ -324,7 +367,7 @@ def template_xlsx():
         z.writestr("_rels/.rels", root)
         z.writestr("xl/workbook.xml", wb)
         z.writestr("xl/_rels/workbook.xml.rels", rels)
-        z.writestr("xl/worksheets/sheet1.xml", bulk_import._sheet_xml(rows, [24, 14, 30, 12, 22, 20, 16, 18, 14, 12]))
+        z.writestr("xl/worksheets/sheet1.xml", bulk_import._sheet_xml(rows, [24, 14, 30, 12, 22, 24, 22, 18, 14, 12]))
     return b.getvalue()
 
 
