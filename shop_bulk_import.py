@@ -160,9 +160,9 @@ def _infer_group_kind(group_name):
     label = _group_label_norm(group_name)
     multi_terms = (
         "اضافات", "اضافة", "التوبينج", "توبينج", " toppings", "topping", "extras",
-        "extra", "add on", "addon", "اختيارات متعددة", "متعدد", "المكونات الاضافية",
+        "add on", "addon", "اختيارات متعددة", "متعدد", "المكونات الاضافية",
         "الصوصات", "الصوص", "الصلصات", "الجبن الاضافي", "الاضافات", "المكونات", "التوابل", "البهارات",
-        "toppings", "sauces", "sauce", "flavours", "flavors",
+        "toppings", "sauces", "sauce",
         "choose many", "multiple choices"
     )
     single_terms = (
@@ -188,7 +188,7 @@ def _known_group_mode(group_name):
     label = _group_label_norm(group_name)
     multi_terms = (
         "اضافات", "اضافة", "التوبينج", "توبينج", "topping", "toppings",
-        "extras", "extra", "add on", "addon", "اختيارات متعددة", "اختيار متعدد",
+        "extras", "add on", "addon", "اختيارات متعددة", "اختيار متعدد",
         "متعدد", "المكونات الاضافية", "المكونات", "التوابل", "البهارات",
         "الصوصات", "الصوص", "الصلصات", "الجبن الاضافي", "الاضافات",
         "sauces", "sauce", "choose many",
