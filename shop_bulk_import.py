@@ -155,7 +155,7 @@ def _infer_group_kind(group_name):
         "اضافات", "اضافة", "التوبينج", "توبينج", " toppings", "topping", "extras",
         "extra", "add on", "addon", "اختيارات متعددة", "متعدد", "المكونات الاضافية",
         "الصوصات", "الصوص", "الصلصات", "الجبن الاضافي", "الاضافات",
-        "اختيارات", "تoppings", "toppings", "sauces", "sauce", "flavours", "flavors",
+        "toppings", "sauces", "sauce", "flavours", "flavors",
         "choose many", "multiple choices"
     )
     single_terms = (
@@ -179,17 +179,24 @@ def _infer_group_kind(group_name):
 
 def _known_group_mode(group_name):
     label = shops._norm(group_name)
-    terms = (
-        "اضافات", "اضافة", "التوبينج", "توبينج", "topping", "extras", "extra",
-        "add on", "addon", "اختيارات متعددة", "متعدد", "المكونات الاضافية",
-        "الصوصات", "الصوص", "الصلصات", "الجبن الاضافي", "الاضافات",
+    multi_terms = (
+        "اضافات", "اضافة", "التوبينج", "توبينج", "topping", "toppings",
+        "extras", "extra", "add on", "addon", "اختيارات متعددة", "اختيار متعدد",
+        "متعدد", "المكونات الاضافية", "الصوصات", "الصوص", "الصلصات",
+        "الجبن الاضافي", "الاضافات", "sauces", "sauce", "choose many",
+        "multiple choices"
+    )
+    single_terms = (
         "الحجم", "حجم", "المقاس", "مقاس", "اللون", "لون", "النوع", "نوع",
         "الخامة", "خامه", "السعة", "سعة", "النكهة", "نكهة", "الوزن", "وزن",
         "عدد القطع", "المادة", "الموديل", "الشكل", "الرائحة", "التركيز",
+        "الطول", "العرض", "الارتفاع", "الماركة", "العلامة التجارية", "القماش",
+        "الطعم", "درجة الحرارة", "درجة التحميص", "نوع الطحن", "السن", "الجنس",
         "size", "color", "colour", "material", "capacity", "flavor", "flavour",
-        "weight", "model", "type"
+        "weight", "model", "type", "length", "width", "height", "brand", "fabric",
+        "grind", "roast", "temperature", "age"
     )
-    return any(shops._norm(term) in label for term in terms)
+    return any(shops._norm(term) in label for term in multi_terms + single_terms)
 
 
 def _group_kind(group_name, explicit):
