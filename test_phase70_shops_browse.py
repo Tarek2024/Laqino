@@ -68,4 +68,6 @@ ok("service worker caches shops.html and cache bumped", '"/shops.html"' in sw an
 ok("home shows the shops card only when the section is enabled", "api('/shop-types')" in ix and "shOn?card('shops'" in ix and "/shops.html" in ix)
 js = re.search(r"<script>(.*?)</script>", s, re.S).group(1); tmp = tempfile.mktemp(suffix=".js"); open(tmp, "w", encoding="utf-8").write(js)
 ok("shops.html script parses (node --check)", subprocess.run(["node", "--check", tmp], capture_output=True).returncode == 0)
+ok("customer can reopen a configured product from the cart and edit its previous choices", "window.cartEdit=key=>" in s and "window.chooseItem=(id,editKey)" in s and "((findMenuItem(x.item_id)||{}).options||[]).length" in s and "prior.includes(+v.id)" in s and "حفظ التعديل" in s)
+ok("saving cart option edits preserves quantity and recalculates the selected option key", "q:nextQty" in s and "targetExisting=key===editKey?0" in s and "const editKey=OPT_EDIT_KEY,old=editKey?CART[editKey]:null" in s and "opt-total" in s and "updateOptTotal" in s)
 print("ALL PASS")

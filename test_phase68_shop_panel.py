@@ -55,7 +55,7 @@ ok("item name is escaped in the list", "كشري &lt;b&gt;كبير&lt;/b&gt;" in
 ok("add success message shown", "تمت إضافة الصنف" in r["m"])
 iid = sql("SELECT id FROM shop_items")[0][0]; SH = sql("SELECT shop_id FROM shop_items")[0][0]
 r = ui(o1, [{"js": "document.getElementById('op%d').value='الحجم!: صغير | 0, كبير | 10\\n+إضافات: جبنة | 5';opsave(%d)" % (iid, iid), "wait": 1000, **SNAP}])
-ok("merchant UI saves sizes and add-ons", sql("SELECT COUNT(*) FROM shop_item_options WHERE item_id=?", iid)[0][0] == 3 and "تم حفظ الأحجام والإضافات" in r["m"])
+ok("merchant UI saves sizes and add-ons", sql("SELECT COUNT(*) FROM shop_item_options WHERE item_id=?", iid)[0][0] == 3 and "تم حفظ الخصائص والاختيارات." in r["m"])
 r = ui(o1, [{"js": NOF + "document.getElementById('in').value='ا';document.getElementById('ip').value='5';iadd()", "wait": 900, **SNAP}])
 ok("invalid item shows the server error and adds nothing", sql("SELECT COUNT(*) FROM shop_items")[0][0] == 1 and "اسم الصنف" in r["m"])
 ui(o1, [{"js": "iav(%d,0)" % iid, "wait": 800}])
@@ -105,4 +105,6 @@ ok("merchant dashboard exposes direct action-center shortcuts", 'class="action-c
 ok("action shortcuts target the real orders, item, category, add-item and delivery sections", "window.shopAction=" in s and "category-panel" in s and 'id="dia"' in s and "dlbw" in s)
 ok("home dashboard renders recent active orders for immediate action", 'id="home-order-preview"' in s and "preview.innerHTML" in s)
 ok("merchant can reorder categories/items and feature products on the customer menu", "menu-order" in s and "mountMenuOrderingControls" in s and "menuFeature" in s and "ترتيب المنيو" in s)
+ok("owner option editor exposes visual groups and option rows without removing the legacy save endpoint", "id=\"opui" in s and "opAddGroup" in s and "opAddValue" in s and "window.opsave=run" in s)
+ok("owner option editor preserves group kind, required state and price-delta editing", "opGroupKind" in s and "opGroupRequired" in s and "opValueField" in s)
 print("ALL PASS")

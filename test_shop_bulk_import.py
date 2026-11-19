@@ -1,5 +1,5 @@
 # اختبارات استيراد أصناف المحلات من Excel — قاعدة بيانات مؤقتة ومعزولة.
-import os, json, threading, urllib.request, urllib.error, tempfile, time, sqlite3, base64, io, zipfile
+import os, json, threading, urllib.request, urllib.error, tempfile, time, sqlite3, base64, io, zipfile, re
 os.environ["LAQINO_DB"] = tempfile.mktemp(suffix=".db")
 os.environ["LAQINO_UPLOADS"] = tempfile.mkdtemp()
 import server, bulk_import, shop_bulk_import
@@ -44,7 +44,7 @@ def xlsx(rows):
     with zipfile.ZipFile(b,"w",zipfile.ZIP_DEFLATED) as z:
         z.writestr("[Content_Types].xml",ct); z.writestr("_rels/.rels",root); z.writestr("xl/workbook.xml",wb)
         z.writestr("xl/_rels/workbook.xml.rels",rels)
-        z.writestr("xl/worksheets/sheet1.xml",bulk_import._sheet_xml(rows,[24,14,30,12]))
+        z.writestr("xl/worksheets/sheet1.xml",bulk_import._sheet_xml(rows,[24,14,30,12,22,20,16,18,14,12]))
     return base64.b64encode(b.getvalue()).decode()
 
 admin=call("POST","/login",{"phone":"01000000000","password":"AdminPass123"})[1]["token"]
@@ -79,3 +79,101 @@ status,p=call("POST",prefix+"/preview",{"shop_id":shop2,"data":xlsx([["اسم ا
 ok("require_image shop rejects image-less Excel rows",status==200 and p["require_image"] is True and p["summary"]["error"]==1)
 ok("audit records bulk import",sql("SELECT COUNT(*) FROM audit_log WHERE action='shopitem.bulk_import'")[0][0]>=2)
 print("ALL PASS")
+
+
+# Grouped products: repeated rows become one item with option groups, not duplicate products.
+grouped_rows=[
+ ["اسم الصنف","السعر الأساسي","الوصف","متاح","القسم","اسم المجموعة","نوع المجموعة","الاختيار","فرق السعر","إلزامي؟"],
+ ["بيتزا تجميع","100","بيتزا عائلية","نعم","بيتزا","الحجم","حجم","صغير","0","نعم"],
+ ["بيتزا تجميع","100","بيتزا عائلية","نعم","بيتزا","الحجم","حجم","وسط","20","نعم"],
+ ["بيتزا تجميع","100","بيتزا عائلية","نعم","بيتزا","الحجم","حجم","كبير","40","نعم"],
+ ["بيتزا تجميع","100","بيتزا عائلية","نعم","بيتزا","إضافات","إضافة","جبنة","15","لا"],
+ ["بيتزا تجميع","100","بيتزا عائلية","نعم","بيتزا","إضافات","إضافة","زيتون","8","لا"],
+]
+status,gpreview=call("POST",prefix+"/preview",{"shop_id":shop,"data":xlsx(grouped_rows)},admin)
+ok("grouped Excel preview counts one product, two groups and five values",
+   status==200 and gpreview["summary"]["new"]==1 and gpreview["option_groups"]==2 and gpreview["option_values"]==5)
+status,gdone=call("POST",prefix+"/commit",{"shop_id":shop,"data":xlsx(grouped_rows)},admin)
+ok("grouped Excel commit creates exactly one product",
+   status==200 and gdone["done"]["inserted"]==1 and sql("SELECT COUNT(*) FROM shop_items WHERE shop_id=? AND name_ar='بيتزا تجميع' AND status='active'",shop)[0][0]==1)
+pid=sql("SELECT id FROM shop_items WHERE shop_id=? AND name_ar='بيتزا تجميع'",shop)[0][0]
+ok("grouped Excel options are stored in the same shop_item_options table",
+   sql("SELECT COUNT(DISTINCT group_name),COUNT(*) FROM shop_item_options WHERE shop_id=? AND item_id=? AND is_active=1",shop,pid)[0]==(2,5))
+owner_items=call("GET",f"/owner/shops/{shop}/items",None,owner)[1]["items"]
+pizza=next(x for x in owner_items if x["id"]==pid)
+ok("owner menu endpoint returns imported option groups for normal editing",
+   len(pizza["options"])==2 and sum(len(g["values"]) for g in pizza["options"])==5)
+template_rows=bulk_import.read_xlsx(shop_bulk_import.template_xlsx())[0][1]
+ok("downloaded template documents base price, generic attribute, optional selection mode and price delta columns",
+   "السعر الأساسي" in template_rows[0] and "اسم الخاصية / المجموعة" in template_rows[0] and
+   "نوع الاختيار (اختياري)" in template_rows[0] and "فرق السعر" in template_rows[0])
+admin_html=open(os.path.join(os.path.dirname(os.path.abspath(__file__)),"static","admin.html"),encoding="utf-8").read()
+ok("admin Excel preview shows grouped option totals and per-product option counts",
+   "r.option_groups||0" in admin_html and "r.option_values||0" in admin_html and "x.option_groups||0" in admin_html)
+ok("admin shop import mount is async and does not break the admin page script",
+   "async function shopItemsImportMount()" in admin_html and re.search(r"(?<!async )function shopItemsImportMount", admin_html) is None)
+ok("admin shop import explains automatic generic attribute inference and review of unknown names",
+   "النظام يستنتج تلقائيًا" in admin_html and "راجع النوع" in admin_html and "السعر الأساسي + فروق أسعار القيم المختارة" in admin_html)
+print("GROUPED IMPORT TESTS PASS")
+
+mixed_option_rows=[
+ ["اسم الصنف","السعر الأساسي","الوصف","متاح","اسم المجموعة","نوع المجموعة","الاختيار","فرق السعر","إلزامي؟"],
+ ["صنف مختلط","50","وصف","نعم","الحجم","حجم","صغير","0","نعم"],
+ ["صنف مختلط","50","وصف","نعم","","","","",""],
+]
+status,mixed_preview=call("POST",prefix+"/preview",{"shop_id":shop,"data":xlsx(mixed_option_rows)},admin)
+ok("preview rejects mixing a plain product row with configurable option rows",
+   status==200 and mixed_preview["summary"]["new"]==0 and mixed_preview["summary"]["error"]==1 and
+   any("لا تخلط" in x["message"] for x in mixed_preview["items"]))
+ok("mixed product rows are not partially imported",
+   call("POST",prefix+"/commit",{"shop_id":shop,"data":xlsx(mixed_option_rows)},admin)[0]==409 and
+   sql("SELECT COUNT(*) FROM shop_items WHERE shop_id=? AND name_ar='صنف مختلط'",shop)[0][0]==0)
+print("GROUPED IMPORT SAFETY TESTS PASS")
+
+
+# Smart attribute inference: the admin may leave selection mode blank.
+smart_rows=[
+ ["اسم الصنف","السعر الأساسي","الوصف","متاح","القسم","اسم الخاصية / المجموعة","نوع الاختيار (اختياري)","القيمة / الاختيار","فرق السعر","إلزامي؟"],
+ ["قميص ذكي للاستيراد","250","قميص قطني","نعم","ملابس","اللون","","أسود","0","نعم"],
+ ["قميص ذكي للاستيراد","250","قميص قطني","نعم","ملابس","اللون","","أبيض","0","نعم"],
+ ["قميص ذكي للاستيراد","250","قميص قطني","نعم","ملابس","المقاس","","XL","20","نعم"],
+ ["قميص ذكي للاستيراد","250","قميص قطني","نعم","ملابس","المقاس","","XXL","35","نعم"],
+ ["قميص ذكي للاستيراد","250","قميص قطني","نعم","ملابس","الإضافات","","تغليف هدية","10","لا"],
+ ["قميص ذكي للاستيراد","250","قميص قطني","نعم","ملابس","الإضافات","","تطريز الاسم","25","لا"],
+]
+smart_file=xlsx(smart_rows)
+status,smart_preview=call("POST",prefix+"/preview",{"shop_id":shop,"data":smart_file},admin)
+ok("smart import infers color and size as single-choice and add-ons as multi-choice",
+   status==200 and smart_preview["summary"]["new"]==1 and smart_preview["option_groups"]==3 and smart_preview["option_values"]==6)
+status,smart_done=call("POST",prefix+"/commit",{"shop_id":shop,"data":smart_file},admin)
+smart_id=sql("SELECT id FROM shop_items WHERE shop_id=? AND name_ar='قميص ذكي للاستيراد'",shop)[0][0]
+smart_kinds=dict(sql("SELECT group_name,group_kind FROM shop_item_options WHERE shop_id=? AND item_id=? GROUP BY group_name,group_kind",shop,smart_id))
+ok("smart import persists inferred generic selection modes",
+   status==200 and smart_done["done"]["inserted"]==1 and smart_kinds=={"اللون":"variant","المقاس":"variant","الإضافات":"addon"})
+bad_kind=xlsx([
+ ["اسم الصنف","السعر الأساسي","اسم الخاصية / المجموعة","نوع الاختيار (اختياري)","القيمة / الاختيار"],
+ ["خاصية بنوع خاطئ","50","اللون","تلقائي غير معروف","أحمر"],
+])
+status,bad_preview=call("POST",prefix+"/preview",{"shop_id":shop,"data":bad_kind},admin)
+ok("smart import flags an unrecognized explicit mode instead of silently guessing",
+   status==200 and bad_preview["summary"]["error"]==1 and any("نوع الاختيار غير مفهوم" in x["message"] for x in bad_preview["items"]))
+print("SMART ATTRIBUTE INFERENCE TESTS PASS")
+
+unknown_mode=xlsx([
+ ["اسم الصنف","السعر الأساسي","اسم الخاصية / المجموعة","القيمة / الاختيار"],
+ ["صنف بخاصية غير مألوفة","50","الطابع","كلاسيك"],
+])
+status,unknown_preview=call("POST",prefix+"/preview",{"shop_id":shop,"data":unknown_mode},admin)
+unknown_item=next((x for x in unknown_preview.get("items",[]) if x.get("name")=="صنف بخاصية غير مألوفة"),{})
+ok("ambiguous automatic mode is explicitly flagged and blocked pending confirmation",
+   status==200 and unknown_item.get("needs_mode_review") is True and "(راجع النوع)" in unknown_item.get("option_modes","") and
+   unknown_item.get("status")=="error" and "اكتب نوع الاختيار صراحةً" in unknown_item.get("message",""))
+ok("ambiguous attribute cannot be committed until selection mode is explicit",
+   call("POST",prefix+"/commit",{"shop_id":shop,"data":unknown_mode},admin)[0]==409 and
+   sql("SELECT COUNT(*) FROM shop_items WHERE shop_id=? AND name_ar='صنف بخاصية غير مألوفة'",shop)[0][0]==0)
+ok("smart inference does not mistake extra-large sizes or flavor names for multi-select add-ons",
+   shop_bulk_import._infer_group_kind("Extra Large") == "variant" and
+   shop_bulk_import._infer_group_kind("Flavour") == "variant" and
+   shop_bulk_import._infer_group_kind("Toppings") == "addon" and
+   shop_bulk_import._infer_group_kind("الصوصات") == "addon")
+print("SMART INFERENCE REVIEW TESTS PASS")
