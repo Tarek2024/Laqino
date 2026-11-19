@@ -171,4 +171,9 @@ ok("ambiguous automatic mode is explicitly flagged and blocked pending confirmat
 ok("ambiguous attribute cannot be committed until selection mode is explicit",
    call("POST",prefix+"/commit",{"shop_id":shop,"data":unknown_mode},admin)[0]==409 and
    sql("SELECT COUNT(*) FROM shop_items WHERE shop_id=? AND name_ar='صنف بخاصية غير مألوفة'",shop)[0][0]==0)
+ok("smart inference does not mistake extra-large sizes or flavor names for multi-select add-ons",
+   shop_bulk_import._infer_group_kind("Extra Large") == "variant" and
+   shop_bulk_import._infer_group_kind("Flavour") == "variant" and
+   shop_bulk_import._infer_group_kind("Toppings") == "addon" and
+   shop_bulk_import._infer_group_kind("الصوصات") == "addon")
 print("SMART INFERENCE REVIEW TESTS PASS")
