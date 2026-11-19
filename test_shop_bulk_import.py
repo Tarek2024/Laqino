@@ -154,3 +154,13 @@ status,bad_preview=call("POST",prefix+"/preview",{"shop_id":shop,"data":bad_kind
 ok("smart import flags an unrecognized explicit mode instead of silently guessing",
    status==200 and bad_preview["summary"]["error"]==1 and any("نوع الاختيار غير مفهوم" in x["message"] for x in bad_preview["items"]))
 print("SMART ATTRIBUTE INFERENCE TESTS PASS")
+
+unknown_mode=xlsx([
+ ["اسم الصنف","السعر الأساسي","اسم الخاصية / المجموعة","القيمة / الاختيار"],
+ ["صنف بخاصية غير مألوفة","50","الطابع","كلاسيك"],
+])
+status,unknown_preview=call("POST",prefix+"/preview",{"shop_id":shop,"data":unknown_mode},admin)
+unknown_item=next((x for x in unknown_preview.get("items",[]) if x.get("name")=="صنف بخاصية غير مألوفة"),{})
+ok("ambiguous automatic mode is explicitly flagged for review in preview",
+   status==200 and unknown_item.get("needs_mode_review") is True and "(راجع النوع)" in unknown_item.get("option_modes",""))
+print("SMART INFERENCE REVIEW TESTS PASS")
