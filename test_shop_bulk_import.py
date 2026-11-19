@@ -161,6 +161,10 @@ unknown_mode=xlsx([
 ])
 status,unknown_preview=call("POST",prefix+"/preview",{"shop_id":shop,"data":unknown_mode},admin)
 unknown_item=next((x for x in unknown_preview.get("items",[]) if x.get("name")=="صنف بخاصية غير مألوفة"),{})
-ok("ambiguous automatic mode is explicitly flagged for review in preview",
-   status==200 and unknown_item.get("needs_mode_review") is True and "(راجع النوع)" in unknown_item.get("option_modes",""))
+ok("ambiguous automatic mode is explicitly flagged and blocked pending confirmation",
+   status==200 and unknown_item.get("needs_mode_review") is True and "(راجع النوع)" in unknown_item.get("option_modes","") and
+   unknown_item.get("status")=="error" and "اكتب نوع الاختيار صراحةً" in unknown_item.get("message",""))
+ok("ambiguous attribute cannot be committed until selection mode is explicit",
+   call("POST",prefix+"/commit",{"shop_id":shop,"data":unknown_mode},admin)[0]==409 and
+   sql("SELECT COUNT(*) FROM shop_items WHERE shop_id=? AND name_ar='صنف بخاصية غير مألوفة'",shop)[0][0]==0)
 print("SMART INFERENCE REVIEW TESTS PASS")
