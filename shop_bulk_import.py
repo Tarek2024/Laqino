@@ -14,9 +14,9 @@ SYN = {
     "description": {"الوصف", "التفاصيل", "وصف الصنف", "description", "details"},
     "available": {"متاح", "متوفر", "حالة التوفر", "التوفر", "available", "availability", "in stock"},
     "category": {"القسم", "القسم (اختياري)", "القسم الاختياري", "التصنيف", "قسم الصنف", "category", "section"},
-    "group_name": {"اسم المجموعة", "مجموعة الاختيارات", "مجموعة", "option group", "group"},
+    "group_name": {"اسم المجموعة", "اسم الخاصية / المجموعة", "اسم الخاصية", "الخاصية", "مجموعة الاختيارات", "مجموعة", "option group", "group", "attribute", "attribute name"},
     "group_kind": {"نوع المجموعة", "نوع الاختيارات", "نوع الخيار", "group type", "kind"},
-    "option_name": {"الاختيار", "اسم الاختيار", "القيمة", "option", "option name", "value"},
+    "option_name": {"الاختيار", "اسم الاختيار", "القيمة", "القيمة / الاختيار", "قيمة الخاصية", "option", "option name", "value", "attribute value"},
     "price_delta": {"فرق السعر", "فرق السعر بالجنيه", "زيادة السعر", "price delta", "delta"},
     "required": {"إلزامي", "إلزامي؟", "مطلوب", "اختيار إجباري", "required"},
 }
@@ -173,7 +173,7 @@ def _infer_group_kind(group_name):
 
 
 def _group_kind(group_name, explicit):
-    raw = re.sub(r"\\s+", " ", str(explicit or "").strip()).translate(AR).casefold()
+    raw = shops._norm(explicit)
     aliases = {
         "variant": "variant", "single": "variant", "single select": "variant",
         "one": "variant", "اختيار واحد": "variant", "واحد": "variant",
@@ -183,6 +183,7 @@ def _group_kind(group_name, explicit):
         "متعدد": "addon", "إضافة": "addon", "اضافة": "addon", "إضافات": "addon",
         "اضافات": "addon"
     }
+    aliases = {shops._norm(key): value for key, value in aliases.items()}
     if not raw:
         return _infer_group_kind(group_name)
     kind = aliases.get(raw)
