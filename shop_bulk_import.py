@@ -148,27 +148,34 @@ def _available(raw):
     raise ValueError("حالة التوفر اكتبها نعم أو لا")
 
 
+def _group_label_norm(value):
+    label = str(value or "").strip().casefold().translate(AR)
+    label = re.sub(r"[\\u064b-\\u065f\\u0670\\u0640]", "", label)
+    label = re.sub(r"\\s+", " ", label)
+    return label
+
+
 def _infer_group_kind(group_name):
     """Infer the interaction mode from a free-form attribute label; never infer from the option value."""
-    label = shops._norm(group_name)
+    label = _group_label_norm(group_name)
     multi_terms = (
         "اضافات", "اضافة", "التوبينج", "توبينج", " toppings", "topping", "extras",
         "extra", "add on", "addon", "اختيارات متعددة", "متعدد", "المكونات الاضافية",
-        "الصوصات", "الصوص", "الصلصات", "الجبن الاضافي", "الاضافات",
+        "الصوصات", "الصوص", "الصلصات", "الجبن الاضافي", "الاضافات", "المكونات", "التوابل", "البهارات",
         "toppings", "sauces", "sauce", "flavours", "flavors",
         "choose many", "multiple choices"
     )
     single_terms = (
-        "الحجم", "حجم", "المقاس", "مقاس", "اللون", "لون", "النوع", "نوع",
-        "الخامة", "خامه", "السعة", "سعة", "النكهة", "نكهة", "الوزن", "وزن",
-        "عدد القطع", "المادة", "الموديل", "الشكل", "الرائحة", "التركيز",
+        "الحجم", "حجم", "الاحجام", "احجام", "المقاس", "مقاس", "المقاسات", "اللون", "لون", "الالوان", "الوان", "النوع", "نوع", "الانواع",
+        "الخامة", "خامه", "الخامات", "السعة", "سعة", "السعات", "النكهة", "نكهة", "النكهات", "الوزن", "وزن", "الاوزان",
+        "عدد القطع", "المادة", "المواد", "الموديل", "الموديلات", "الشكل", "الاشكال", "الرائحة", "الروائح", "التركيز",
         "الطول", "العرض", "الارتفاع", "الماركة", "العلامة التجارية", "القماش",
         "الطعم", "درجة الحرارة", "درجة التحميص", "نوع الطحن", "السن", "الجنس",
         "size", "color", "colour", "material", "capacity", "flavor", "flavour",
         "weight", "model", "type", "length", "width", "height", "brand", "fabric",
         "grind", "roast", "temperature", "age"
     )
-    if any(shops._norm(term) in label for term in multi_terms):
+    if any(_group_label_norm(term) in label for term in multi_terms):
         return "addon"
     if any(shops._norm(term) in label for term in single_terms):
         return "variant"
