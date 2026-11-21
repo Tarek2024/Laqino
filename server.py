@@ -977,30 +977,34 @@ class H(BaseHTTPRequestHandler):
                 # with no browser-visible redirect to GitHub.
                 asset_url = "https://github.com/Tarek2024/Laqino/releases/download/android-latest/laqino.apk"
                 try:
-                    with urlopen(asset_url, timeout=60) as upstream:
-                        if getattr(upstream, "status", 200) != 200:
-                            return self.send(503, {"error": "ملف التطبيق غير متاح حاليًا، حاول مرة أخرى لاحقًا"})
-                        length = upstream.headers.get("Content-Length")
-                        self.send_response(200)
-                        self.send_header("Content-Type", "application/vnd.android.package-archive")
-                        if length and length.isdigit():
-                            self.send_header("Content-Length", length)
-                        self.send_header("Content-Disposition", 'attachment; filename="laqino.apk"')
-                        self.send_header("Cache-Control", "no-store")
-                        self.send_header("X-Content-Type-Options", "nosniff")
-                        self.send_header("X-Frame-Options", "DENY")
-                        self.send_header("Referrer-Policy", "same-origin")
-                        self.send_header("Content-Security-Policy", CSP)
-                        self.end_headers()
+                    upstream = urlopen(asset_url, timeout=60)
+                except (HTTPError, URLError, TimeoutError, OSError) as exc:
+                    print("APK download proxy failed:", repr(exc), file=sys.stderr)
+                    return self.send(503, {"error": "تعذّر تحميل التطبيق حاليًا، حاول مرة أخرى لاحقًا"})
+                with upstream:
+                    if getattr(upstream, "status", 200) != 200:
+                        return self.send(503, {"error": "ملف التطبيق غير متاح حاليًا، حاول مرة أخرى لاحقًا"})
+                    length = upstream.headers.get("Content-Length")
+                    self.send_response(200)
+                    self.send_header("Content-Type", "application/vnd.android.package-archive")
+                    if length and length.isdigit():
+                        self.send_header("Content-Length", length)
+                    self.send_header("Content-Disposition", 'attachment; filename="laqino.apk"')
+                    self.send_header("Cache-Control", "no-store")
+                    self.send_header("X-Content-Type-Options", "nosniff")
+                    self.send_header("X-Frame-Options", "DENY")
+                    self.send_header("Referrer-Policy", "same-origin")
+                    self.send_header("Content-Security-Policy", CSP)
+                    self.end_headers()
+                    try:
                         while True:
                             chunk = upstream.read(64 * 1024)
                             if not chunk:
                                 break
                             self.wfile.write(chunk)
-                        return
-                except (HTTPError, URLError, TimeoutError, OSError) as exc:
-                    print("APK download proxy failed:", repr(exc), file=sys.stderr)
-                    return self.send(503, {"error": "تعذّر تحميل التطبيق حاليًا، حاول مرة أخرى لاحقًا"})
+                    except (BrokenPipeError, ConnectionResetError, OSError) as exc:
+                        print("APK download client disconnected:", repr(exc), file=sys.stderr)
+                    return
             if path == "/healthz":
                 try: c = db(); c.execute("SELECT 1").fetchone(); c.close()
                 except sqlite3.Error: return self.send(503, {"ok": False})
