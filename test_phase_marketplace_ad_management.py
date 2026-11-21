@@ -39,6 +39,10 @@ if not regions: raise SystemExit("FAIL test setup: no active region")
 rid=regions[0][0]
 status, created=call("POST","/listings",{"category_id":cat,"region_id":rid,"title":"كرسي للبيع","description":"وصف قبل التعديل","anonymous":True},seller)
 ok("anonymous ad creation succeeds",status==201 and created.get("status")=="pending")
+admin_pending=call("GET","/admin/listings",None,admin)[1]
+admin_item=next(x for x in admin_pending if x["id"]==created["id"])
+ok("admin pending listing payload includes image collection",isinstance(admin_item.get("images"),list))
+ok("admin pending listing payload includes category and region labels",bool(admin_item.get("category_name")) and bool(admin_item.get("region_name")))
 lid=created["id"]
 ok("anonymous column is additive and defaults to zero for old rows", "anonymous" in [r[1] for r in sqlite3.connect(DB).execute("pragma table_info(listings)")])
 ok("pending ad is not publicly listed", all(x["id"]!=lid for x in call("GET","/listings")[1]))
@@ -133,4 +137,5 @@ home_css = re.search(r'<link rel="stylesheet" href="(/market-enhancements\.css\?
 ok("homepage and standalone market use the same versioned marketplace stylesheet", bool(home_css and market_css and home_css.group(2) == re.search(r"\?v=(\d+)", market_css.group(1)).group(1)))
 ok("gold styling applies only to featured ad cards", ".card.ad.featured-card{position:relative;" in css and ".card.ad:not(.featured-card)" in css and ".card.ad{position:relative;" not in css)
 ok("featured status checks reject truthy non-boolean strings", "function isFeatured(x) { return !!x && (x.featured === true || x.featured === 1 || x.featured === \"1\"); }" in market_html and 'const isFeaturedListing=x=>!!x&&(x.featured===true||x.featured===1||x.featured==="1");' in idx)
+ok("admin review UI renders full listing details and authenticated listing photos", "data-market-review-image" in idx and "x.category_name" in idx and "x.region_name" in idx and "white-space:pre-wrap" in idx)
 print("Marketplace ad-management regression checks passed.")
