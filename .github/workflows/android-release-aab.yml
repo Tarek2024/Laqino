@@ -1,13 +1,16 @@
-name: Build Android Release AAB
+name: Build and Publish Laqino Android Release
 
 on:
   workflow_dispatch:
-  push:
-    branches:
-      - feature/android-aab-release-prep
+    inputs:
+      release_notes:
+        description: "Optional notes shown on the permanent APK download page"
+        required: false
+        type: string
+        default: "تحديث تطبيق لاقينو للأندرويد."
 
 permissions:
-  contents: read
+  contents: write
 
 concurrency:
   group: android-release-aab
@@ -131,8 +134,12 @@ jobs:
           VERIFY_AAB="$(jarsigner -verify -verbose "$AAB" 2>&1)"
           printf '%s\\n' "$VERIFY_AAB" | grep -q "jar verified"
           "$ANDROID_HOME/build-tools/35.0.0/apksigner" verify --verbose --print-certs "$APK"
-          echo "PASS: AAB and APK signatures are present and valid"
-          ls -lh "$AAB" "$APK"
+          "$ANDROID_HOME/build-tools/35.0.0/aapt" dump badging "$APK" | grep -F "package: name='com.laqino.app'"
+          mkdir -p release
+          cp "$APK" release/laqino.apk
+          sha256sum release/laqino.apk | tee release/laqino.apk.sha256
+          echo "PASS: AAB and APK signatures and package identity are valid"
+          ls -lh "$AAB" "$APK" release/laqino.apk
 
       - name: Upload Release APK
         uses: actions/upload-artifact@v4
@@ -160,3 +167,17 @@ jobs:
             android/package-lock.json
           if-no-files-found: error
           retention-days: 14
+
+      - name: Publish or update the stable Android download release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: android-latest
+          target_commitish: ${{ github.sha }}
+          name: Laqino Android — Latest
+          body: ${{ inputs.release_notes }}
+          files: |
+            release/laqino.apk
+            release/laqino.apk.sha256
+          overwrite_files: true
+          make_latest: true
+          fail_on_unmatched_files: true
