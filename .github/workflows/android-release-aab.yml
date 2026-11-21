@@ -139,9 +139,9 @@ jobs:
           VERIFY_AAB="$(jarsigner -verify -verbose "$AAB" 2>&1)"
           printf '%s\n' "$VERIFY_AAB" | grep -q "jar verified"
           CERT_OUTPUT="$("$ANDROID_HOME/build-tools/35.0.0/apksigner" verify --verbose --print-certs "$APK" 2>&1)"
-          printf '%s\\n' "$CERT_OUTPUT"
+          printf '%s\n' "$CERT_OUTPUT"
           EXPECTED_CERT_SHA256="a0a3485dc2c52990d0bf5539142c4dc5ea95210ac6274866b42821d4f6f7b40a"
-          printf '%s\\n' "$CERT_OUTPUT" | grep -iFq "Signer #1 certificate SHA-256 digest: $EXPECTED_CERT_SHA256" || {
+          printf '%s\n' "$CERT_OUTPUT" | grep -iFq "Signer #1 certificate SHA-256 digest: $EXPECTED_CERT_SHA256" || {
             echo "::error::APK signing certificate does not match the currently supplied Laqino APK. Refusing to publish an incompatible update."
             exit 1
           }
