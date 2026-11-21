@@ -18,7 +18,7 @@ concurrency:
 
 jobs:
   build-release-aab:
-    name: Build signed Laqino AAB
+    name: Build signed Laqino APK and AAB
     runs-on: ubuntu-latest
     timeout-minutes: 60
     steps:
@@ -29,6 +29,11 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: 22
+
+      - name: Syntax-check contextual install prompt
+        run: |
+          test -s static/app-install-prompt.js
+          node --check static/app-install-prompt.js
 
       - name: Set up Java
         uses: actions/setup-java@v4
