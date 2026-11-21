@@ -1,0 +1,146 @@
+name: Build and Publish Laqino Android APK
+
+on:
+  workflow_dispatch:
+    inputs:
+      release_notes:
+        description: "Optional release notes shown on the download release"
+        required: false
+        type: string
+        default: "تحديث تطبيق لاقينو للأندرويد."
+
+permissions:
+  contents: write
+
+concurrency:
+  group: laqino-public-android-apk
+  cancel-in-progress: false
+
+jobs:
+  build-and-publish:
+    name: Build, verify, and publish signed Laqino APK
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - name: Checkout source
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Set up Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 21
+
+      - name: Set up Android SDK
+        uses: android-actions/setup-android@v4
+        with:
+          packages: 'platform-tools'
+
+      - name: Install Android SDK 36
+        run: |
+          yes | sdkmanager --licenses >/dev/null
+          sdkmanager "platform-tools" "platforms;android-36" "build-tools;35.0.0"
+
+      - name: Install pinned Capacitor dependencies
+        working-directory: android
+        run: |
+          if [ ! -f package-lock.json ]; then
+            npm install --package-lock-only --ignore-scripts --no-audit --no-fund
+          fi
+          npm ci --no-audit --no-fund
+
+      - name: Generate native Android project when needed
+        working-directory: android
+        run: |
+          if [ ! -f android/app/build.gradle ]; then
+            npx cap add android
+          fi
+
+      - name: Configure Firebase for native FCM
+        working-directory: android
+        env:
+          GOOGLE_SERVICES_JSON: ${{ secrets.GOOGLE_SERVICES_JSON }}
+        run: |
+          set -eu
+          test -n "$GOOGLE_SERVICES_JSON" || { echo "::error::Missing GOOGLE_SERVICES_JSON"; exit 1; }
+          python3 - <<'PY'
+          import json, os
+          data = json.loads(os.environ["GOOGLE_SERVICES_JSON"])
+          names = [c.get("client_info", {}).get("android_client_info", {}).get("package_name")
+                   for c in data.get("client", [])]
+          if "com.laqino.app" not in names:
+              raise SystemExit("Firebase config does not contain com.laqino.app")
+          os.makedirs("android/app", exist_ok=True)
+          with open("android/app/google-services.json", "w", encoding="utf-8") as f:
+              json.dump(data, f)
+          PY
+
+      - name: Configure official Android signing key
+        working-directory: android
+        env:
+          ANDROID_KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+          ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+          ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
+        run: |
+          set -eu
+          test -n "$ANDROID_KEYSTORE_BASE64" || { echo "::error::Missing ANDROID_KEYSTORE_BASE64"; exit 1; }
+          test -n "$ANDROID_KEYSTORE_PASSWORD" || { echo "::error::Missing ANDROID_KEYSTORE_PASSWORD"; exit 1; }
+          test -n "$ANDROID_KEY_ALIAS" || { echo "::error::Missing ANDROID_KEY_ALIAS"; exit 1; }
+          test -n "$ANDROID_KEY_PASSWORD" || { echo "::error::Missing ANDROID_KEY_PASSWORD"; exit 1; }
+          KEYSTORE_PATH="$RUNNER_TEMP/laqino-upload.jks"
+          printf '%s' "$ANDROID_KEYSTORE_BASE64" | base64 --decode > "$KEYSTORE_PATH"
+          test -s "$KEYSTORE_PATH"
+          export KEYSTORE_PATH
+          python3 - <<'PY'
+          import os
+          def prop(value):
+              return value.replace("\\", "\\\\").replace("\n", "\\n").replace("\r", "\\r").replace(":", "\\:").replace("=", "\\=")
+          values = {
+              "storeFile": os.environ["KEYSTORE_PATH"],
+              "storePassword": os.environ["ANDROID_KEYSTORE_PASSWORD"],
+              "keyAlias": os.environ["ANDROID_KEY_ALIAS"],
+              "keyPassword": os.environ["ANDROID_KEY_PASSWORD"],
+          }
+          with open("keystore.properties", "w", encoding="utf-8") as f:
+              for key, value in values.items():
+                  f.write(key + "=" + prop(value) + "\n")
+          PY
+
+      - name: Build signed Android bundle and prepare native project
+        working-directory: android
+        run: sh tools/build_aab.sh
+
+      - name: Build signed Release APK
+        working-directory: android/android
+        run: ./gradlew --no-daemon --stacktrace assembleRelease
+
+      - name: Verify package identity and APK signature
+        run: |
+          APK="android/android/app/build/outputs/apk/release/app-release.apk"
+          test -s "$APK"
+          "$ANDROID_HOME/build-tools/35.0.0/apksigner" verify --verbose --print-certs "$APK"
+          "$ANDROID_HOME/build-tools/35.0.0/aapt" dump badging "$APK" | grep -F "package: name='com.laqino.app'"
+          mkdir -p release
+          cp "$APK" release/laqino.apk
+          sha256sum release/laqino.apk | tee release/laqino.apk.sha256
+          ls -lh release/laqino.apk
+
+      - name: Publish or update the stable Android download release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: android-latest
+          target_commitish: ${{ github.sha }}
+          name: Laqino Android — Latest
+          body: ${{ inputs.release_notes }}
+          files: |
+            release/laqino.apk
+            release/laqino.apk.sha256
+          overwrite_files: true
+          make_latest: true
+          fail_on_unmatched_files: true
