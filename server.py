@@ -5,6 +5,8 @@ import base64, sqlite3, json, os, secrets, hashlib, hmac, sys, time, mimetypes, 
 import notif, account
 from http.server import ThreadingHTTPServer, BaseHTTPRequestHandler
 from urllib.parse import urlparse, parse_qs, quote
+from urllib.request import urlopen
+from urllib.error import HTTPError, URLError
 import market
 import gsearch, products, product_orders, provider_delivery, shops, shop_delivery, shop_delivery_stats, rx, chat, svc, overview, fcm, exchange, lsocial, bulk_import, shop_bulk_import
 DB = os.environ.get("LAQINO_DB", "laqino.db")
@@ -971,11 +973,34 @@ class H(BaseHTTPRequestHandler):
                 finally:
                     c.close()
             if method == "GET" and path in ("/download", "/download/"):
-                # Stable public APK URL; the release asset is replaced by the signed APK publishing workflow.
-                return self.send(302, None, "text/plain", b"", {
-                    "Location": "https://github.com/Tarek2024/Laqino/releases/download/android-latest/laqino.apk",
-                    "Cache-Control": "no-store"
-                })
+                # Proxy the stable release asset server-side so the visitor receives the APK directly,
+                # with no browser-visible redirect to GitHub.
+                asset_url = "https://github.com/Tarek2024/Laqino/releases/download/android-latest/laqino.apk"
+                try:
+                    with urlopen(asset_url, timeout=60) as upstream:
+                        if getattr(upstream, "status", 200) != 200:
+                            return self.send(503, {"error": "ملف التطبيق غير متاح حاليًا، حاول مرة أخرى لاحقًا"})
+                        length = upstream.headers.get("Content-Length")
+                        self.send_response(200)
+                        self.send_header("Content-Type", "application/vnd.android.package-archive")
+                        if length and length.isdigit():
+                            self.send_header("Content-Length", length)
+                        self.send_header("Content-Disposition", 'attachment; filename="laqino.apk"')
+                        self.send_header("Cache-Control", "no-store")
+                        self.send_header("X-Content-Type-Options", "nosniff")
+                        self.send_header("X-Frame-Options", "DENY")
+                        self.send_header("Referrer-Policy", "same-origin")
+                        self.send_header("Content-Security-Policy", CSP)
+                        self.end_headers()
+                        while True:
+                            chunk = upstream.read(64 * 1024)
+                            if not chunk:
+                                break
+                            self.wfile.write(chunk)
+                        return
+                except (HTTPError, URLError, TimeoutError, OSError) as exc:
+                    print("APK download proxy failed:", repr(exc), file=sys.stderr)
+                    return self.send(503, {"error": "تعذّر تحميل التطبيق حاليًا، حاول مرة أخرى لاحقًا"})
             if path == "/healthz":
                 try: c = db(); c.execute("SELECT 1").fetchone(); c.close()
                 except sqlite3.Error: return self.send(503, {"ok": False})
