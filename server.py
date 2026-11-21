@@ -970,6 +970,12 @@ class H(BaseHTTPRequestHandler):
                     return self.send(500, {"error": "تعذّر تجهيز معاينة الإعلان"})
                 finally:
                     c.close()
+            if method == "GET" and path in ("/download", "/download/"):
+                # Stable public APK URL; the release asset is replaced by the signed APK publishing workflow.
+                return self.send(302, None, "text/plain", b"", {
+                    "Location": "https://github.com/Tarek2024/Laqino/releases/download/android-latest/laqino.apk",
+                    "Cache-Control": "no-store"
+                })
             if path == "/healthz":
                 try: c = db(); c.execute("SELECT 1").fetchone(); c.close()
                 except sqlite3.Error: return self.send(503, {"ok": False})
