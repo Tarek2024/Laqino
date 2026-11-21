@@ -73,7 +73,8 @@
           cleanup();
           return;
         }
-        if (isTyping(document.activeElement) || document.hidden) {
+        var overlayOpen = root.querySelector('.home-sheet-backdrop:not([hidden]), .sheet:not([hidden]), .home-auth[open]');
+        if (isTyping(document.activeElement) || overlayOpen || document.hidden) {
           armed = false;
           return;
         }
