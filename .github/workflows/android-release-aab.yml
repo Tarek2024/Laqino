@@ -132,7 +132,7 @@ jobs:
           import re
           from pathlib import Path
           version_text = Path("../VERSION").read_text(encoding="utf-8")
-          release = re.search(r"^release=phase-(\\d+)$", version_text, re.M)
+          release = re.search(r"^release=phase-(\d+)$", version_text, re.M)
           if not release:
               raise SystemExit("VERSION must contain release=phase-N to set Android versionCode")
           version_code = int(release.group(1))
@@ -141,7 +141,7 @@ jobs:
           gradle = Path("android/app/build.gradle")
           source = gradle.read_text(encoding="utf-8")
           updated, count = re.subn(
-              r"(defaultConfig\\s*\\{[\\s\\S]*?\\bversionCode\\s+)\\d+",
+              r"(defaultConfig\s*\{[\s\S]*?\bversionCode\s+)\d+",
               lambda match: match.group(1) + str(version_code),
               source,
               count=1,
