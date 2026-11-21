@@ -167,14 +167,14 @@ jobs:
           test -s "$AAB"
           test -s "$APK"
           VERIFY_AAB="$(jarsigner -verify -verbose "$AAB" 2>&1)"
-          printf '%s\n' "$VERIFY_AAB" | grep -q "jar verified"
+          case "$VERIFY_AAB" in *"jar verified"*) ;; *) echo "::error::AAB signature verification failed"; exit 1 ;; esac
           CERT_OUTPUT="$("$ANDROID_HOME/build-tools/35.0.0/apksigner" verify --verbose --print-certs "$APK" 2>&1)"
           printf '%s\n' "$CERT_OUTPUT"
           EXPECTED_CERT_SHA256="a0a3485dc2c52990d0bf5539142c4dc5ea95210ac6274866b42821d4f6f7b40a"
-          printf '%s\n' "$CERT_OUTPUT" | grep -iFq "Signer #1 certificate SHA-256 digest: $EXPECTED_CERT_SHA256" || {
-            echo "::error::APK signing certificate does not match the currently supplied Laqino APK. Refusing to publish an incompatible update."
-            exit 1
-          }
+          case "$CERT_OUTPUT" in
+            *"Signer #1 certificate SHA-256 digest: $EXPECTED_CERT_SHA256"*) ;;
+            *) echo "::error::APK signing certificate does not match the currently supplied Laqino APK. Refusing to publish an incompatible update."; exit 1 ;;
+          esac
           echo "PASS: APK signing certificate matches the supplied installed-app reference"
           "$ANDROID_HOME/build-tools/35.0.0/aapt" dump badging "$APK" | grep -F "package: name='com.laqino.app'"
           mkdir -p release
@@ -196,7 +196,7 @@ jobs:
           AAB="android/android/app/build/outputs/bundle/release/app-release.aab"
           test -s "$AAB"
           VERIFY_OUTPUT="$(jarsigner -verify -verbose "$AAB" 2>&1)"
-          printf '%s\n' "$VERIFY_OUTPUT" | grep -q "jar verified"
+          case "$VERIFY_OUTPUT" in *"jar verified"*) ;; *) echo "::error::AAB signature verification failed"; exit 1 ;; esac
           echo "PASS: AAB signature is present and cryptographically valid"
           ls -lh "$AAB"
 
