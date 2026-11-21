@@ -125,6 +125,33 @@ jobs:
         working-directory: android
         run: npx cap sync android
 
+      - name: Set Android versionCode from the project release phase
+        working-directory: android
+        run: |
+          python3 - <<'PY'
+          import re
+          from pathlib import Path
+          version_text = Path("../VERSION").read_text(encoding="utf-8")
+          release = re.search(r"^release=phase-(\\d+)$", version_text, re.M)
+          if not release:
+              raise SystemExit("VERSION must contain release=phase-N to set Android versionCode")
+          version_code = int(release.group(1))
+          if version_code < 2:
+              raise SystemExit(f"Refusing non-incremental Android versionCode: {version_code}")
+          gradle = Path("android/app/build.gradle")
+          source = gradle.read_text(encoding="utf-8")
+          updated, count = re.subn(
+              r"(defaultConfig\\s*\\{[\\s\\S]*?\\bversionCode\\s+)\\d+",
+              lambda match: match.group(1) + str(version_code),
+              source,
+              count=1,
+          )
+          if count != 1:
+              raise SystemExit("Could not safely locate versionCode inside Android defaultConfig")
+          gradle.write_text(updated, encoding="utf-8")
+          print(f"Android versionCode set to {version_code} from release phase {release.group(1)}")
+          PY
+
       - name: Build and validate signed AAB
         working-directory: android
         run: sh tools/build_aab.sh
