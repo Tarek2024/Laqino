@@ -20,6 +20,8 @@ self.addEventListener("activate", e => { e.waitUntil(caches.keys().then(ks => Pr
 self.addEventListener("fetch", e => {
   const r = e.request, u = new URL(r.url);
   if (r.method !== "GET" || u.origin !== location.origin || u.pathname.startsWith("/api/")) return;
+  // Let the browser handle APK downloads and the external release redirect directly; never cache the binary in the app shell.
+  if (u.pathname === "/download" || u.pathname === "/download/") return;
   // network first, fall back to cache, then to the offline page for navigations
   e.respondWith(fetch(r).then(res => { if (res.ok) { const cp = res.clone(); caches.open(V).then(c => c.put(r, cp)); } return res; })
     .catch(() => caches.match(r).then(m => m || (r.mode === "navigate" ? caches.match("/offline.html") : Response.error()))));
