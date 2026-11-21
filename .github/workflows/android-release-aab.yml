@@ -1,6 +1,9 @@
 name: Build and Publish Laqino Android Release
 
 on:
+  push:
+    branches:
+      - feature/smart-app-install-promotion-20261121
   workflow_dispatch:
     inputs:
       release_notes:
@@ -181,6 +184,7 @@ jobs:
           retention-days: 14
 
       - name: Publish or update the stable Android download release
+        if: github.event_name == 'workflow_dispatch'
         uses: softprops/action-gh-release@v2
         with:
           tag_name: android-latest
