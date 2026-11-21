@@ -1438,7 +1438,11 @@ class H(BaseHTTPRequestHandler):
                     return self.send(200, {"featured": True, "featured_until": until})
                 except E: c.rollback() if c.in_transaction else None; raise
             if method == "GET" and path == "/api/admin/listings":
-                self.need(u, "admin", "staff"); return self.send(200, [dict(r) for r in c.execute("SELECT l.*,u.name seller,u.phone seller_phone FROM listings l JOIN users u ON u.id=l.user_id WHERE l.status=? ORDER BY l.id", (q.get("status", ["pending"])[0],))])
+                self.need(u, "admin", "staff")
+                rows = [dict(r) for r in c.execute("SELECT l.*,u.name seller,u.phone seller_phone,(SELECT name_ar FROM categories WHERE id=l.category_id) category_name,(SELECT name_ar FROM regions WHERE id=l.region_id) region_name FROM listings l JOIN users u ON u.id=l.user_id WHERE l.status=? ORDER BY l.id", (q.get("status", ["pending"])[0],))]
+                imgs = market.images_for(c, [r["id"] for r in rows])
+                for row in rows: row["images"] = imgs.get(row["id"], [])
+                return self.send(200, rows)
             m = re.fullmatch(r"/api/admin/listings/(\d+)/review", path)
             if method == "POST" and m:
                 self.need(u, "admin", "staff"); d = self.body(); st = d.get("status")
