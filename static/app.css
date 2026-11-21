@@ -968,3 +968,14 @@ body.app .home-sheet-about{margin:2px 0 0;padding-top:12px;border-top:1px solid 
 @keyframes homeSheetIn{from{transform:translateY(18px);opacity:.7}to{transform:translateY(0);opacity:1}}
 @media(prefers-reduced-motion:reduce){body.app .home-sheet{animation:none}}
 @media(max-width:360px){body.app .home-sheet-actions{grid-template-columns:1fr}body.app .home-sheet{padding-inline:12px}}
+
+
+/* Quiet Android website-install invitation: only after homepage engagement. */
+body.app .laq-home-install{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin:10px 0 0;padding:10px 12px;border:1px solid #dce6f4;border-radius:14px;background:#f7faff;color:var(--navy);box-shadow:0 2px 8px #0f2a5c08}
+body.app .laq-home-install-copy{display:flex;flex:1 1 170px;min-width:0;flex-direction:column;gap:2px}
+body.app .laq-home-install-copy strong{font:700 .86rem/1.4 var(--fd);color:var(--navy)}
+body.app .laq-home-install-copy small{font:500 .73rem/1.5 var(--fb);color:#687891}
+body.app .laq-home-install-actions{display:flex;align-items:center;gap:6px}
+body.app .laq-home-install-link{display:inline-flex;align-items:center;justify-content:center;min-height:36px;padding:7px 12px;border:0;border-radius:10px;background:#1457a6;color:#fff;text-decoration:none;font:700 .78rem var(--fb);white-space:nowrap}
+body.app .laq-home-install-close{display:grid;place-items:center;width:32px;min-width:32px;height:32px;min-height:32px;margin:0;padding:0;border:0;border-radius:9px;background:transparent;color:#718096;font-size:1.15rem}
+@media(max-width:360px){body.app .laq-home-install{gap:7px;padding:9px}body.app .laq-home-install-link{padding-inline:9px}}

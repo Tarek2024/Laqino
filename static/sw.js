@@ -1,5 +1,5 @@
 // Service worker: caches only the static app shell. /api/* is NEVER cached (live data, tokens, private files).
-const V = "laqino-v159", SHELL = ["/", "/register.html", "/courier.html", "/pharmacy.html", "/shop.html", "/shops.html", "/shop-identity.js", "/admin.html", "/assets/logo.jpg", "/assets/mascot.jpg", "/assets/icon-192.png", "/manifest.webmanifest", "/offline.html", "/theme.css", "/app.css", "/panel.css", "/notif.js", "/native.js", "/perm.js", "/location.js", "/market.html", "/market-ui.css", "/market-ui.css?v=1", "/market-enhancements.css", "/market-enhancements.css?v=9", "/shell.css", "/shell.js", "/assets/mascot-cut.webp", "/pdelivery.js", "/pdelivery.css", "/pdelivery-admin.js", "/pdelivery-courier.js", "/pdelivery-dash.js", "/pdelivery-admin-dash.js"];
+const V = "laqino-v160", SHELL = ["/", "/register.html", "/courier.html", "/pharmacy.html", "/shop.html", "/shops.html", "/shop-identity.js", "/admin.html", "/assets/logo.jpg", "/assets/mascot.jpg", "/assets/icon-192.png", "/manifest.webmanifest", "/offline.html", "/theme.css", "/app.css", "/panel.css", "/notif.js", "/native.js", "/app-install-prompt.js", "/perm.js", "/location.js", "/market.html", "/market-ui.css", "/market-ui.css?v=1", "/market-enhancements.css", "/market-enhancements.css?v=9", "/shell.css", "/shell.js", "/assets/mascot-cut.webp", "/pdelivery.js", "/pdelivery.css", "/pdelivery-admin.js", "/pdelivery-courier.js", "/pdelivery-dash.js", "/pdelivery-admin-dash.js"];
 self.addEventListener("install", e => {
   e.waitUntil((async () => {
     // Cache each shell file independently: one missing/failed asset must not block the whole app update.
@@ -20,6 +20,8 @@ self.addEventListener("activate", e => { e.waitUntil(caches.keys().then(ks => Pr
 self.addEventListener("fetch", e => {
   const r = e.request, u = new URL(r.url);
   if (r.method !== "GET" || u.origin !== location.origin || u.pathname.startsWith("/api/")) return;
+  // Let the browser handle APK downloads and the external release redirect directly; never cache the binary in the app shell.
+  if (u.pathname === "/download" || u.pathname === "/download/") return;
   // network first, fall back to cache, then to the offline page for navigations
   e.respondWith(fetch(r).then(res => { if (res.ok) { const cp = res.clone(); caches.open(V).then(c => c.put(r, cp)); } return res; })
     .catch(() => caches.match(r).then(m => m || (r.mode === "navigate" ? caches.match("/offline.html") : Response.error()))));
