@@ -36,15 +36,27 @@ fi
 [ -f android/gradle/wrapper/gradle-wrapper.properties ] || fail "Gradle wrapper properties are missing"
 [ -f android/app/google-services.json ] || fail "Missing android/app/google-services.json from Firebase"
 
-# Use the newly uploaded approved Laqino launcher icon as the Android source of truth.
-# Generate legacy density icons plus Android adaptive launcher icon resources.
+# Use the approved Laqino launcher icon as the Android source of truth.
 ICON_SOURCE="resources/file_00000000b2948210a38eac961410fe50.png"
 [ -s "$ICON_SOURCE" ] || fail "Approved Laqino Android icon is missing: $ICON_SOURCE"
-mkdir -p resources
 cp "$ICON_SOURCE" resources/icon.png
+echo "Approved launcher icon source:"
+sha256sum "$ICON_SOURCE" resources/icon.png
+
+# capacitor-assets 3.0.5 does not overwrite existing generated files. Remove
+# ONLY launcher-icon resources first so the generator must recreate them from
+# the approved source instead of silently keeping the old launcher artwork.
+RES_DIR="android/app/src/main/res"
+[ -d "$RES_DIR" ] || fail "Android resources directory is missing: $RES_DIR"
+find "$RES_DIR" -type f -name 'ic_launcher*' -print -delete
 npx --yes @capacitor/assets@3.0.5 generate --android --assetPath ./resources --androidProject ./android --iconBackgroundColor '#ffffff'
-[ -s android/app/src/main/res/mipmap-hdpi/ic_launcher.png ] || fail "Laqino launcher icon generation did not create mipmap-hdpi/ic_launcher.png"
-[ -s android/app/src/main/res/mipmap-anydpi-v26/ic_launcher.xml ] || fail "Laqino adaptive launcher icon XML was not generated"
+
+[ -s "$RES_DIR/mipmap-hdpi/ic_launcher.png" ] || fail "Laqino launcher icon generation did not create mipmap-hdpi/ic_launcher.png"
+[ -s "$RES_DIR/mipmap-anydpi-v26/ic_launcher.xml" ] || fail "Laqino adaptive launcher icon XML was not generated"
+[ -s "$RES_DIR/mipmap-hdpi/ic_launcher_foreground.png" ] || fail "Laqino adaptive launcher foreground was not generated"
+echo "Generated launcher icon resources:"
+find "$RES_DIR" -type f -name 'ic_launcher*' -print
+sha256sum "$RES_DIR/mipmap-hdpi/ic_launcher.png" "$RES_DIR/mipmap-hdpi/ic_launcher_foreground.png"
 
 npx cap sync android
 python3 tools/ensure_location_permissions.py android/app/src/main/AndroidManifest.xml
