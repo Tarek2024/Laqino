@@ -124,7 +124,7 @@ def main():
         gradle = read(app_gradle)
         app_id = re.search(r"applicationId\s+[\"']([^\"']+)", gradle)
         version_code = re.search(r"versionCode\s+(\d+)", gradle)
-        check("applicationId is com.laqino.app", bool(app_id) and app_id.group(1) == "com.laqino.app",
+        check("applicationId is com.tarekmarket.app", bool(app_id) and app_id.group(1) == "com.tarekmarket.app",
               app_id.group(1) if app_id else "not found")
         check("versionCode is declared", bool(version_code))
         check("Release signing block is configured",
@@ -141,7 +141,7 @@ def main():
                 client.get("client_info", {}).get("android_client_info", {}).get("package_name")
                 for client in firebase.get("client", [])
             ]
-            check("Firebase config contains package com.laqino.app", "com.laqino.app" in package_names, package_names)
+            check("Firebase config contains package com.tarekmarket.app", "com.tarekmarket.app" in package_names, package_names)
         except (ValueError, OSError) as exc:
             check("Firebase config is valid JSON", False, exc)
 
@@ -151,7 +151,7 @@ def main():
     if os.path.isfile(config_path):
         try:
             config = json.loads(read(config_path))
-            check("Capacitor appId is com.laqino.app", config.get("appId") == "com.laqino.app", config.get("appId"))
+            check("Capacitor appId is com.tarekmarket.app", config.get("appId") == "com.tarekmarket.app", config.get("appId"))
             check("Capacitor server.url uses HTTPS",
                   str(config.get("server", {}).get("url", "")).startswith("https://"))
         except (ValueError, OSError) as exc:
