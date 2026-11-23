@@ -36,10 +36,10 @@ fi
 [ -f android/gradle/wrapper/gradle-wrapper.properties ] || fail "Gradle wrapper properties are missing"
 [ -f android/app/google-services.json ] || fail "Missing android/app/google-services.json from Firebase"
 
-# Use the existing Laqino 512px brand icon as the single source of truth.
+# Use the newly uploaded approved Laqino launcher icon as the Android source of truth.
 # Generate legacy density icons plus Android adaptive launcher icon resources.
-ICON_SOURCE="../static/assets/icon-512.png"
-[ -s "$ICON_SOURCE" ] || fail "Laqino source icon is missing: $ICON_SOURCE"
+ICON_SOURCE="resources/file_00000000b2948210a38eac961410fe50.png"
+[ -s "$ICON_SOURCE" ] || fail "Approved Laqino Android icon is missing: $ICON_SOURCE"
 mkdir -p resources
 cp "$ICON_SOURCE" resources/icon.png
 npx --yes @capacitor/assets@3.0.5 generate --android --assetPath ./resources --androidProject ./android --iconBackgroundColor '#ffffff'
