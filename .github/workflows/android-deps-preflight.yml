@@ -4,6 +4,7 @@ on:
   push:
     branches:
       - feature/android-aab-release-prep
+      - feature/update-app-icon-2026-11-23
     paths:
       - 'android/package.json'
       - 'android/capacitor.config.json'
@@ -83,7 +84,7 @@ jobs:
           import json
           from pathlib import Path
           config = json.loads(Path("capacitor.config.json").read_text())
-          assert config.get("appId") == "com.laqino.app", config.get("appId")
+          assert config.get("appId") == "com.tarekmarket.app", config.get("appId")
           assert config.get("server", {}).get("url", "").startswith("https://"), "server.url must use HTTPS"
           variables = Path("android/variables.gradle").read_text()
           for key, expected in (("compileSdkVersion", 36), ("targetSdkVersion", 36), ("minSdkVersion", 24)):
