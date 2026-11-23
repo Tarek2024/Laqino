@@ -53,10 +53,11 @@ npx --yes @capacitor/assets@3.0.5 generate --android --assetPath ./resources --a
 
 [ -s "$RES_DIR/mipmap-hdpi/ic_launcher.png" ] || fail "Laqino launcher icon generation did not create mipmap-hdpi/ic_launcher.png"
 [ -s "$RES_DIR/mipmap-anydpi-v26/ic_launcher.xml" ] || fail "Laqino adaptive launcher icon XML was not generated"
-[ -s "$RES_DIR/mipmap-hdpi/ic_launcher_foreground.png" ] || fail "Laqino adaptive launcher foreground was not generated"
+FOREGROUND_ICON="$(find "$RES_DIR" -type f -name 'ic_launcher_foreground.png' -print -quit)"
+[ -n "$FOREGROUND_ICON" ] && [ -s "$FOREGROUND_ICON" ] || fail "Laqino adaptive launcher foreground was not generated"
 echo "Generated launcher icon resources:"
 find "$RES_DIR" -type f -name 'ic_launcher*' -print
-sha256sum "$RES_DIR/mipmap-hdpi/ic_launcher.png" "$RES_DIR/mipmap-hdpi/ic_launcher_foreground.png"
+sha256sum "$RES_DIR/mipmap-hdpi/ic_launcher.png" "$FOREGROUND_ICON"
 
 npx cap sync android
 python3 tools/ensure_location_permissions.py android/app/src/main/AndroidManifest.xml
