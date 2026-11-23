@@ -59,8 +59,8 @@ jobs:
           fi
           printf '%s' "$GOOGLE_SERVICES_JSON" > android/app/google-services.json
           python -m json.tool android/app/google-services.json >/dev/null
-          grep -q '"com.laqino.app"' android/app/google-services.json || {
-            echo "::error::google-services.json does not contain package com.laqino.app"
+          grep -q '"com.tarekmarket.app"' android/app/google-services.json || {
+            echo "::error::google-services.json does not contain package com.tarekmarket.app"
             exit 1
           }
 
